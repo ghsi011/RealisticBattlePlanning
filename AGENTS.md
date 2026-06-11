@@ -19,7 +19,9 @@ parallel one.
 
 ## Repo layout
 
-- `src/` — the C# project (`net6.0`). One assembly: `RealisticBattlePlanning.dll`.
+- `src/` — the C# project (`net472`). One assembly: `RealisticBattlePlanning.dll`.
+  An engine-free `RealisticBattlePlanning.Core` (`netstandard2.0`) plus a test
+  project split out from it is scheduled as plan iteration I2.
 - `Module/` — files copied verbatim into the deployed module root
   (`SubModule.xml`, eventually `ModuleData/`, `GUI/`, etc.).
 - `Directory.Build.props` — resolves `BannerlordGameDir` and `ModuleDeployDir`.
@@ -57,8 +59,30 @@ The build is hermetic except for `BannerlordGameDir` — it must point at a
 Bannerlord install containing `bin\Win64_Shipping_Client\TaleWorlds.Library.dll`,
 or the build errors out with a readable message.
 
-Launch via BLSE. There is no automated way to verify in-game behavior; if you
-change something visible, say "verified by launching" or say you couldn't.
+Launch via BLSE. There is no automated way to verify in-game behavior (until
+the Layer-2 harness lands, plan I5); if you change something visible, say
+"verified by launching" or say you couldn't.
+
+## Testing
+
+Three binding layers — details in
+[docs/implementation-plan.md](docs/implementation-plan.md), "Testing
+architecture (binding)":
+
+1. **Pure logic** — all plan/trigger/stage/fidelity/XP/template logic lives in
+   `RealisticBattlePlanning.Core` (`netstandard2.0`, no TaleWorlds types) and
+   is unit-tested with scripted snapshot timelines via `dotnet test`
+   (`net8.0` test project, no game install needed).
+2. **Engine integration** — dev-mode in-game scenario harness: scripted
+   battles, a recorder MissionBehavior, tolerance-based assertions encoding
+   the spec's H-scenarios.
+3. **Engine contract** — reflection checks at mod load (dev mode) that every
+   patched/depended-on TaleWorlds member still has the expected signature.
+
+A feature is not done until its Layer-1 tests exist and its numeric H-scenario
+(if any) runs in the harness. If something is hard to test, move the logic out
+of the engine layer rather than write a clever engine-coupled test. Every plan
+deviation in the log is tagged `INTENDED_FIDELITY` or `FAULT` (spec R2).
 
 ## Available frameworks
 
@@ -108,6 +132,12 @@ build time without shipping a copy.
 
 1. Re-read the relevant section of the spec.
 2. Grep the two reference mods for a matching pattern.
-3. Grep vanilla Bannerlord assemblies (via dotPeek / ILSpy) for the type
-   you're about to override.
+3. Decompile the vanilla assembly and read it — `ilspycmd` is installed as a
+   global dotnet tool on this machine
+   (`ilspycmd <game>\bin\Win64_Shipping_Client\TaleWorlds.MountAndBlade.dll -p -o <tmpdir>`).
+   Engine lifecycle ordering has already bitten once: submodule
+   `OnMissionBehaviorInitialize` runs before behaviors' `EarlyStart`, so
+   mission state like `Mission.IsFieldBattle` (set by
+   `MissionCombatantsLogic.EarlyStart`) is not valid at attach time — check
+   such state in `AfterStart` or later.
 4. Only then write something new.

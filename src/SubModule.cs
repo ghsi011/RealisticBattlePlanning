@@ -37,7 +37,7 @@ namespace RealisticBattlePlanning
             base.OnMissionBehaviorInitialize(mission);
             try
             {
-                if (PlannableMission.Check(mission, out var reason))
+                if (PlannableMission.CheckOnAttach(mission, out var reason))
                 {
                     mission.AddMissionBehavior(new PlanMissionLogic());
                 }

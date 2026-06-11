@@ -15,6 +15,7 @@ namespace RealisticBattlePlanning.Execution
     public sealed class PlanMissionLogic : MissionLogic
     {
         private BattlePlan _plan;
+        private bool _active;
 
         public override void AfterStart()
         {
@@ -23,11 +24,13 @@ namespace RealisticBattlePlanning.Execution
             {
                 LogMissionFacts();
 
-                if (Mission.PlayerTeam == null || !Mission.PlayerTeam.IsPlayerGeneral)
+                if (!PlannableMission.CheckAfterStart(Mission, out var reason))
                 {
-                    RbpLog.Info("Player does not command this battle; plan logic stays inert (G6).");
+                    RbpLog.Info($"Plan logic stays inert: {reason}.");
                     return;
                 }
+
+                _active = true;
 
                 _plan = DebugPlanLoader.TryLoad();
                 if (_plan == null)
@@ -60,7 +63,7 @@ namespace RealisticBattlePlanning.Execution
             base.OnDeploymentFinished();
             try
             {
-                if (Mission.PlayerTeam == null)
+                if (!_active || Mission.PlayerTeam == null)
                     return;
 
                 RbpLog.Info("Deployment finished. Player formations:");
