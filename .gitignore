@@ -55,3 +55,13 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# Per-machine build config (copied from local.props.example)
+local.props
+

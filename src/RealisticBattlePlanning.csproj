@@ -1,0 +1,94 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      net472, NOT net6.0: the Steam build of Bannerlord runs on the .NET
+      Framework CLR. A net6.0 assembly crashes the game on load trying to
+      resolve System.Runtime 6.0.
+    -->
+    <TargetFramework>net472</TargetFramework>
+    <Platforms>x64</Platforms>
+    <LangVersion>10</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>RealisticBattlePlanning</AssemblyName>
+    <RootNamespace>RealisticBattlePlanning</RootNamespace>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <!--
+    Mod-framework packages: compile-only. The runtime DLLs ship in the
+    Bannerlord.Harmony / Bannerlord.ButterLib / Bannerlord.UIExtenderEx /
+    Bannerlord.MBOptionScreen (MCM) modules, listed as dependencies in
+    Module\SubModule.xml.
+  -->
+  <ItemGroup>
+    <!-- Lets dotnet build target net472 without a locally installed targeting pack. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" IncludeAssets="compile" />
+    <PackageReference Include="Bannerlord.ButterLib" Version="2.9.18" IncludeAssets="compile" />
+    <PackageReference Include="Bannerlord.UIExtenderEx" Version="2.12.0" IncludeAssets="compile" />
+    <PackageReference Include="Bannerlord.MCM" Version="5.10.1" IncludeAssets="compile" />
+  </ItemGroup>
+
+  <!--
+    TaleWorlds + SandBox assemblies live in the game install.
+    Resolved via BannerlordGameDir from Directory.Build.props / local.props.
+    Private=False so we never copy these next to the mod DLL (the game already loads them).
+  -->
+  <ItemGroup>
+    <Reference Include="$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.*.dll"
+               Exclude="$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.Native.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(BannerlordGameDir)\Modules\Native\bin\Win64_Shipping_Client\*.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(BannerlordGameDir)\Modules\SandBox\bin\Win64_Shipping_Client\*.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(BannerlordGameDir)\Modules\SandBoxCore\bin\Win64_Shipping_Client\*.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(BannerlordGameDir)\Modules\StoryMode\bin\Win64_Shipping_Client\*.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Fail fast with a readable error if the game path isn't set up. -->
+  <Target Name="ValidateBannerlordGameDir" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.Library.dll')"
+           Text="BannerlordGameDir does not point at a valid Bannerlord install: '$(BannerlordGameDir)'. Copy local.props.example to local.props and set &lt;BannerlordGameDir&gt; to your install path." />
+  </Target>
+
+  <!--
+    Deploy: copy the built DLL + everything under Module\ to
+    $(BannerlordGameDir)\Modules\$(ModuleId), so the game sees a complete module.
+  -->
+  <ItemGroup>
+    <ModuleFiles Include="$(MSBuildThisFileDirectory)..\Module\**\*.*" />
+  </ItemGroup>
+
+  <Target Name="DeployToBannerlord" AfterTargets="Build">
+    <MakeDir Directories="$(ModuleDeployDir)\bin\Win64_Shipping_Client" />
+    <Copy SourceFiles="$(TargetDir)$(AssemblyName).dll"
+          DestinationFolder="$(ModuleDeployDir)\bin\Win64_Shipping_Client"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(TargetDir)$(AssemblyName).pdb"
+          DestinationFolder="$(ModuleDeployDir)\bin\Win64_Shipping_Client"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
+    <Copy SourceFiles="@(ModuleFiles)"
+          DestinationFiles="@(ModuleFiles->'$(ModuleDeployDir)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Deployed $(ModuleId) -&gt; $(ModuleDeployDir)" />
+  </Target>
+
+</Project>

@@ -1,0 +1,18 @@
+<Project>
+
+  <!--
+    Copy this file to "local.props" (next to Directory.Build.props) and
+    set BannerlordGameDir to your own Bannerlord install path.
+    local.props is gitignored.
+
+    Example paths:
+      Steam default:  C:\Program Files (x86)\Steam\steamapps\common\Mount &amp; Blade II Bannerlord
+      Custom Steam:   C:\games\Steam\steamapps\common\Mount &amp; Blade II Bannerlord
+      GOG:            C:\GOG Games\Mount &amp; Blade II - Bannerlord
+  -->
+
+  <PropertyGroup>
+    <BannerlordGameDir>C:\games\Steam\steamapps\common\Mount &amp; Blade II Bannerlord</BannerlordGameDir>
+  </PropertyGroup>
+
+</Project>

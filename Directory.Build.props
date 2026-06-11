@@ -1,0 +1,21 @@
+<Project>
+
+  <!--
+    Per-machine configuration: copy local.props.example to local.props
+    and set <BannerlordGameDir> to your Bannerlord install root.
+    local.props is gitignored so it never leaks machine paths into source.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)local.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)local.props')" />
+
+  <PropertyGroup>
+    <!-- Fallback: BANNERLORD_GAME_DIR env var, then a final hard default the user can override. -->
+    <BannerlordGameDir Condition="'$(BannerlordGameDir)' == ''">$(BANNERLORD_GAME_DIR)</BannerlordGameDir>
+    <BannerlordGameDir Condition="'$(BannerlordGameDir)' == ''">C:\games\Steam\steamapps\common\Mount &amp; Blade II Bannerlord</BannerlordGameDir>
+
+    <!-- Module identity: mirrored in SubModule.xml and the deploy path. -->
+    <ModuleId>RealisticBattlePlanning</ModuleId>
+    <ModuleDeployDir>$(BannerlordGameDir)\Modules\$(ModuleId)</ModuleDeployDir>
+  </PropertyGroup>
+
+</Project>
