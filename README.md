@@ -62,22 +62,35 @@ launcher mod list (drag it below the framework mods), start a new game or load
 a save. You should see a green "Realistic Battle Planning loaded" toast on the
 main menu.
 
+## Tests
+
+Engine-free logic lives in `RealisticBattlePlanning.Core` and is unit-tested
+without a game install:
+
+```powershell
+dotnet test src\RealisticBattlePlanning.Core.Tests
+```
+
 ## Project layout
 
 ```
 RealisticBattlePlanning/
-├── Directory.Build.props        # BannerlordGameDir + module identity
-├── local.props.example          # template for per-machine config
-├── local.props                  # gitignored, your real config
+├── Directory.Build.props                  # BannerlordGameDir + module identity
+├── local.props.example                    # template for per-machine config
+├── local.props                            # gitignored, your real config
 ├── RealisticBattlePlanning.sln
 ├── src/
-│   ├── RealisticBattlePlanning.csproj
-│   └── SubModule.cs             # MBSubModuleBase entry point
-├── Module/                      # everything here is copied into the deployed module root
-│   └── SubModule.xml
+│   ├── RealisticBattlePlanning/           # engine assembly (net472): SubModule, mission logic
+│   ├── RealisticBattlePlanning.Core/      # engine-free logic (netstandard2.0): plan model & co.
+│   └── RealisticBattlePlanning.Core.Tests/  # xUnit tests (net8.0)
+├── Module/                                # copied verbatim into the deployed module root
+│   ├── SubModule.xml
+│   └── ModuleData/rbp_debug_plan.json     # dev/test plan, hand-editable in the deployed copy
+├── tools/                                 # decompile-game.ps1, offline smoke tests
+├── docs/implementation-plan.md            # phased plan + binding testing architecture
 ├── bannerlord-battle-planning-mod-spec.md
 ├── README.md
-└── AGENTS.md                    # contributor + AI-assistant conventions
+└── AGENTS.md                              # contributor + AI-assistant conventions
 ```
 
 ## License

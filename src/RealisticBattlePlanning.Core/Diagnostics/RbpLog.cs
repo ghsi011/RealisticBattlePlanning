@@ -8,11 +8,18 @@ namespace RealisticBattlePlanning.Diagnostics
     /// Spec R2: this log is where intended fidelity noise gets distinguished
     /// from genuine execution faults, so every plan event goes through here.
     /// Must never throw into the game.
+    ///
+    /// Lives in Core (engine-free); the engine assembly plugs its debug
+    /// channel into <see cref="MirrorSink"/> so warnings/errors also reach
+    /// the game's rgl log.
     /// </summary>
     public static class RbpLog
     {
         private static readonly object Sync = new();
         private static string _path;
+
+        /// <summary>Optional secondary channel for WRN/ERR lines (engine sets this to Debug.Print).</summary>
+        public static Action<string> MirrorSink { get; set; }
 
         public static void Init(string moduleRoot)
         {
@@ -34,13 +41,13 @@ namespace RealisticBattlePlanning.Diagnostics
         public static void Warn(string message)
         {
             Write("WRN", message);
-            SafeDebugPrint($"[RBP][WRN] {message}");
+            Mirror($"[RBP][WRN] {message}");
         }
 
         public static void Error(string message, Exception e = null)
         {
             Write("ERR", e == null ? message : $"{message}{Environment.NewLine}{e}");
-            SafeDebugPrint($"[RBP][ERR] {message}");
+            Mirror($"[RBP][ERR] {message}");
         }
 
         private static void Write(string level, string message)
@@ -59,11 +66,11 @@ namespace RealisticBattlePlanning.Diagnostics
             }
         }
 
-        private static void SafeDebugPrint(string message)
+        private static void Mirror(string message)
         {
             try
             {
-                TaleWorlds.Library.Debug.Print(message);
+                MirrorSink?.Invoke(message);
             }
             catch (Exception)
             {

@@ -132,9 +132,9 @@ clean. Earlier iterations' verify steps keep passing (manual regression).
 
 ### I1 — Mission gating, infrastructure, plan model
 
-Foundation; no visible behavior change. **Status: implemented** — but
-everything below currently lives in the `net472` engine assembly; I2 relocates
-the engine-free parts into Core and gives them their first unit coverage.
+Foundation; no visible behavior change. **Status: implemented** (gating fix
+2026-06-11: `Mission.IsFieldBattle` is not valid at attach time — see
+`PlannableMission` for the engine-ordering constraint).
 
 - `MissionLogic` (or `MissionBehavior`) attached **only** to field battles the
   player commands — not sieges, hideouts, village fights, MP (G5). Detection
@@ -152,7 +152,8 @@ the engine-free parts into Core and gives them their first unit coverage.
 
 Small but blocking: the Plan Monitor (I3) is exactly the logic that must be
 born in Core behind snapshot interfaces, so the split happens before it is
-written.
+written. **Status: implemented** (34 tests; `dotnet test
+src\RealisticBattlePlanning.Core.Tests` runs gameless).
 
 - Create `RealisticBattlePlanning.Core` (`netstandard2.0`) and
   `RealisticBattlePlanning.Core.Tests` (`net8.0`, xUnit); engine assembly

@@ -18,11 +18,16 @@
     <Version>0.1.0</Version>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\RealisticBattlePlanning.Core\RealisticBattlePlanning.Core.csproj" />
+  </ItemGroup>
+
   <!--
     Mod-framework packages: compile-only. The runtime DLLs ship in the
     Bannerlord.Harmony / Bannerlord.ButterLib / Bannerlord.UIExtenderEx /
     Bannerlord.MBOptionScreen (MCM) modules, listed as dependencies in
-    Module\SubModule.xml.
+    Module\SubModule.xml. Newtonsoft comes transitively from Core and is
+    shipped by the game itself.
   -->
   <ItemGroup>
     <!-- Lets dotnet build target net472 without a locally installed targeting pack. -->
@@ -39,11 +44,6 @@
     Private=False so we never copy these next to the mod DLL (the game already loads them).
   -->
   <ItemGroup>
-    <!-- The game ships Newtonsoft.Json; reference it like the TaleWorlds assemblies. -->
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>$(BannerlordGameDir)\bin\Win64_Shipping_Client\Newtonsoft.Json.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.*.dll"
                Exclude="$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.Native.dll">
       <HintPath>%(Identity)</HintPath>
@@ -74,22 +74,25 @@
   </Target>
 
   <!--
-    Deploy: copy the built DLL + everything under Module\ to
-    $(BannerlordGameDir)\Modules\$(ModuleId), so the game sees a complete module.
+    Deploy: copy the built DLLs + everything under Module\ to
+    $(BannerlordGameDir)\Modules\$(ModuleId), so the game sees a complete
+    module. Deliberate whitelist — NuGet/runtime DLLs the game already ships
+    (Newtonsoft, Harmony) must not be copied.
   -->
   <ItemGroup>
-    <ModuleFiles Include="$(MSBuildThisFileDirectory)..\Module\**\*.*" />
+    <ModuleFiles Include="$(MSBuildThisFileDirectory)..\..\Module\**\*.*" />
   </ItemGroup>
 
   <Target Name="DeployToBannerlord" AfterTargets="Build">
+    <ItemGroup>
+      <DeployBinaries Include="$(TargetDir)$(AssemblyName).dll;$(TargetDir)$(AssemblyName).pdb" />
+      <DeployBinaries Include="$(TargetDir)RealisticBattlePlanning.Core.dll;$(TargetDir)RealisticBattlePlanning.Core.pdb" />
+    </ItemGroup>
     <MakeDir Directories="$(ModuleDeployDir)\bin\Win64_Shipping_Client" />
-    <Copy SourceFiles="$(TargetDir)$(AssemblyName).dll"
-          DestinationFolder="$(ModuleDeployDir)\bin\Win64_Shipping_Client"
-          SkipUnchangedFiles="true" />
-    <Copy SourceFiles="$(TargetDir)$(AssemblyName).pdb"
+    <Copy SourceFiles="@(DeployBinaries)"
           DestinationFolder="$(ModuleDeployDir)\bin\Win64_Shipping_Client"
           SkipUnchangedFiles="true"
-          Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
+          Condition="Exists('%(Identity)')" />
     <Copy SourceFiles="@(ModuleFiles)"
           DestinationFiles="@(ModuleFiles->'$(ModuleDeployDir)\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />

@@ -19,9 +19,14 @@ parallel one.
 
 ## Repo layout
 
-- `src/` — the C# project (`net472`). One assembly: `RealisticBattlePlanning.dll`.
-  An engine-free `RealisticBattlePlanning.Core` (`netstandard2.0`) plus a test
-  project split out from it is scheduled as plan iteration I2.
+- `src/RealisticBattlePlanning/` — the engine assembly (`net472`): SubModule,
+  mission behaviors, Harmony patches, snapshot adapters, UI.
+- `src/RealisticBattlePlanning.Core/` — engine-free logic (`netstandard2.0`):
+  plan model, validator, formatter, serializer, RbpLog; later the Plan
+  Monitor. **Never reference TaleWorlds types here.**
+- `src/RealisticBattlePlanning.Core.Tests/` — xUnit tests (`net8.0`). Run with
+  `dotnet test src\RealisticBattlePlanning.Core.Tests` — no game install
+  needed.
 - `Module/` — files copied verbatim into the deployed module root
   (`SubModule.xml`, eventually `ModuleData/`, `GUI/`, etc.).
 - `Directory.Build.props` — resolves `BannerlordGameDir` and `ModuleDeployDir`.
@@ -48,6 +53,11 @@ Two larger mods are checked out next to this repo as implementation references:
 
 When you need a pattern (registering a behavior, patching a vanilla type,
 extending a Gauntlet prefab), grep these two before inventing one.
+
+Decompiled vanilla sources live at `C:\github\bannerlord-decompiled`
+(22 assemblies, regenerate with `tools/decompile-game.ps1` after game
+patches — version recorded in its VERSION.txt). **Grep these before assuming
+any engine API exists or behaves as expected.**
 
 ## Build & run
 
@@ -132,9 +142,7 @@ build time without shipping a copy.
 
 1. Re-read the relevant section of the spec.
 2. Grep the two reference mods for a matching pattern.
-3. Decompile the vanilla assembly and read it — `ilspycmd` is installed as a
-   global dotnet tool on this machine
-   (`ilspycmd <game>\bin\Win64_Shipping_Client\TaleWorlds.MountAndBlade.dll -p -o <tmpdir>`).
+3. Read the decompiled vanilla sources at `C:\github\bannerlord-decompiled`.
    Engine lifecycle ordering has already bitten once: submodule
    `OnMissionBehaviorInitialize` runs before behaviors' `EarlyStart`, so
    mission state like `Mission.IsFieldBattle` (set by

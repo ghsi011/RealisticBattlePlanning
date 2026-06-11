@@ -8,7 +8,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 [void][Reflection.Assembly]::LoadFrom("$GameDir\bin\Win64_Shipping_Client\Newtonsoft.Json.dll")
-[void][Reflection.Assembly]::LoadFrom("$RepoDir\src\bin\x64\Debug\RealisticBattlePlanning.dll")
+[void][Reflection.Assembly]::LoadFrom("$RepoDir\src\RealisticBattlePlanning.Core\bin\Debug\netstandard2.0\RealisticBattlePlanning.Core.dll")
 
 $settings = New-Object Newtonsoft.Json.JsonSerializerSettings
 $settings.Converters.Add((New-Object Newtonsoft.Json.Converters.StringEnumConverter))

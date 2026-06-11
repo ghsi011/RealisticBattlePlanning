@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>10</LangVersion>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>RealisticBattlePlanning.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RealisticBattlePlanning.Core\RealisticBattlePlanning.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The shipped sample plan is itself a test fixture: it must always parse and validate clean. -->
+    <Content Include="..\..\Module\ModuleData\rbp_debug_plan.json" Link="rbp_debug_plan.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

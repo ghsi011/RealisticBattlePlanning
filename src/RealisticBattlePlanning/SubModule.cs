@@ -23,6 +23,7 @@ namespace RealisticBattlePlanning
         protected override void OnSubModuleLoad()
         {
             base.OnSubModuleLoad();
+            RbpLog.MirrorSink = message => Debug.Print(message);
             RbpLog.Init(ModuleHelper.GetModuleFullPath(ModId));
             RbpLog.Info("OnSubModuleLoad");
 
