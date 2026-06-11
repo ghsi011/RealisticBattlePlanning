@@ -1,0 +1,49 @@
+{
+  // RealisticBattlePlanning debug plan (dev/test authoring path).
+  // Loaded at the start of every field battle the player commands; parsed,
+  // validated, and dumped to Logs\rbp.log. Iteration 1: it does NOT move
+  // troops yet. Edit this file in the deployed module to iterate without
+  // rebuilding (a rebuild overwrites it with the repo copy).
+  //
+  // Anchors: "OwnStart"/"TeamCenter" bases are relative — forward/right in
+  // meters along the team's initial attack direction — so this plan works on
+  // any scene.
+
+  "playerSignals": [ "hammer" ],
+
+  "anchors": [
+    { "id": "advance-50", "basis": "OwnStart", "forward": 50.0, "right": 0.0 }
+  ],
+
+  "formations": [
+    {
+      "formation": "Infantry",
+      "stages": [
+        {
+          "name": "hold the line",
+          "do": { "type": "Hold", "arrangement": "ShieldWall" }
+        },
+        {
+          "name": "advance",
+          "when": [ { "type": "TimerElapsed", "seconds": 30 } ],
+          "do": { "type": "MoveTo", "anchor": "advance-50", "speed": "Walk" },
+          "emit": [ "advancing" ]
+        }
+      ],
+      "abort": { "casualtiesAbovePercent": 50 }
+    },
+    {
+      "formation": "Ranged",
+      "stages": [
+        {
+          "do": { "type": "Hold", "arrangement": "Loose" }
+        },
+        {
+          "name": "follow the advance",
+          "when": [ { "type": "SignalReceived", "signal": "advancing" } ],
+          "do": { "type": "MoveTo", "anchor": "advance-50" }
+        }
+      ]
+    }
+  ]
+}

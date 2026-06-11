@@ -1,7 +1,11 @@
+using System;
 using Bannerlord.UIExtenderEx;
 using HarmonyLib;
+using RealisticBattlePlanning.Diagnostics;
+using RealisticBattlePlanning.Execution;
 using TaleWorlds.Core;
 using TaleWorlds.Library;
+using TaleWorlds.ModuleManager;
 using TaleWorlds.MountAndBlade;
 
 namespace RealisticBattlePlanning
@@ -19,12 +23,33 @@ namespace RealisticBattlePlanning
         protected override void OnSubModuleLoad()
         {
             base.OnSubModuleLoad();
-            Debug.Print($"[{ModId}] OnSubModuleLoad");
+            RbpLog.Init(ModuleHelper.GetModuleFullPath(ModId));
+            RbpLog.Info("OnSubModuleLoad");
 
             Harmony.PatchAll(typeof(SubModule).Assembly);
 
             UIExtender.Register(typeof(SubModule).Assembly);
             UIExtender.Enable();
+        }
+
+        public override void OnMissionBehaviorInitialize(Mission mission)
+        {
+            base.OnMissionBehaviorInitialize(mission);
+            try
+            {
+                if (PlannableMission.Check(mission, out var reason))
+                {
+                    mission.AddMissionBehavior(new PlanMissionLogic());
+                }
+                else
+                {
+                    RbpLog.Info($"Not attaching to mission (scene '{mission.SceneName}'): {reason}.");
+                }
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("OnMissionBehaviorInitialize failed.", e);
+            }
         }
 
         protected override void OnBeforeInitialModuleScreenSetAsRoot()

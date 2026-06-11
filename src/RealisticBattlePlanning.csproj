@@ -39,6 +39,11 @@
     Private=False so we never copy these next to the mod DLL (the game already loads them).
   -->
   <ItemGroup>
+    <!-- The game ships Newtonsoft.Json; reference it like the TaleWorlds assemblies. -->
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(BannerlordGameDir)\bin\Win64_Shipping_Client\Newtonsoft.Json.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.*.dll"
                Exclude="$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.Native.dll">
       <HintPath>%(Identity)</HintPath>
