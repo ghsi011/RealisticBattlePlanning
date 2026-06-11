@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using TaleWorlds.MountAndBlade;
 using RealisticBattlePlanning.Diagnostics;
 using RealisticBattlePlanning.Planning;
@@ -17,6 +18,7 @@ namespace RealisticBattlePlanning.Execution
         /// <summary>~4 Hz: cheap, and well within trigger-latency needs (B2).</summary>
         private const float MonitorIntervalSeconds = 0.25f;
 
+        private readonly Dictionary<PlannedFormationClass, int> _initialCounts = new();
         private BattlePlan _plan;
         private PlanMonitor _monitor;
         private FormationOrderExecutor _executor;
@@ -103,7 +105,7 @@ namespace RealisticBattlePlanning.Execution
 
             try
             {
-                var snapshot = MissionSnapshot.Capture(Mission, _deploymentFinished);
+                var snapshot = MissionSnapshot.Capture(Mission, _deploymentFinished, _initialCounts);
                 foreach (var planEvent in _monitor.Tick(snapshot))
                 {
                     RbpLog.Info(planEvent.Describe());
@@ -150,6 +152,14 @@ namespace RealisticBattlePlanning.Execution
         {
             if (_plan == null || _monitor == null || Mission.PlayerTeam == null)
                 return;
+
+            // Casualty percentages are measured against deployment-end strength.
+            foreach (var (planned, engine) in FormationClassMap.All)
+            {
+                var initial = Mission.PlayerTeam.GetFormation(engine);
+                if (initial is { CountOfUnits: > 0 })
+                    _initialCounts[planned] = initial.CountOfUnits;
+            }
 
             foreach (var formationPlan in _plan.Formations)
             {

@@ -207,6 +207,11 @@ orders issued directly via `Formation.SetMovementOrder` etc.).
 
 ### I4 — Signal bus + full trigger vocabulary
 
+**Status: implemented, pending in-game verification** (60 tests green;
+signals are latched and become visible the tick after they are raised, so
+in-tick evaluation order never matters; `RaiseExternalSignal` is the entry
+point the I8 palette and C7 drill cues will use).
+
 - Signal bus: stages emit named signals on activation; *Signal received*
   trigger; AND-composition of up to 3 atomic conditions (A3.5). All Core-side,
   evaluated over snapshots.

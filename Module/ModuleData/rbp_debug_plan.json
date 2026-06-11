@@ -1,21 +1,18 @@
 {
   // RealisticBattlePlanning debug plan (dev/test authoring path).
-  // Loaded at the start of every field battle the player commands; this is
-  // the I3 verify scenario: infantry walks a 3-waypoint path, holds in
-  // shieldwall, then charges 30 s later — all without the player giving any
-  // order. Edit this file in the deployed module to iterate without
-  // rebuilding (a rebuild overwrites it with the repo copy).
-  //
-  // Anchors: "OwnStart"/"TeamCenter" bases are relative — forward/right in
-  // meters along the team's initial attack direction — so this plan works on
-  // any scene.
+  // I4 verify scenario — a proto-feigned-retreat using the new triggers:
+  //   1. Infantry holds in shieldwall.
+  //   2. When the enemy commits to an attack (sustained approach), infantry
+  //      falls back 30 m and signals; archers follow the signal back.
+  //   3. When the enemy closes within 40 m anyway, infantry counter-charges.
+  // Watch Logs\rbp.log for when "EnemyCommits" fires vs. what the AI did —
+  // that timing is the R3 tuning data.
+  // Edit this file in the deployed module to iterate without rebuilding.
 
   "playerSignals": [ "hammer" ],
 
   "anchors": [
-    { "id": "wp-1", "basis": "OwnStart", "forward": 30.0, "right": 0.0 },
-    { "id": "wp-2", "basis": "OwnStart", "forward": 60.0, "right": 25.0 },
-    { "id": "wp-3", "basis": "OwnStart", "forward": 90.0, "right": 0.0 }
+    { "id": "fallback", "basis": "OwnStart", "forward": -30.0, "right": 0.0 }
   ],
 
   "formations": [
@@ -23,18 +20,18 @@
       "formation": "Infantry",
       "stages": [
         {
-          "name": "advance by waypoints",
-          "do": { "type": "MoveTo", "path": [ "wp-1", "wp-2", "wp-3" ] }
+          "name": "hold the line",
+          "do": { "type": "Hold", "arrangement": "ShieldWall" }
         },
         {
-          "name": "form the wall",
-          "when": [ { "type": "PositionReached", "anchor": "wp-3", "toleranceMeters": 12 } ],
-          "do": { "type": "Hold", "arrangement": "ShieldWall" },
-          "emit": [ "wall-formed" ]
+          "name": "give ground",
+          "when": [ { "type": "EnemyCommits" } ],
+          "do": { "type": "MoveTo", "anchor": "fallback" },
+          "emit": [ "falling-back" ]
         },
         {
-          "name": "charge",
-          "when": [ { "type": "TimerElapsed", "seconds": 30 } ],
+          "name": "counter-charge",
+          "when": [ { "type": "EnemyWithinDistance", "meters": 40 } ],
           "do": { "type": "Charge" }
         }
       ],
@@ -45,6 +42,11 @@
       "stages": [
         {
           "do": { "type": "Hold", "arrangement": "Loose" }
+        },
+        {
+          "name": "fall back with the line",
+          "when": [ { "type": "SignalReceived", "signal": "falling-back" } ],
+          "do": { "type": "MoveTo", "anchor": "fallback" }
         }
       ]
     }

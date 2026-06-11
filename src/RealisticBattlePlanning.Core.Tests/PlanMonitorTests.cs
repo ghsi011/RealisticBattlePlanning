@@ -246,40 +246,11 @@ namespace RealisticBattlePlanning.Tests
             => (PlannedFormationClass.Ranged, new MapVec(x, y));
 
         private static FakeBattlefield Snap(float time, bool started, params (PlannedFormationClass Class, MapVec Position)[] formations)
-            => new(time, started, formations);
-
-        private sealed class FakeBattlefield : IBattlefieldSnapshot
         {
-            private readonly Dictionary<PlannedFormationClass, IFormationSnapshot> _own = new();
-
-            public FakeBattlefield(float time, bool started, (PlannedFormationClass Class, MapVec Position)[] formations)
-            {
-                TimeSeconds = time;
-                BattleStarted = started;
-                foreach (var (cls, position) in formations)
-                    _own[cls] = new FakeFormation(cls, position);
-            }
-
-            public float TimeSeconds { get; }
-            public bool BattleStarted { get; }
-            public MapVec AttackDirection => new(0f, 1f);
-            public MapVec TeamCenter => new(0f, 0f);
-
-            public IFormationSnapshot GetOwn(PlannedFormationClass formationClass)
-                => _own.TryGetValue(formationClass, out var snapshot) ? snapshot : null;
-        }
-
-        private sealed class FakeFormation : IFormationSnapshot
-        {
-            public FakeFormation(PlannedFormationClass cls, MapVec position)
-            {
-                Class = cls;
-                Position = position;
-            }
-
-            public PlannedFormationClass Class { get; }
-            public bool Exists => true;
-            public MapVec Position { get; }
+            var snapshot = new FakeBattlefield(time, started);
+            foreach (var (cls, position) in formations)
+                snapshot.WithOwn(cls, position.X, position.Y);
+            return snapshot;
         }
     }
 }

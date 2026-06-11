@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RealisticBattlePlanning.Planning.Model;
 
 namespace RealisticBattlePlanning.Execution
@@ -6,7 +7,6 @@ namespace RealisticBattlePlanning.Execution
     /// One formation's state as seen at a single monitor tick. The only way
     /// engine state reaches Core (testing architecture, Layer 1): the engine
     /// captures these eagerly each tick; tests script them as timelines.
-    /// Grows fields (casualties, median speed, broken) in later iterations.
     /// </summary>
     public interface IFormationSnapshot
     {
@@ -16,6 +16,24 @@ namespace RealisticBattlePlanning.Execution
         bool Exists { get; }
 
         MapVec Position { get; }
+
+        /// <summary>Losses since battle start, 0–100.</summary>
+        float CasualtiesPercent { get; }
+    }
+
+    /// <summary>An enemy formation as seen at a single monitor tick.</summary>
+    public interface IEnemyFormationSnapshot
+    {
+        /// <summary>Stable identity across ticks (engine team/formation slot).</summary>
+        int Id { get; }
+
+        /// <summary>Rough class, when the slot maps to one of the four plannable classes.</summary>
+        PlannedFormationClass? Class { get; }
+
+        MapVec Position { get; }
+
+        /// <summary>Routing/fleeing (majority of units running away).</summary>
+        bool IsBroken { get; }
     }
 
     /// <summary>One tick's view of the battlefield.</summary>
@@ -36,7 +54,13 @@ namespace RealisticBattlePlanning.Execution
         /// <summary>Player team's average position (TeamCenter anchor basis).</summary>
         MapVec TeamCenter { get; }
 
+        /// <summary>The player agent's position; null when the player is down/absent (A3.10 references).</summary>
+        MapVec? PlayerPosition { get; }
+
         /// <summary>Own (player-team) formation by class; null when absent/empty.</summary>
         IFormationSnapshot GetOwn(PlannedFormationClass formationClass);
+
+        /// <summary>All living enemy formations.</summary>
+        IReadOnlyList<IEnemyFormationSnapshot> Enemies { get; }
     }
 }

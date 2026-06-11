@@ -50,14 +50,21 @@ namespace RealisticBattlePlanning.Diagnostics
             Property(typeof(Mission), "Mode");
 
             // Team / formation reads (MissionSnapshot).
+            Property(typeof(Mission), "MainAgent");
+            Property(typeof(Mission), "Teams");
             Property(typeof(Team), "IsPlayerGeneral");
             Property(typeof(Team), "QuerySystem");
             Property(typeof(Team), "FormationsIncludingEmpty");
+            Property(typeof(Team), "TeamIndex");
             Method(typeof(Team), "GetFormation", typeof(TaleWorlds.Core.FormationClass));
+            Method(typeof(Team), "IsEnemyOf", typeof(Team));
             Property(typeof(TeamQuerySystem), "AveragePosition");
             Property(typeof(Formation), "CurrentPosition");
             Property(typeof(Formation), "CountOfUnits");
             Property(typeof(Formation), "Captain");
+            Method(typeof(Formation), "ApplyActionOnEachUnit", typeof(Action<Agent>), typeof(Agent));
+            Property(typeof(Agent), "Position");
+            Property(typeof(Agent), "IsRunningAway");
 
             // Order issuance (FormationOrderExecutor).
             Method(typeof(Formation), "SetMovementOrder", typeof(MovementOrder));
