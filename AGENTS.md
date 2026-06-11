@@ -22,8 +22,9 @@ parallel one.
 - `src/RealisticBattlePlanning/` — the engine assembly (`net472`): SubModule,
   mission behaviors, Harmony patches, snapshot adapters, UI.
 - `src/RealisticBattlePlanning.Core/` — engine-free logic (`netstandard2.0`):
-  plan model, validator, formatter, serializer, RbpLog; later the Plan
-  Monitor. **Never reference TaleWorlds types here.**
+  plan model, validator, formatter, serializer, RbpLog, Plan Monitor +
+  trigger evaluation, harness recording/assertions/diffing. **Never reference
+  TaleWorlds types here.**
 - `src/RealisticBattlePlanning.Core.Tests/` — xUnit tests (`net8.0`). Run with
   `dotnet test src\RealisticBattlePlanning.Core.Tests` — no game install
   needed.
@@ -65,13 +66,20 @@ any engine API exists or behaves as expected.**
 dotnet build RealisticBattlePlanning.sln -c Debug -p:Platform=x64
 ```
 
-The build is hermetic except for `BannerlordGameDir` — it must point at a
-Bannerlord install containing `bin\Win64_Shipping_Client\TaleWorlds.Library.dll`,
-or the build errors out with a readable message.
+The build is fully hermetic: when `BannerlordGameDir` doesn't point at a real
+install, the engine assembly compiles against the BUTR
+`Bannerlord.ReferenceAssemblies` NuGet package (compile-only) and deploy is
+skipped — so cloud/CI sessions can build and API-check engine code. A real
+install always wins and enables the deploy step.
 
-Launch via BLSE. There is no automated way to verify in-game behavior (until
-the Layer-2 harness lands, plan I5); if you change something visible, say
-"verified by launching" or say you couldn't.
+Launch via BLSE. In-game verification is semi-automated by the Layer-2
+harness (I5): in the dev console, `rbp.harness_arm all`, start a field battle
+you command, and everything after clicking Ready is unattended (scenario plan
+injection, fast-forward, recording, assertion evaluation); then
+`rbp.harness_diff` against the known-good baseline, `rbp.harness_accept` to
+promote a run. Results live in `Modules\RealisticBattlePlanning\Logs\Harness`.
+The harness does not yet spawn battles itself, and anything it doesn't cover
+still needs a manual launch — say "verified by launching" or say you couldn't.
 
 ## Testing
 

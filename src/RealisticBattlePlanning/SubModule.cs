@@ -3,6 +3,7 @@ using Bannerlord.UIExtenderEx;
 using HarmonyLib;
 using RealisticBattlePlanning.Diagnostics;
 using RealisticBattlePlanning.Execution;
+using RealisticBattlePlanning.Harness;
 using TaleWorlds.Core;
 using TaleWorlds.Library;
 using TaleWorlds.ModuleManager;
@@ -50,6 +51,10 @@ namespace RealisticBattlePlanning
                 if (PlannableMission.CheckOnAttach(mission, out var reason))
                 {
                     mission.AddMissionBehavior(new PlanMissionLogic());
+                    // Added after PlanMissionLogic so its AfterStart sees the
+                    // plan logic already initialized.
+                    if (HarnessSession.IsArmed)
+                        mission.AddMissionBehavior(new HarnessRecorderLogic());
                 }
                 else
                 {

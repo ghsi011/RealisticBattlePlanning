@@ -1,0 +1,41 @@
+{
+  // Harness smoke plan (I4 verify, as data): infantry advances after 15 s
+  // and emits "advancing"; archers move up only on that signal.
+
+  "anchors": [
+    { "id": "advance", "basis": "OwnStart", "forward": 40.0 },
+    { "id": "support", "basis": "OwnStart", "forward": 25.0 }
+  ],
+
+  "formations": [
+    {
+      "formation": "Infantry",
+      "stages": [
+        {
+          "name": "hold",
+          "do": { "type": "Hold", "arrangement": "Line" }
+        },
+        {
+          "name": "advance and call support",
+          "when": [ { "type": "TimerElapsed", "seconds": 15 } ],
+          "do": { "type": "MoveTo", "anchor": "advance" },
+          "emit": [ "advancing" ]
+        }
+      ]
+    },
+    {
+      "formation": "Ranged",
+      "stages": [
+        {
+          "name": "wait",
+          "do": { "type": "Hold", "arrangement": "Loose" }
+        },
+        {
+          "name": "move up on the signal",
+          "when": [ { "type": "SignalReceived", "signal": "advancing" } ],
+          "do": { "type": "MoveTo", "anchor": "support" }
+        }
+      ]
+    }
+  ]
+}

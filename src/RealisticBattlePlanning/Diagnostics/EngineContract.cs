@@ -66,6 +66,15 @@ namespace RealisticBattlePlanning.Diagnostics
             Property(typeof(Agent), "Position");
             Property(typeof(Agent), "IsRunningAway");
 
+            // Harness recorder (HarnessRecorderLogic).
+            Method(typeof(Mission), "SetFastForwardingFromUI", typeof(bool));
+            Property(typeof(MissionResult), "PlayerVictory");
+            Property(typeof(MissionResult), "PlayerDefeated");
+            Property(typeof(MissionResult), "BattleState");
+            if (!Array.Exists(typeof(Mission).GetMethods(BindingFlags.Public | BindingFlags.Instance),
+                    m => m.Name == "GetMissionBehavior" && m.IsGenericMethod))
+                failures.Add("Mission.GetMissionBehavior<T>() (generic method)");
+
             // Order issuance (FormationOrderExecutor).
             Method(typeof(Formation), "SetMovementOrder", typeof(MovementOrder));
             Method(typeof(Formation), "SetArrangementOrder", typeof(ArrangementOrder));

@@ -1,0 +1,32 @@
+{
+  // Harness smoke plan (I3 verify, as data): infantry walks a 3-waypoint
+  // path, holds in shieldwall at the end, then charges after 30 s.
+
+  "anchors": [
+    { "id": "wp1", "basis": "OwnStart", "forward": 30.0 },
+    { "id": "wp2", "basis": "OwnStart", "forward": 60.0 },
+    { "id": "wp3", "basis": "OwnStart", "forward": 90.0 }
+  ],
+
+  "formations": [
+    {
+      "formation": "Infantry",
+      "stages": [
+        {
+          "name": "walk the path",
+          "do": { "type": "MoveTo", "path": [ "wp1", "wp2", "wp3" ] }
+        },
+        {
+          "name": "shieldwall at the end",
+          "when": [ { "type": "PositionReached", "anchor": "wp3" } ],
+          "do": { "type": "Hold", "arrangement": "ShieldWall" }
+        },
+        {
+          "name": "charge",
+          "when": [ { "type": "TimerElapsed", "seconds": 30 } ],
+          "do": { "type": "Charge" }
+        }
+      ]
+    }
+  ]
+}

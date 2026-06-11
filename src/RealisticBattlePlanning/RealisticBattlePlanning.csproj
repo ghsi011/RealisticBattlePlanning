@@ -18,8 +18,23 @@
     <Version>0.1.0</Version>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!--
+      Hermetic-build switch: with no Bannerlord install (CI, cloud sessions),
+      compile against the BUTR reference assemblies instead of the game DLLs
+      and skip deploy. A real install always wins so local builds keep
+      compiling against the exact game version they deploy to.
+    -->
+    <HasBannerlordInstall>false</HasBannerlordInstall>
+    <HasBannerlordInstall Condition="Exists('$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.Library.dll')">true</HasBannerlordInstall>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\RealisticBattlePlanning.Core\RealisticBattlePlanning.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(HasBannerlordInstall)' != 'true'">
+    <PackageReference Include="Bannerlord.ReferenceAssemblies" Version="1.4.6.115439" IncludeAssets="compile" PrivateAssets="all" />
   </ItemGroup>
 
   <!--
@@ -43,7 +58,7 @@
     Resolved via BannerlordGameDir from Directory.Build.props / local.props.
     Private=False so we never copy these next to the mod DLL (the game already loads them).
   -->
-  <ItemGroup>
+  <ItemGroup Condition="'$(HasBannerlordInstall)' == 'true'">
     <Reference Include="$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.*.dll"
                Exclude="$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.Native.dll">
       <HintPath>%(Identity)</HintPath>
@@ -67,10 +82,10 @@
     </Reference>
   </ItemGroup>
 
-  <!-- Fail fast with a readable error if the game path isn't set up. -->
+  <!-- Surface which mode the build ran in so a wrong game path is noticed. -->
   <Target Name="ValidateBannerlordGameDir" BeforeTargets="ResolveReferences">
-    <Error Condition="!Exists('$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.Library.dll')"
-           Text="BannerlordGameDir does not point at a valid Bannerlord install: '$(BannerlordGameDir)'. Copy local.props.example to local.props and set &lt;BannerlordGameDir&gt; to your install path." />
+    <Message Importance="high" Condition="'$(HasBannerlordInstall)' != 'true'"
+             Text="No Bannerlord install at '$(BannerlordGameDir)'; compiling against reference assemblies, deploy skipped. Set &lt;BannerlordGameDir&gt; in local.props to build against (and deploy to) a real install." />
   </Target>
 
   <!--
@@ -83,7 +98,7 @@
     <ModuleFiles Include="$(MSBuildThisFileDirectory)..\..\Module\**\*.*" />
   </ItemGroup>
 
-  <Target Name="DeployToBannerlord" AfterTargets="Build">
+  <Target Name="DeployToBannerlord" AfterTargets="Build" Condition="'$(HasBannerlordInstall)' == 'true'">
     <ItemGroup>
       <DeployBinaries Include="$(TargetDir)$(AssemblyName).dll;$(TargetDir)$(AssemblyName).pdb" />
       <DeployBinaries Include="$(TargetDir)RealisticBattlePlanning.Core.dll;$(TargetDir)RealisticBattlePlanning.Core.pdb" />
