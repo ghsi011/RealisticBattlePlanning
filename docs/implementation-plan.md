@@ -175,7 +175,10 @@ src\RealisticBattlePlanning.Core.Tests` runs gameless).
 ### I3 — Plan Monitor + AI suppression (the risk spike)
 
 The engine make-or-break. Smallest possible trigger/directive set, deepest
-engine question.
+engine question. **Status: implemented, pending in-game verification** (51
+tests green; suppression approach: planned formations get
+`SetControlledByAI(false)` so the player-side general AI leaves them alone,
+orders issued directly via `Formation.SetMovementOrder` etc.).
 
 - Plan Monitor (stage machine + trigger evaluation) lives in **Core**, ticking
   a few times per second (B2). Engine state reaches it only through snapshot

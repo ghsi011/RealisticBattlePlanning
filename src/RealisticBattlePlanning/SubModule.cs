@@ -27,6 +27,15 @@ namespace RealisticBattlePlanning
             RbpLog.Init(ModuleHelper.GetModuleFullPath(ModId));
             RbpLog.Info("OnSubModuleLoad");
 
+            try
+            {
+                EngineContract.VerifyAtLoad();
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("Engine contract check itself failed.", e);
+            }
+
             Harmony.PatchAll(typeof(SubModule).Assembly);
 
             UIExtender.Register(typeof(SubModule).Assembly);

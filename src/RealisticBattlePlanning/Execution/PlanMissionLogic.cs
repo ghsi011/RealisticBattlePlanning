@@ -1,5 +1,4 @@
 using System;
-using TaleWorlds.Core;
 using TaleWorlds.MountAndBlade;
 using RealisticBattlePlanning.Diagnostics;
 using RealisticBattlePlanning.Planning;
@@ -8,14 +7,21 @@ using RealisticBattlePlanning.Planning.Model;
 namespace RealisticBattlePlanning.Execution
 {
     /// <summary>
-    /// The mission-side host of the battle plan. Iteration 1 scope: log the
-    /// mission facts, load + validate the debug plan, and dump it — no orders
-    /// are issued yet. The Plan Monitor (I2) builds on this class.
+    /// The mission-side host of the battle plan: loads + validates the plan,
+    /// feeds the Core PlanMonitor with snapshots a few times per second
+    /// (spec B2), and turns its events into orders. Any failure disables the
+    /// plan for the battle and logs a FAULT — never crashes the mission.
     /// </summary>
     public sealed class PlanMissionLogic : MissionLogic
     {
+        /// <summary>~4 Hz: cheap, and well within trigger-latency needs (B2).</summary>
+        private const float MonitorIntervalSeconds = 0.25f;
+
         private BattlePlan _plan;
-        private bool _active;
+        private PlanMonitor _monitor;
+        private FormationOrderExecutor _executor;
+        private bool _deploymentFinished;
+        private float _sinceLastMonitorTick;
 
         public override void AfterStart()
         {
@@ -29,8 +35,6 @@ namespace RealisticBattlePlanning.Execution
                     RbpLog.Info($"Plan logic stays inert: {reason}.");
                     return;
                 }
-
-                _active = true;
 
                 _plan = DebugPlanLoader.TryLoad();
                 if (_plan == null)
@@ -50,11 +54,14 @@ namespace RealisticBattlePlanning.Execution
                 }
 
                 RbpLog.Info(PlanFormatter.Describe(_plan));
+                _monitor = new PlanMonitor(_plan);
+                _executor = new FormationOrderExecutor(Mission);
             }
             catch (Exception e)
             {
-                RbpLog.Error("PlanMissionLogic.AfterStart failed; plan logic stays inert.", e);
+                RbpLog.Error("[FAULT] PlanMissionLogic.AfterStart failed; plan logic stays inert.", e);
                 _plan = null;
+                _monitor = null;
             }
         }
 
@@ -63,7 +70,9 @@ namespace RealisticBattlePlanning.Execution
             base.OnDeploymentFinished();
             try
             {
-                if (!_active || Mission.PlayerTeam == null)
+                _deploymentFinished = true;
+
+                if (Mission.PlayerTeam == null)
                     return;
 
                 RbpLog.Info("Deployment finished. Player formations:");
@@ -72,10 +81,91 @@ namespace RealisticBattlePlanning.Execution
                     if (formation.CountOfUnits > 0)
                         RbpLog.Info($"  {formation.FormationIndex}: {formation.CountOfUnits} unit(s), captain: {formation.Captain?.Name?.ToString() ?? "none"}");
                 }
+
+                AdoptPlannedFormations();
             }
             catch (Exception e)
             {
-                RbpLog.Error("PlanMissionLogic.OnDeploymentFinished logging failed.", e);
+                RbpLog.Error("[FAULT] OnDeploymentFinished failed.", e);
+            }
+        }
+
+        public override void OnMissionTick(float dt)
+        {
+            base.OnMissionTick(dt);
+            if (_monitor == null)
+                return;
+
+            _sinceLastMonitorTick += dt;
+            if (_sinceLastMonitorTick < MonitorIntervalSeconds)
+                return;
+            _sinceLastMonitorTick = 0f;
+
+            try
+            {
+                var snapshot = MissionSnapshot.Capture(Mission, _deploymentFinished);
+                foreach (var planEvent in _monitor.Tick(snapshot))
+                {
+                    RbpLog.Info(planEvent.Describe());
+                    ApplyEvent(planEvent);
+                }
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Plan monitor tick failed; plan disabled for this battle.", e);
+                _monitor = null;
+            }
+        }
+
+        private void ApplyEvent(PlanEvent planEvent)
+        {
+            var formation = Mission.PlayerTeam?.GetFormation(FormationClassMap.ToEngine(planEvent.Formation));
+            if (formation == null || formation.CountOfUnits == 0)
+            {
+                RbpLog.Warn($"[{planEvent.Formation}] has no units; event ignored.");
+                return;
+            }
+
+            switch (planEvent)
+            {
+                case StageActivated stageActivated:
+                    _executor.Apply(formation, stageActivated.Directive);
+                    break;
+
+                case MoveTargetChanged moveTarget:
+                    _executor.Move(formation, moveTarget.Target);
+                    break;
+
+                case SignalEmitted:
+                    // Logged above; the signal bus wires receipt in I4.
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Only formations that actually have a plan are touched — zero-touch
+        /// guarantee (G3) for everything else.
+        /// </summary>
+        private void AdoptPlannedFormations()
+        {
+            if (_plan == null || _monitor == null || Mission.PlayerTeam == null)
+                return;
+
+            foreach (var formationPlan in _plan.Formations)
+            {
+                if (formationPlan.Stages.Count == 0)
+                    continue;
+
+                var formation = Mission.PlayerTeam.GetFormation(FormationClassMap.ToEngine(formationPlan.Formation));
+                if (formation is { CountOfUnits: > 0 })
+                {
+                    _executor.Adopt(formation);
+                    RbpLog.Info($"[{formationPlan.Formation}] adopted by the plan (team AI suppressed).");
+                }
+                else
+                {
+                    RbpLog.Warn($"[{formationPlan.Formation}] is planned but has no units this battle.");
+                }
             }
         }
 

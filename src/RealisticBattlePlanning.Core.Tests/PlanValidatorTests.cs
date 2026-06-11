@@ -163,7 +163,7 @@ namespace RealisticBattlePlanning.Tests
             plan.Formations[1].Stages[1].When[0] = new TriggerSpec { Type = TriggerType.PlayerSignal, Signal = "hammer" };
 
             var result = PlanValidator.Validate(plan);
-            Assert.Empty(result.Warnings.Where(w => w.Contains("hammer")));
+            Assert.DoesNotContain(result.Warnings, w => w.Contains("hammer"));
         }
 
         [Fact]
