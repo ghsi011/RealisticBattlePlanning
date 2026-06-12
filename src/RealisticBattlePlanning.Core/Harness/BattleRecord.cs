@@ -21,6 +21,14 @@ namespace RealisticBattlePlanning.Harness
         /// <summary>Outcome ("PlayerVictory", "PlayerDefeated", ...); null if the battle never resolved.</summary>
         public string Result { get; set; }
 
+        /// <summary>
+        /// Set when plan execution faulted mid-run (R2: a crashed run must
+        /// never read as a genuine scenario outcome). A faulted run always
+        /// fails evaluation, even if every assertion holds on the partial
+        /// record.
+        /// </summary>
+        public string Fault { get; set; }
+
         /// <summary>Plan anchors resolved against battle-start geometry, per formation.</summary>
         public List<AnchorPosition> Anchors { get; set; } = new();
 

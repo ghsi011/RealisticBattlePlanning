@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using static System.FormattableString;
 
 namespace RealisticBattlePlanning.Harness
 {
@@ -94,7 +95,7 @@ namespace RealisticBattlePlanning.Harness
 
                 var delta = Math.Abs(measured - baseline);
                 if (delta > DriftFloor && delta > Math.Abs(baseline) * DriftFraction)
-                    yield return $"drift {current.Scenario}: {assertion.Description} measured {measured:0.#} (was {baseline:0.#})";
+                    yield return Invariant($"drift {current.Scenario}: {assertion.Description} measured {measured:0.#} (was {baseline:0.#})");
             }
         }
     }

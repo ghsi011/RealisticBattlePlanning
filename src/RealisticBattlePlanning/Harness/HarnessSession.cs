@@ -101,11 +101,21 @@ namespace RealisticBattlePlanning.Harness
         /// Called by the recorder behavior when a harness battle ends. Writes
         /// the record, advances the queue, and on the last scenario writes the
         /// pack results and logs the diff against the known-good baseline.
+        /// The completing scenario must still be the armed one — console
+        /// arm/disarm mid-battle otherwise advances the wrong queue and
+        /// pollutes the pack results.
         /// </summary>
-        public static void OnScenarioCompleted(BattleRecord record, ScenarioResult result)
+        public static void OnScenarioCompleted(ScenarioSpec scenario, BattleRecord record, ScenarioResult result)
         {
             try
             {
+                if (!IsArmed || !ReferenceEquals(Queue[_index].Spec, scenario))
+                {
+                    RbpLog.Warn($"Harness: the armed pack changed mid-battle (arm/disarm from the console); " +
+                                $"result for '{result.Scenario}' is discarded.");
+                    return;
+                }
+
                 Directory.CreateDirectory(ResultsDir);
                 File.WriteAllText(
                     Path.Combine(ResultsDir, $"{result.Scenario}.record.json"),
@@ -171,8 +181,10 @@ namespace RealisticBattlePlanning.Harness
                 return $"{specPath}: {error}";
             spec.Name = name; // The file name is authoritative.
 
-            if (string.IsNullOrEmpty(spec.PlanFile))
-                return $"{specPath}: planFile is missing";
+            var specErrors = ScenarioValidator.Validate(spec);
+            if (specErrors.Count > 0)
+                return $"{specPath}: {string.Join("; ", specErrors)}";
+
             var planPath = Path.Combine(ScenariosDir, spec.PlanFile);
             if (!File.Exists(planPath))
                 return $"{specPath}: plan file {planPath} does not exist";

@@ -133,6 +133,17 @@ namespace RealisticBattlePlanning.Tests
             Assert.Equal(6, infantrySamples.Count);
         }
 
+        [Fact]
+        public void FirstFaultWinsAndSurvivesComplete()
+        {
+            var (_, recorder) = Setup(TestPlans.SimpleValid());
+
+            recorder.MarkFault("first");
+            recorder.MarkFault("second");
+
+            Assert.Equal("first", recorder.Complete("PlayerVictory").Fault);
+        }
+
         private static (PlanMonitor, RunRecorder) Setup(BattlePlan plan)
             => (new PlanMonitor(plan), new RunRecorder("test", plan));
 

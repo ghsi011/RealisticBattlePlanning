@@ -161,6 +161,43 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void AFaultedRunFailsEvenWhenEveryAssertionHolds()
+        {
+            // All asserted events happened before the fault — without the
+            // fault check this would be a bogus PASS (R2).
+            var record = Record(StageEvent(PlannedFormationClass.Infantry, stage: 2, time: 25f));
+            record.Fault = "plan monitor tick failed mid-battle: boom";
+
+            var result = Evaluate(record, StageBetween(2, 10f, 30f));
+
+            Assert.False(result.Pass);
+            var fault = result.Assertions.Single(a => !a.Pass);
+            Assert.Contains("free of plan-logic faults", fault.Description);
+            Assert.Contains("boom", fault.Message);
+            Assert.True(result.Assertions.Single(a => a.Description.Contains("stage 2")).Pass);
+        }
+
+        [Fact]
+        public void MessagesUseInvariantDecimalSeparatorRegardlessOfCulture()
+        {
+            var previous = System.Globalization.CultureInfo.CurrentCulture;
+            try
+            {
+                System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
+
+                var record = Record(StageEvent(PlannedFormationClass.Infantry, stage: 2, time: 25.5f));
+                var result = Evaluate(record, StageBetween(2, 10.5f, 30f));
+
+                Assert.Contains("activated at 25.5s", result.Assertions[0].Message);
+                Assert.Contains("between 10.5s", result.Assertions[0].Description);
+            }
+            finally
+            {
+                System.Globalization.CultureInfo.CurrentCulture = previous;
+            }
+        }
+
+        [Fact]
         public void TimeLimitFailsARunThatOutlastsIt()
         {
             var record = Record();

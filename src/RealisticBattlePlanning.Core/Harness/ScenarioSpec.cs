@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using RealisticBattlePlanning.Planning.Model;
+using static System.FormattableString;
 
 namespace RealisticBattlePlanning.Harness
 {
@@ -71,19 +72,24 @@ namespace RealisticBattlePlanning.Harness
         /// <summary>StageAfterSignal: maximum allowed signal-to-activation delay.</summary>
         public float? MaxDelaySeconds { get; set; }
 
+        /// <summary>
+        /// Invariant-culture on purpose: descriptions are the join key when
+        /// diffing runs against a baseline, so they must not vary with the
+        /// machine's locale.
+        /// </summary>
         public string Describe() => Type switch
         {
             AssertionType.StageActivatedBetween =>
-                $"{Formation} stage {Stage} activates between {MinSeconds:0.#}s and {MaxSeconds:0.#}s",
+                Invariant($"{Formation} stage {Stage} activates between {MinSeconds:0.#}s and {MaxSeconds:0.#}s"),
             AssertionType.StageActivatedAfterPrevious =>
-                $"{Formation} stage {Stage} activates {MinSeconds:0.#}-{MaxSeconds:0.#}s after stage {Stage - 1}",
+                Invariant($"{Formation} stage {Stage} activates {MinSeconds:0.#}-{MaxSeconds:0.#}s after stage {Stage - 1}"),
             AssertionType.SignalEmittedBetween =>
-                $"signal '{Signal}' emitted between {MinSeconds:0.#}s and {MaxSeconds:0.#}s",
+                Invariant($"signal '{Signal}' emitted between {MinSeconds:0.#}s and {MaxSeconds:0.#}s"),
             AssertionType.StageAfterSignal =>
-                $"{Formation} stage {Stage} activates within {MaxDelaySeconds:0.#}s of signal '{Signal}'",
+                Invariant($"{Formation} stage {Stage} activates within {MaxDelaySeconds:0.#}s of signal '{Signal}'"),
             AssertionType.ReachesAnchor =>
-                $"{Formation} reaches anchor '{Anchor}' within {WithinMeters:0.#}m" +
-                (BySeconds is { } by ? $" by {by:0.#}s" : ""),
+                Invariant($"{Formation} reaches anchor '{Anchor}' within {WithinMeters:0.#}m") +
+                (BySeconds is { } by ? Invariant($" by {by:0.#}s") : ""),
             _ => Type.ToString(),
         };
     }

@@ -77,6 +77,9 @@ namespace RealisticBattlePlanning.Tests
             var json = File.ReadAllText(Path.Combine(PackDir, $"{name}.scenario.json"));
             Assert.True(HarnessSerializer.TryDeserializeScenario(json, out var spec, out var error), error);
             spec.Name = name;
+
+            var errors = ScenarioValidator.Validate(spec);
+            Assert.True(errors.Count == 0, string.Join("; ", errors));
             return spec;
         }
 

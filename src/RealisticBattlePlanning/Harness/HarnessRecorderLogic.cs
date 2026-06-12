@@ -41,6 +41,7 @@ namespace RealisticBattlePlanning.Harness
 
                 _recorder = new RunRecorder(_scenario.Name, _host.ActivePlan);
                 _host.MonitorTicked += OnMonitorTicked;
+                _host.MonitorFaulted += OnMonitorFaulted;
                 RbpLog.Info($"Harness: recording scenario '{_scenario.Name}'.");
             }
             catch (Exception e)
@@ -121,7 +122,7 @@ namespace RealisticBattlePlanning.Harness
 
                 var record = _recorder.Complete(_result);
                 var result = ScenarioEvaluator.Evaluate(_scenario, record);
-                HarnessSession.OnScenarioCompleted(record, result);
+                HarnessSession.OnScenarioCompleted(_scenario, record, result);
             }
             catch (Exception e)
             {
@@ -129,10 +130,18 @@ namespace RealisticBattlePlanning.Harness
             }
         }
 
+        private void OnMonitorFaulted(string reason)
+        {
+            _recorder?.MarkFault(reason);
+        }
+
         private void Unsubscribe()
         {
             if (_host != null)
+            {
                 _host.MonitorTicked -= OnMonitorTicked;
+                _host.MonitorFaulted -= OnMonitorFaulted;
+            }
         }
 
         private static string Describe(MissionResult missionResult)

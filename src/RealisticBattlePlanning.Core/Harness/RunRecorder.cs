@@ -63,6 +63,13 @@ namespace RealisticBattlePlanning.Harness
             return _record;
         }
 
+        /// <summary>Marks the run invalidated by a plan-logic fault. First fault wins.</summary>
+        public void MarkFault(string reason)
+        {
+            if (_record.Fault == null)
+                _record.Fault = reason;
+        }
+
         private void Append(float time, PlanEvent planEvent)
         {
             switch (planEvent)

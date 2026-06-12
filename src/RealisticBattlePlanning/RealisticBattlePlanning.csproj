@@ -18,21 +18,17 @@
     <Version>0.1.0</Version>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <!--
-      Hermetic-build switch: with no Bannerlord install (CI, cloud sessions),
-      compile against the BUTR reference assemblies instead of the game DLLs
-      and skip deploy. A real install always wins so local builds keep
-      compiling against the exact game version they deploy to.
-    -->
-    <HasBannerlordInstall>false</HasBannerlordInstall>
-    <HasBannerlordInstall Condition="Exists('$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.Library.dll')">true</HasBannerlordInstall>
-  </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\RealisticBattlePlanning.Core\RealisticBattlePlanning.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    Hermetic-build fallback (HasBannerlordInstall comes from
+    Directory.Build.props): with no Bannerlord install (CI, cloud sessions),
+    compile against the BUTR reference assemblies instead of the game DLLs
+    and skip deploy. A real install always wins so local builds keep
+    compiling against the exact game version they deploy to.
+  -->
   <ItemGroup Condition="'$(HasBannerlordInstall)' != 'true'">
     <PackageReference Include="Bannerlord.ReferenceAssemblies" Version="1.4.6.115439" IncludeAssets="compile" PrivateAssets="all" />
   </ItemGroup>
@@ -82,8 +78,13 @@
     </Reference>
   </ItemGroup>
 
-  <!-- Surface which mode the build ran in so a wrong game path is noticed. -->
+  <!--
+    A configured-but-invalid path fails fast (a typo'd local.props must not
+    silently build-without-deploy); only the unconfigured default falls back.
+  -->
   <Target Name="ValidateBannerlordGameDir" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(BannerlordGameDirConfigured)' == 'true' and '$(HasBannerlordInstall)' != 'true'"
+           Text="BannerlordGameDir is configured (local.props or BANNERLORD_GAME_DIR) but does not point at a valid Bannerlord install: '$(BannerlordGameDir)'. Fix the path, or remove the setting to build against reference assemblies without deploying." />
     <Message Importance="high" Condition="'$(HasBannerlordInstall)' != 'true'"
              Text="No Bannerlord install at '$(BannerlordGameDir)'; compiling against reference assemblies, deploy skipped. Set &lt;BannerlordGameDir&gt; in local.props to build against (and deploy to) a real install." />
   </Target>

@@ -35,6 +35,13 @@ namespace RealisticBattlePlanning.Execution
         /// </summary>
         internal event Action<IBattlefieldSnapshot, IReadOnlyList<PlanEvent>> MonitorTicked;
 
+        /// <summary>
+        /// Raised when a fault disables the plan mid-battle, so a harness
+        /// run over this mission can mark its record invalid (R2: a crashed
+        /// run must never read as a genuine scenario outcome).
+        /// </summary>
+        internal event Action<string> MonitorFaulted;
+
         public override void AfterStart()
         {
             base.AfterStart();
@@ -129,6 +136,14 @@ namespace RealisticBattlePlanning.Execution
             {
                 RbpLog.Error("[FAULT] Plan monitor tick failed; plan disabled for this battle.", e);
                 _monitor = null;
+                try
+                {
+                    MonitorFaulted?.Invoke($"plan monitor tick failed mid-battle: {e.Message}");
+                }
+                catch (Exception faultHandler)
+                {
+                    RbpLog.Error("[FAULT] MonitorFaulted handler failed.", faultHandler);
+                }
             }
         }
 

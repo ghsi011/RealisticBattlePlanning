@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using RealisticBattlePlanning.Execution;
+using static System.FormattableString;
 using RealisticBattlePlanning.Planning.Model;
 
 namespace RealisticBattlePlanning.Harness
@@ -43,6 +44,18 @@ namespace RealisticBattlePlanning.Harness
         {
             var result = new ScenarioResult { Scenario = spec.Name };
 
+            // A faulted run is invalid no matter what the partial record
+            // shows — never let a crash read as a PASS (R2).
+            if (record.Fault != null)
+            {
+                result.Assertions.Add(new AssertionResult
+                {
+                    Description = "run free of plan-logic faults",
+                    Pass = false,
+                    Message = record.Fault,
+                });
+            }
+
             foreach (var assertion in spec.Assertions)
                 result.Assertions.Add(Check(assertion, record));
 
@@ -50,10 +63,10 @@ namespace RealisticBattlePlanning.Harness
             {
                 result.Assertions.Add(new AssertionResult
                 {
-                    Description = $"battle ends within {limit:0.#}s",
+                    Description = Invariant($"battle ends within {limit:0.#}s"),
                     Pass = record.DurationSeconds <= limit,
                     Measured = record.DurationSeconds,
-                    Message = $"battle ran {record.DurationSeconds:0.#}s",
+                    Message = Invariant($"battle ran {record.DurationSeconds:0.#}s"),
                 });
             }
 
@@ -73,7 +86,7 @@ namespace RealisticBattlePlanning.Harness
                         return Fail(result, $"{assertion.Formation} stage {assertion.Stage} never activated");
                     result.Measured = time;
                     return Verdict(result, time.Value >= assertion.MinSeconds && time.Value <= assertion.MaxSeconds,
-                        $"activated at {time:0.#}s");
+                        Invariant($"activated at {time:0.#}s"));
                 }
 
                 case AssertionType.StageActivatedAfterPrevious:
@@ -87,7 +100,7 @@ namespace RealisticBattlePlanning.Harness
                     var delay = time.Value - previous.Value;
                     result.Measured = delay;
                     return Verdict(result, delay >= assertion.MinSeconds && delay <= assertion.MaxSeconds,
-                        $"activated {delay:0.#}s after the previous stage");
+                        Invariant($"activated {delay:0.#}s after the previous stage"));
                 }
 
                 case AssertionType.SignalEmittedBetween:
@@ -97,7 +110,7 @@ namespace RealisticBattlePlanning.Harness
                         return Fail(result, $"signal '{assertion.Signal}' was never emitted");
                     result.Measured = time;
                     return Verdict(result, time.Value >= assertion.MinSeconds && time.Value <= assertion.MaxSeconds,
-                        $"emitted at {time:0.#}s");
+                        Invariant($"emitted at {time:0.#}s"));
                 }
 
                 case AssertionType.StageAfterSignal:
@@ -111,7 +124,7 @@ namespace RealisticBattlePlanning.Harness
                     var delay = stageTime.Value - signalTime.Value;
                     result.Measured = delay;
                     return Verdict(result, delay >= 0f && delay <= assertion.MaxDelaySeconds,
-                        $"activated {delay:0.#}s after the signal");
+                        Invariant($"activated {delay:0.#}s after the signal"));
                 }
 
                 case AssertionType.ReachesAnchor:
@@ -133,7 +146,7 @@ namespace RealisticBattlePlanning.Harness
                     var closest = samples.Min(s => new MapVec(s.X, s.Y).DistanceTo(anchorPos));
                     result.Measured = closest;
                     return Verdict(result, closest <= assertion.WithinMeters,
-                        $"closest approach {closest:0.#}m");
+                        Invariant($"closest approach {closest:0.#}m"));
                 }
 
                 default:

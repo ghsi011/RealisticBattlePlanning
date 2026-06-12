@@ -66,11 +66,13 @@ any engine API exists or behaves as expected.**
 dotnet build RealisticBattlePlanning.sln -c Debug -p:Platform=x64
 ```
 
-The build is fully hermetic: when `BannerlordGameDir` doesn't point at a real
-install, the engine assembly compiles against the BUTR
-`Bannerlord.ReferenceAssemblies` NuGet package (compile-only) and deploy is
-skipped — so cloud/CI sessions can build and API-check engine code. A real
-install always wins and enables the deploy step.
+The build is fully hermetic: when no game dir is configured (no `local.props`,
+no `BANNERLORD_GAME_DIR`) and the hard default doesn't exist, the engine
+assembly compiles against the BUTR `Bannerlord.ReferenceAssemblies` NuGet
+package (compile-only) and deploy is skipped — so cloud/CI sessions can build
+and API-check engine code. An *explicitly configured* path that is invalid
+still fails the build (a typo'd `local.props` must not silently
+build-without-deploy); a real install always wins and enables the deploy step.
 
 Launch via BLSE. In-game verification is semi-automated by the Layer-2
 harness (I5): in the dev console, `rbp.harness_arm all`, start a field battle
