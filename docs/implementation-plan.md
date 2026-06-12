@@ -364,6 +364,19 @@ PlanHolding) flow through the recorder into harness records.
 
 ### I8 — Player Signal Palette
 
+**Status: implemented, pending in-game verification** (150 tests green).
+Input surface: Numpad1–4 fire the plan's declared player signals in order
+(one input each, R7; numpad avoids the vanilla battle keys — MCM rebinding
+arrives with Area F), plus `rbp.signal <name>` as the always-works console
+fallback and the C7 drill-cue mechanism (undeclared names allowed there,
+called out in the response). Every fire posts a battle message and an
+RbpLog line (B11). Order-menu palette entries are deferred to the UI
+iterations alongside I7's resume entry. Validator now enforces the declared
+palette: blank/duplicate declarations are errors, and a PlayerSignal gate
+on an undeclared name is an error (the palette could never fire it).
+B8 comms delay and D3 missed signals are Phase 2 — the palette is
+instantaneous and reliable for now.
+
 - Plans declare up to 4 player signals; *Player signal* trigger type.
 - Palette: order-menu entries + optional direct keybinds, fireable in ≤2
   inputs (R7); routes through the signal bus like any stage-emitted signal.

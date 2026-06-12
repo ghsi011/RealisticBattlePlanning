@@ -81,6 +81,9 @@ namespace RealisticBattlePlanning.Diagnostics
             Method(typeof(Agent), "IsActive");
             StaticMember(typeof(InformationManager), "DisplayMessage");
 
+            // Signal Palette keybinds (PlanMissionLogic, I8).
+            StaticMember(typeof(TaleWorlds.InputSystem.Input), "IsKeyReleased");
+
             // Harness recorder (HarnessRecorderLogic).
             Method(typeof(Mission), "SetFastForwardingFromUI", typeof(bool));
             Property(typeof(MissionResult), "PlayerVictory");

@@ -33,6 +33,15 @@ namespace RealisticBattlePlanning.Planning
             if (plan.PlayerSignals.Count > MaxPlayerSignals)
                 result.Errors.Add($"Plan declares {plan.PlayerSignals.Count} player signals; the maximum is {MaxPlayerSignals}.");
 
+            var declaredPlayerSignals = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var signal in plan.PlayerSignals)
+            {
+                if (string.IsNullOrWhiteSpace(signal))
+                    result.Errors.Add("A declared player signal is blank.");
+                else if (!declaredPlayerSignals.Add(signal))
+                    result.Errors.Add($"Player signal '{signal}' is declared twice.");
+            }
+
             var duplicateFormations = plan.Formations.GroupBy(f => f.Formation).Where(g => g.Count() > 1);
             foreach (var dup in duplicateFormations)
                 result.Errors.Add($"Formation '{dup.Key}' has more than one plan.");
@@ -62,13 +71,14 @@ namespace RealisticBattlePlanning.Planning
             }
 
             foreach (var formation in plan.Formations)
-                ValidateFormationPlan(formation, anchorIds, emittedSignals, result);
+                ValidateFormationPlan(formation, anchorIds, emittedSignals, declaredPlayerSignals, result);
 
             return result;
         }
 
         private static void ValidateFormationPlan(
-            FormationPlan formation, HashSet<string> anchorIds, HashSet<string> emittedSignals, PlanValidationResult result)
+            FormationPlan formation, HashSet<string> anchorIds, HashSet<string> emittedSignals,
+            HashSet<string> declaredPlayerSignals, PlanValidationResult result)
         {
             string Where(int stageIndex) => $"[{formation.Formation}] stage {stageIndex + 1}";
 
@@ -89,7 +99,7 @@ namespace RealisticBattlePlanning.Planning
                     result.Errors.Add($"{Where(i)} has no trigger. Only the first stage may omit it (defaults to battle start).");
 
                 foreach (var trigger in stage.When)
-                    ValidateTrigger(trigger, Where(i), anchorIds, emittedSignals, result);
+                    ValidateTrigger(trigger, Where(i), anchorIds, emittedSignals, declaredPlayerSignals, result);
 
                 if (stage.Do == null)
                     result.Errors.Add($"{Where(i)} has no directive.");
@@ -99,7 +109,8 @@ namespace RealisticBattlePlanning.Planning
         }
 
         private static void ValidateTrigger(
-            TriggerSpec trigger, string where, HashSet<string> anchorIds, HashSet<string> emittedSignals, PlanValidationResult result)
+            TriggerSpec trigger, string where, HashSet<string> anchorIds, HashSet<string> emittedSignals,
+            HashSet<string> declaredPlayerSignals, PlanValidationResult result)
         {
             void RequireEnemySelector(string selector)
             {
@@ -163,11 +174,19 @@ namespace RealisticBattlePlanning.Planning
                     break;
 
                 case TriggerType.SignalReceived:
-                case TriggerType.PlayerSignal:
                     if (string.IsNullOrWhiteSpace(trigger.Signal))
-                        result.Errors.Add($"{where}: {trigger.Type} needs a signal name.");
+                        result.Errors.Add($"{where}: SignalReceived needs a signal name.");
                     else if (!emittedSignals.Contains(trigger.Signal))
                         result.Warnings.Add($"{where}: listens for signal '{trigger.Signal}', but nothing emits it and it is not a declared player signal.");
+                    break;
+
+                case TriggerType.PlayerSignal:
+                    // A PlayerSignal gate must be fireable from the palette,
+                    // which only carries the declared signals (B9).
+                    if (string.IsNullOrWhiteSpace(trigger.Signal))
+                        result.Errors.Add($"{where}: PlayerSignal needs a signal name.");
+                    else if (!declaredPlayerSignals.Contains(trigger.Signal))
+                        result.Errors.Add($"{where}: player signal '{trigger.Signal}' is not declared in playerSignals; the palette could never fire it.");
                     break;
             }
         }

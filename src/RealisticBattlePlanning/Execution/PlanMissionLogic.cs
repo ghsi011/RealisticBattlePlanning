@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TaleWorlds.InputSystem;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using RealisticBattlePlanning.Diagnostics;
@@ -19,6 +20,14 @@ namespace RealisticBattlePlanning.Execution
     {
         /// <summary>~4 Hz: cheap, and well within trigger-latency needs (B2).</summary>
         private const float MonitorIntervalSeconds = 0.25f;
+
+        /// <summary>
+        /// Signal Palette keybinds (B9, R7: one input per signal). Numpad to
+        /// avoid the vanilla battle keys (1-0 select formations, F-keys open
+        /// order menus); MCM rebinding arrives with Area F.
+        /// </summary>
+        private static readonly InputKey[] PaletteKeys =
+            { InputKey.Numpad1, InputKey.Numpad2, InputKey.Numpad3, InputKey.Numpad4 };
 
         private readonly Dictionary<PlannedFormationClass, int> _initialCounts = new();
         private readonly Dictionary<PlannedFormationClass, Agent> _initialCaptains = new();
@@ -238,6 +247,8 @@ namespace RealisticBattlePlanning.Execution
             if (_monitor == null)
                 return;
 
+            PollSignalPalette();
+
             _sinceLastMonitorTick += dt;
             if (_sinceLastMonitorTick < MonitorIntervalSeconds)
                 return;
@@ -326,6 +337,53 @@ namespace RealisticBattlePlanning.Execution
                     Notify($"{CommanderName(formation)}: no executable orders remain; holding position.");
                     break;
             }
+        }
+
+        /// <summary>
+        /// Key edges must be sampled per frame (not at monitor cadence).
+        /// Up to four IsKeyReleased calls; nothing else runs unless a
+        /// declared signal fires.
+        /// </summary>
+        private void PollSignalPalette()
+        {
+            if (!_deploymentFinished || _plan.PlayerSignals.Count == 0)
+                return;
+
+            try
+            {
+                for (var i = 0; i < _plan.PlayerSignals.Count && i < PaletteKeys.Length; i++)
+                {
+                    if (Input.IsKeyReleased(PaletteKeys[i]))
+                        FirePlayerSignal(_plan.PlayerSignals[i]);
+                }
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Signal palette polling failed; use rbp.signal as the fallback.", e);
+            }
+        }
+
+        /// <summary>
+        /// B9: routes a player signal through the same latched bus as
+        /// stage-emitted signals. Also the C7 drill-cue entry point.
+        /// </summary>
+        internal string FirePlayerSignal(string signal)
+        {
+            if (_monitor == null)
+                return "no plan is active this battle";
+
+            _monitor.RaiseExternalSignal(signal); // RbpLog entry happens in the bus
+            Notify($"Signal '{signal}' raised.");
+
+            var declared = false;
+            foreach (var declaredSignal in _plan.PlayerSignals)
+            {
+                if (string.Equals(declaredSignal, signal, StringComparison.OrdinalIgnoreCase))
+                    declared = true;
+            }
+            return declared
+                ? $"signal '{signal}' raised"
+                : $"signal '{signal}' raised (note: not a declared player signal of this plan)";
         }
 
         private static string CommanderName(Formation formation)

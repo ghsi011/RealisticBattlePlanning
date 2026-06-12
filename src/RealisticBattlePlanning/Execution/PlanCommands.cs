@@ -24,5 +24,20 @@ namespace RealisticBattlePlanning.Execution
         [CommandLineFunctionality.CommandLineArgumentFunction("plan_status", "rbp")]
         public static string Status(List<string> args)
             => PlanMissionLogic.Current?.DescribePlanStates() ?? "no plan is active this battle";
+
+        /// <summary>
+        /// Signal Palette fallback and the C7 drill-cue mechanism (B9):
+        /// always works, regardless of keybinds. Undeclared names are
+        /// allowed (drill cues) but called out in the response.
+        /// </summary>
+        [CommandLineFunctionality.CommandLineArgumentFunction("signal", "rbp")]
+        public static string Signal(List<string> args)
+        {
+            if (PlanMissionLogic.Current == null)
+                return "no plan is active this battle";
+            if (args.Count != 1 || string.IsNullOrWhiteSpace(args[0]))
+                return "usage: rbp.signal <name>";
+            return PlanMissionLogic.Current.FirePlayerSignal(args[0]);
+        }
     }
 }
