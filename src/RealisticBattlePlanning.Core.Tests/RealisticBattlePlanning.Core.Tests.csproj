@@ -21,6 +21,8 @@
   <ItemGroup>
     <!-- The shipped sample plan is itself a test fixture: it must always parse and validate clean. -->
     <Content Include="..\..\Module\ModuleData\rbp_debug_plan.json" Link="rbp_debug_plan.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- So is the harness scenario pack: every scenario must parse, validate, and pass against a simulated run. -->
+    <Content Include="..\..\Module\ModuleData\Harness\*.json" Link="HarnessPack\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

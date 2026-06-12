@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using TaleWorlds.MountAndBlade;
 using RealisticBattlePlanning.Diagnostics;
+using RealisticBattlePlanning.Harness;
 using RealisticBattlePlanning.Planning;
 using RealisticBattlePlanning.Planning.Model;
 
@@ -25,6 +26,22 @@ namespace RealisticBattlePlanning.Execution
         private bool _deploymentFinished;
         private float _sinceLastMonitorTick;
 
+        /// <summary>The validated plan driving this mission; null when inert.</summary>
+        internal BattlePlan ActivePlan => _monitor == null ? null : _plan;
+
+        /// <summary>
+        /// Raised after each monitor tick with exactly what the monitor saw
+        /// and decided — the harness recorder's feed (no parallel engine reads).
+        /// </summary>
+        internal event Action<IBattlefieldSnapshot, IReadOnlyList<PlanEvent>> MonitorTicked;
+
+        /// <summary>
+        /// Raised when a fault disables the plan mid-battle, so a harness
+        /// run over this mission can mark its record invalid (R2: a crashed
+        /// run must never read as a genuine scenario outcome).
+        /// </summary>
+        internal event Action<string> MonitorFaulted;
+
         public override void AfterStart()
         {
             base.AfterStart();
@@ -38,7 +55,7 @@ namespace RealisticBattlePlanning.Execution
                     return;
                 }
 
-                _plan = DebugPlanLoader.TryLoad();
+                _plan = HarnessSession.PlanForNextBattle() ?? DebugPlanLoader.TryLoad();
                 if (_plan == null)
                     return;
 
@@ -106,16 +123,27 @@ namespace RealisticBattlePlanning.Execution
             try
             {
                 var snapshot = MissionSnapshot.Capture(Mission, _deploymentFinished, _initialCounts);
-                foreach (var planEvent in _monitor.Tick(snapshot))
+                var events = _monitor.Tick(snapshot);
+                foreach (var planEvent in events)
                 {
                     RbpLog.Info(planEvent.Describe());
                     ApplyEvent(planEvent);
                 }
+
+                MonitorTicked?.Invoke(snapshot, events);
             }
             catch (Exception e)
             {
                 RbpLog.Error("[FAULT] Plan monitor tick failed; plan disabled for this battle.", e);
                 _monitor = null;
+                try
+                {
+                    MonitorFaulted?.Invoke($"plan monitor tick failed mid-battle: {e.Message}");
+                }
+                catch (Exception faultHandler)
+                {
+                    RbpLog.Error("[FAULT] MonitorFaulted handler failed.", faultHandler);
+                }
             }
         }
 

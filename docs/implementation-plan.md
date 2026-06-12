@@ -234,6 +234,18 @@ point the I8 palette and C7 drill cues will use).
 
 Built now — before the full directive vocabulary — so the A6/H1 geometry and
 timing criteria in I6 land as executable scenarios, not prose.
+**Status: implemented, pending in-game verification** (88 tests green; pack
+lives in `ModuleData\Harness`, console flow `rbp.harness_arm all` → fight the
+armed battles → `rbp.harness_diff` / `rbp.harness_accept`; results in
+`Logs\Harness`. One deliberate deviation: v1 does **not** auto-spawn the
+scripted battle — the armed scenario runs on the next field battle the player
+starts, and everything after clicking Ready is unattended (plan injection,
+fast-forward via the vanilla UI fast-forward path, recording, evaluation,
+diff). Auto-spawning a custom battle on a flat scene needs the CustomBattle
+start API probed in-game first; it stays on the list for when the pack grows
+past two scenarios. Also new: the engine assembly now compiles without a game
+install — BUTR reference assemblies kick in as a compile-only fallback and
+deploy is skipped — so cloud/CI sessions can build and API-check engine code.)
 
 - Console commands / dev menu: load a plan from JSON, spawn a scripted battle
   on a flat test scene, run at high time-scale.
@@ -246,6 +258,14 @@ timing criteria in I6 land as executable scenarios, not prose.
   two-formation signal coordination.
 - **Verify:** the smoke pack runs unattended at high time-scale and passes;
   a deliberately broken plan produces a failing, readable diff.
+- Implementation notes: recording, assertion evaluation, and result diffing
+  are all Core (`Harness/` — `RunRecorder`, `ScenarioEvaluator`,
+  `ResultsDiff`); the engine side is a thin recorder `MissionLogic` fed by
+  `PlanMissionLogic.MonitorTicked` (the recorder sees exactly what the
+  monitor saw — no parallel engine reads). The shipped pack is itself a test
+  fixture: Layer-1 tests run every scenario against a kinematic simulation
+  (`HarnessSimulation`), so an in-game pack failure isolates to the engine
+  adapters by construction.
 - Spec: supports H1–H10 acceptance; G5 (dev-mode only, no player-facing
   surface).
 

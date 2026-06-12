@@ -1,0 +1,14 @@
+{
+  // I3 smoke scenario: the 3-waypoint walk. Time bounds are deliberately
+  // generous (ranges, never exact ticks) — troop walking speed varies by
+  // scene and troop type; the 30 s timer band is the tight assertion.
+
+  "description": "Infantry walks a 3-waypoint path (90 m), holds in shieldwall, charges after 30 s.",
+  "planFile": "walk_waypoints.plan.json",
+  "assertions": [
+    { "type": "StageActivatedBetween", "formation": "Infantry", "stage": 1, "minSeconds": 0, "maxSeconds": 5 },
+    { "type": "ReachesAnchor", "formation": "Infantry", "anchor": "wp3", "withinMeters": 15, "bySeconds": 240 },
+    { "type": "StageActivatedBetween", "formation": "Infantry", "stage": 2, "minSeconds": 15, "maxSeconds": 240 },
+    { "type": "StageActivatedAfterPrevious", "formation": "Infantry", "stage": 3, "minSeconds": 29, "maxSeconds": 40 }
+  ]
+}

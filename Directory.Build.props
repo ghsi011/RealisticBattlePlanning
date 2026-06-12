@@ -9,9 +9,19 @@
           Condition="Exists('$(MSBuildThisFileDirectory)local.props')" />
 
   <PropertyGroup>
+    <!--
+      An EXPLICITLY configured path (local.props or env var) that turns out
+      invalid is an error; only the unconfigured hard default may fall back
+      to reference assemblies (no game on this machine, e.g. cloud/CI).
+    -->
+    <BannerlordGameDirConfigured Condition="'$(BannerlordGameDir)' != '' or '$(BANNERLORD_GAME_DIR)' != ''">true</BannerlordGameDirConfigured>
+
     <!-- Fallback: BANNERLORD_GAME_DIR env var, then a final hard default the user can override. -->
     <BannerlordGameDir Condition="'$(BannerlordGameDir)' == ''">$(BANNERLORD_GAME_DIR)</BannerlordGameDir>
     <BannerlordGameDir Condition="'$(BannerlordGameDir)' == ''">C:\games\Steam\steamapps\common\Mount &amp; Blade II Bannerlord</BannerlordGameDir>
+
+    <HasBannerlordInstall>false</HasBannerlordInstall>
+    <HasBannerlordInstall Condition="Exists('$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.Library.dll')">true</HasBannerlordInstall>
 
     <!-- Module identity: mirrored in SubModule.xml and the deploy path. -->
     <ModuleId>RealisticBattlePlanning</ModuleId>

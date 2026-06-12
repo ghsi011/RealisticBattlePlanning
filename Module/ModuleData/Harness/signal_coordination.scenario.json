@@ -1,0 +1,14 @@
+{
+  // I4 smoke scenario: two-formation coordination over the signal bus.
+  // The latency assertion is the point: signals are latched and visible the
+  // next monitor tick (~0.25 s in-game), so 2 s of slack is already generous.
+
+  "description": "Infantry advances after 15 s emitting 'advancing'; archers move up on the signal.",
+  "planFile": "signal_coordination.plan.json",
+  "assertions": [
+    { "type": "StageActivatedAfterPrevious", "formation": "Infantry", "stage": 2, "minSeconds": 14, "maxSeconds": 20 },
+    { "type": "SignalEmittedBetween", "signal": "advancing", "minSeconds": 14, "maxSeconds": 25 },
+    { "type": "StageAfterSignal", "formation": "Ranged", "stage": 2, "signal": "advancing", "maxDelaySeconds": 2 },
+    { "type": "ReachesAnchor", "formation": "Ranged", "anchor": "support", "withinMeters": 15, "bySeconds": 120 }
+  ]
+}
