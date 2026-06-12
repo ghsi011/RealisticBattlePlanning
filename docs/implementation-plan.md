@@ -273,6 +273,25 @@ deploy is skipped — so cloud/CI sessions can build and API-check engine code.)
 
 Core owns directive selection, parameters, and transitions; the behaviors
 themselves are engine-side.
+**Status: implemented, pending in-game verification** (121 tests green).
+Implementation decision: the whole A5 vocabulary is expressed through the
+vanilla **order system**, not FormationAI `BehaviorComponent`s — the
+in-game-verified B1 suppression (`SetControlledByAI(false)`) turns formation
+AI off, so behavior weights wouldn't tick under it, and the spec's A5 note
+makes behavior reuse the implementer's choice. Steering directives
+(Skirmish, FlankArc, Screen, Follow) compute their move goal in Core every
+monitor tick and re-issue it past an 8 m threshold
+(`SteeringTargetChanged`); the engine stays a stateless order relay, so
+every behavior is scripted-timeline-testable. A directive can still be
+swapped to a `BehaviorComponent` engine-side later without touching the
+Core contract. Model changes A6 forced: `PlannedFormationClass` now covers
+all 8 vanilla order-of-battle slots (A6 fields 2 HA + 2 INF formations),
+and `EnemyWithinDistance` takes an optional anchor reference ("enemy within
+40 m of the retreat anchor"). Known limitations, deliberate: MoveTo
+walk/run speed is not applied (vanilla movement orders don't expose it);
+Charge's target selector is recorded but vanilla charge picks its own
+melee targets; FeignRetreat reads as flight via movement-direction facing
++ the fire flag (no per-agent parthian-shot scripting).
 
 - Vanilla-relative first (reuse/subclass `BehaviorComponent`s, per 1.1):
   *Skirmish/Harass*, *Pull back*, *Follow/Escort*, *Hold/Free fire*.
@@ -288,6 +307,16 @@ themselves are engine-side.
   assertions on stage timing and anchor proximity — the MVP's "it actually
   works" moment (watched live at least once); each directive also gets a
   one-formation smoke scenario.
+- Pack as shipped: `a6_feigned_retreat` (Skirmish, FeignRetreat, FlankArc,
+  Hold, Charge under coordination — needs troops in all four of
+  HorseArcher/LightCavalry/Infantry/HeavyInfantry) plus `pull_back`,
+  `screen_guard`, `follow_escort`, `fire_discipline` smokes; with I5's
+  `walk_waypoints`/`signal_coordination`, every A5 directive has at least
+  one scenario. The simulation gained scripted enemies (aggressive chaser /
+  static threat) so the pack stays Layer-1-validated. A6's geometric H1
+  bands (±5 m, ≤2 s at Veteran) deliberately wait for I12's acceptance
+  pass; the shipped assertions pin coordination (signal exists, both HA
+  react within 2 s) with loose timing bands to survive scene variance.
 - Spec: A5, A6.
 
 ### I7 — Override, resume, aborts, invalidation

@@ -1,0 +1,24 @@
+{
+  // PullBack smoke: hold the line, then give 40 m of ground facing the enemy.
+
+  "anchors": [
+    { "id": "rally", "basis": "OwnStart", "forward": -40.0 }
+  ],
+
+  "formations": [
+    {
+      "formation": "Infantry",
+      "stages": [
+        {
+          "name": "hold",
+          "do": { "type": "Hold", "arrangement": "Line" }
+        },
+        {
+          "name": "give ground",
+          "when": [ { "type": "TimerElapsed", "seconds": 10 } ],
+          "do": { "type": "PullBack", "anchor": "rally", "maintainFacing": true }
+        }
+      ]
+    }
+  ]
+}

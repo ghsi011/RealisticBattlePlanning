@@ -36,7 +36,12 @@ namespace RealisticBattlePlanning.Planning.Model
         /// </summary>
         public float? Meters { get; set; }
 
-        /// <summary>PositionReached: anchor id and arrival tolerance.</summary>
+        /// <summary>
+        /// PositionReached: anchor id and arrival tolerance. For
+        /// EnemyWithinDistance: optional anchor the distance is measured from
+        /// instead of the own formation (A6: "enemy within 40 m of the HA
+        /// retreat anchor").
+        /// </summary>
         public string Anchor { get; set; }
         public float? ToleranceMeters { get; set; }
 

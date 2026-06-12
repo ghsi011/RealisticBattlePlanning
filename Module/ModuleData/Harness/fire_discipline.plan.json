@@ -1,0 +1,22 @@
+{
+  // FireControl smoke: archers hold fire for 15 s, then free fire. The
+  // visible part (volley starts on the transition) is a manual check; the
+  // scenario asserts the stage timing.
+
+  "formations": [
+    {
+      "formation": "Ranged",
+      "stages": [
+        {
+          "name": "hold fire",
+          "do": { "type": "Hold", "arrangement": "Loose", "fire": "Hold" }
+        },
+        {
+          "name": "loose",
+          "when": [ { "type": "TimerElapsed", "seconds": 15 } ],
+          "do": { "type": "FireControl", "fire": "Free" }
+        }
+      ]
+    }
+  ]
+}

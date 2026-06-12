@@ -33,6 +33,35 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void EnemyWithinDistanceAcceptsADefinedAnchorReference()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec
+            {
+                Type = TriggerType.EnemyWithinDistance,
+                Meters = 40f,
+                Anchor = "advance-50",
+            };
+
+            Assert.True(PlanValidator.Validate(plan).IsValid);
+        }
+
+        [Fact]
+        public void EnemyWithinDistanceWithAnUndefinedAnchorIsAnError()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec
+            {
+                Type = TriggerType.EnemyWithinDistance,
+                Meters = 40f,
+                Anchor = "no-such-anchor",
+            };
+
+            var result = PlanValidator.Validate(plan);
+            Assert.Contains(result.Errors, e => e.Contains("no-such-anchor"));
+        }
+
+        [Fact]
         public void MoreThanThreeConditionsIsAnError()
         {
             var plan = TestPlans.SimpleValid();

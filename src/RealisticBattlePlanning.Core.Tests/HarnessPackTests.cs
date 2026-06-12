@@ -42,11 +42,23 @@ namespace RealisticBattlePlanning.Tests
             var spec = LoadSpec(name);
             var plan = LoadPlan(spec);
 
-            var record = HarnessSimulation.Run(plan, name);
+            var record = HarnessSimulation.Run(plan, name, enemies: SimEnemiesFor(name));
             var result = ScenarioEvaluator.Evaluate(spec, record);
 
             Assert.True(result.Pass, result.Summary());
         }
+
+        /// <summary>
+        /// Scripted stand-ins for the enemy army each scenario expects
+        /// in-game: an aggressive chaser for A6, a static threat for the
+        /// screen, none where the plan is self-contained.
+        /// </summary>
+        private static System.Collections.Generic.IReadOnlyList<SimEnemy> SimEnemiesFor(string name) => name switch
+        {
+            "a6_feigned_retreat" => new[] { new SimEnemy(1, 0, 200, speed: 4f, cls: Planning.Model.PlannedFormationClass.Infantry) },
+            "screen_guard" => new[] { new SimEnemy(1, -20, 120) },
+            _ => null,
+        };
 
         [Fact]
         public void ACrippledRunFailsTheWalkScenarioReadably()

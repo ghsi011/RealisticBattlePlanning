@@ -54,7 +54,8 @@ namespace RealisticBattlePlanning.Planning
             {
                 case TriggerType.BattleStart: return "On battle start";
                 case TriggerType.EnemyCommits: return $"Enemy commits to attack{OnFormation(t)}";
-                case TriggerType.EnemyWithinDistance: return $"Enemy{Selector(t)} within {t.Meters:0.#}m";
+                case TriggerType.EnemyWithinDistance:
+                    return $"Enemy{Selector(t)} within {t.Meters:0.#}m" + (t.Anchor != null ? $" of '{t.Anchor}'" : "");
                 case TriggerType.FriendlyWithinDistance: return $"{t.Formation ?? "Friendly"} within {t.Meters:0.#}m";
                 case TriggerType.PositionReached: return $"Reached '{t.Anchor}'" + (t.ToleranceMeters != null ? $" (±{t.ToleranceMeters:0.#}m)" : "");
                 case TriggerType.CasualtiesAbove: return $"Casualties{OnFormation(t)} above {t.Percent:0.#}%";

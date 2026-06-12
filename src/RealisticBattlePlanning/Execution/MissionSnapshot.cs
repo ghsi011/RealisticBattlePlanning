@@ -107,6 +107,10 @@ namespace RealisticBattlePlanning.Execution
             FormationClass.Ranged => PlannedFormationClass.Ranged,
             FormationClass.Cavalry => PlannedFormationClass.Cavalry,
             FormationClass.HorseArcher => PlannedFormationClass.HorseArcher,
+            FormationClass.Skirmisher => PlannedFormationClass.Skirmisher,
+            FormationClass.HeavyInfantry => PlannedFormationClass.HeavyInfantry,
+            FormationClass.LightCavalry => PlannedFormationClass.LightCavalry,
+            FormationClass.HeavyCavalry => PlannedFormationClass.HeavyCavalry,
             _ => null,
         };
 
@@ -144,7 +148,7 @@ namespace RealisticBattlePlanning.Execution
         }
     }
 
-    /// <summary>The four plannable classes mapped to engine formation slots.</summary>
+    /// <summary>The eight plannable slots mapped to engine formation slots.</summary>
     internal static class FormationClassMap
     {
         public static readonly (PlannedFormationClass Planned, FormationClass Engine)[] All =
@@ -153,6 +157,10 @@ namespace RealisticBattlePlanning.Execution
             (PlannedFormationClass.Ranged, FormationClass.Ranged),
             (PlannedFormationClass.Cavalry, FormationClass.Cavalry),
             (PlannedFormationClass.HorseArcher, FormationClass.HorseArcher),
+            (PlannedFormationClass.Skirmisher, FormationClass.Skirmisher),
+            (PlannedFormationClass.HeavyInfantry, FormationClass.HeavyInfantry),
+            (PlannedFormationClass.LightCavalry, FormationClass.LightCavalry),
+            (PlannedFormationClass.HeavyCavalry, FormationClass.HeavyCavalry),
         };
 
         public static FormationClass ToEngine(PlannedFormationClass planned)

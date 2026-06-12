@@ -1,0 +1,8 @@
+{
+  "description": "Screen smoke: cavalry stations itself between the infantry and the threat at the configured gap.",
+  "planFile": "screen_guard.plan.json",
+  "assertions": [
+    { "type": "StageActivatedBetween", "formation": "Cavalry", "stage": 1, "minSeconds": 0, "maxSeconds": 5 },
+    { "type": "ReachesAnchor", "formation": "Cavalry", "anchor": "station", "withinMeters": 35, "bySeconds": 120 }
+  ]
+}
