@@ -43,7 +43,7 @@ and mirrors `Module\**` into the module root.
 
 ## Reference mods on this machine
 
-Two larger mods are checked out next to this repo as implementation references:
+Three larger mods are checked out next to this repo as implementation references:
 
 - `C:\github\RTSCamera` — battle-mission camera + command overlays. Best
   reference for **mission views, HUD, Harmony patches against
@@ -51,6 +51,14 @@ Two larger mods are checked out next to this repo as implementation references:
 - `C:\github\bannerlord-banner-kings` — campaign-systems mega-mod. Best
   reference for **CampaignBehaviors, save data, MCM settings, UIExtender
   prefab extensions, ButterLib usage**.
+- `C:\github\RealisticBattleProject` — RBM, the spec's named compatibility
+  target (G4/R3). `RealisticBattleAiModule` is where to read **how modified
+  team AI decides to advance/commit** (EnemyCommits tuning) and what it
+  touches on the player team. Verified 2026-06-12: its tactics only steer the
+  player team when the player is *not* general (`IsPlayerTeam &&
+  !IsPlayerGeneral && IsPlayerSergeant` guards), so plan governance via
+  `SetControlledByAI(false)` is compatible by design — confirm again in the
+  Phase 3 G4 pass.
 
 When you need a pattern (registering a behavior, patching a vanilla type,
 extending a Gauntlet prefab), grep these two before inventing one.
