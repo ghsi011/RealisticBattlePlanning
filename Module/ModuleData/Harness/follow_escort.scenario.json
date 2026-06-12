@@ -1,0 +1,9 @@
+{
+  "description": "Follow smoke: infantry advances 60 m; the archer escort trails it and ends up 15 m behind the destination.",
+  "planFile": "follow_escort.plan.json",
+  "assertions": [
+    { "type": "StageActivatedBetween", "formation": "Ranged", "stage": 1, "minSeconds": 0, "maxSeconds": 5 },
+    { "type": "ReachesAnchor", "formation": "Infantry", "anchor": "dest", "withinMeters": 15, "bySeconds": 180 },
+    { "type": "ReachesAnchor", "formation": "Ranged", "anchor": "behind_dest", "withinMeters": 20, "bySeconds": 180 }
+  ]
+}

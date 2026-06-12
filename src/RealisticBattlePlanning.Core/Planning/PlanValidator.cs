@@ -102,6 +102,9 @@ namespace RealisticBattlePlanning.Planning
                 case TriggerType.FriendlyWithinDistance:
                     if (trigger.Meters is not > 0)
                         result.Errors.Add($"{where}: {trigger.Type} needs meters > 0.");
+                    if (trigger.Type == TriggerType.EnemyWithinDistance
+                        && trigger.Anchor != null && !anchorIds.Contains(trigger.Anchor))
+                        result.Errors.Add($"{where}: anchor '{trigger.Anchor}' is not defined.");
                     break;
 
                 case TriggerType.PositionReached:

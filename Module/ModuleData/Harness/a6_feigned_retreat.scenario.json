@@ -1,0 +1,18 @@
+{
+  // The MVP's "it actually works" scenario (I6 verify / H1 core, fixed
+  // fidelity). Geometry tolerances stay loose here — the tiered H1 bands
+  // land in I12; the tight assertions are the coordination ones: the trap
+  // signal exists and both HA formations react to it within a tick budget.
+
+  "description": "Canonical A6 Feigned Retreat: skirmish, feign on commitment, infantry springs the trap, HA wheel into mirrored missile-only arcs.",
+  "planFile": "a6_feigned_retreat.plan.json",
+  "assertions": [
+    { "type": "StageActivatedBetween", "formation": "HorseArcher", "stage": 1, "minSeconds": 0, "maxSeconds": 5 },
+    { "type": "StageActivatedBetween", "formation": "HorseArcher", "stage": 2, "minSeconds": 8, "maxSeconds": 150 },
+    { "type": "StageActivatedBetween", "formation": "LightCavalry", "stage": 2, "minSeconds": 8, "maxSeconds": 150 },
+    { "type": "SignalEmittedBetween", "signal": "spring-trap", "minSeconds": 20, "maxSeconds": 220 },
+    { "type": "StageAfterSignal", "formation": "HorseArcher", "stage": 3, "signal": "spring-trap", "maxDelaySeconds": 2 },
+    { "type": "StageAfterSignal", "formation": "LightCavalry", "stage": 3, "signal": "spring-trap", "maxDelaySeconds": 2 },
+    { "type": "StageActivatedBetween", "formation": "Infantry", "stage": 2, "minSeconds": 20, "maxSeconds": 220 }
+  ]
+}

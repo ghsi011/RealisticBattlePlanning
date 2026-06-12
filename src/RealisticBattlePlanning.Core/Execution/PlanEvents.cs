@@ -80,6 +80,25 @@ namespace RealisticBattlePlanning.Execution
             => $"[{Formation}] advancing to waypoint {WaypointIndex + 1} at {Target}";
     }
 
+    /// <summary>
+    /// A steering directive (Skirmish, FlankArc, Screen, Follow) shifted its
+    /// computed move goal — the battlefield moved, not the plan. The engine
+    /// treats it exactly like a move order.
+    /// </summary>
+    public sealed class SteeringTargetChanged : PlanEvent
+    {
+        public SteeringTargetChanged(PlannedFormationClass formation, MapVec target)
+            : base(formation)
+        {
+            Target = target;
+        }
+
+        public MapVec Target { get; }
+
+        public override string Describe()
+            => $"[{Formation}] steering to {Target}";
+    }
+
     public sealed class SignalEmitted : PlanEvent
     {
         public SignalEmitted(PlannedFormationClass formation, string signal)

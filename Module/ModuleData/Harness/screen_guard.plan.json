@@ -1,0 +1,30 @@
+{
+  // Screen smoke: cavalry takes station between the infantry and the
+  // nearest threat at a 25 m gap. "station" only marks the expected
+  // neighborhood for the assertion; the screen itself tracks the threat.
+
+  "anchors": [
+    { "id": "station", "basis": "TeamCenter", "forward": 25.0 }
+  ],
+
+  "formations": [
+    {
+      "formation": "Infantry",
+      "stages": [
+        {
+          "name": "stand fast",
+          "do": { "type": "Hold", "arrangement": "ShieldWall" }
+        }
+      ]
+    },
+    {
+      "formation": "Cavalry",
+      "stages": [
+        {
+          "name": "screen the line",
+          "do": { "type": "Screen", "target": "Infantry", "gapMeters": 25 }
+        }
+      ]
+    }
+  ]
+}

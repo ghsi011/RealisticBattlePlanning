@@ -1,0 +1,9 @@
+{
+  "description": "PullBack smoke: infantry holds 10 s, then withdraws 40 m to the rally anchor, still facing the enemy.",
+  "planFile": "pull_back.plan.json",
+  "assertions": [
+    { "type": "StageActivatedBetween", "formation": "Infantry", "stage": 1, "minSeconds": 0, "maxSeconds": 5 },
+    { "type": "StageActivatedAfterPrevious", "formation": "Infantry", "stage": 2, "minSeconds": 9, "maxSeconds": 15 },
+    { "type": "ReachesAnchor", "formation": "Infantry", "anchor": "rally", "withinMeters": 15, "bySeconds": 120 }
+  ]
+}

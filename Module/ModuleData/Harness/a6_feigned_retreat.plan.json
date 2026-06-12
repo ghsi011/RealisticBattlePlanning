@@ -1,0 +1,83 @@
+{
+  // The spec's canonical worked example (A6): two horse-archer formations
+  // (HorseArcher + LightCavalry slots) and two infantry formations
+  // (Infantry + HeavyInfantry slots). Assign troops to all four groups in
+  // the order of battle before running this scenario.
+  //
+  // "trap" is TeamCenter-based so the HA retreat target and the infantry's
+  // "enemy within 40 m of the anchor" trigger measure the same spot.
+
+  "anchors": [
+    { "id": "trap", "basis": "TeamCenter", "forward": -30.0 }
+  ],
+
+  "formations": [
+    {
+      "formation": "HorseArcher",
+      "stages": [
+        {
+          "name": "skirmish",
+          "do": { "type": "Skirmish", "standoffMeters": 60 }
+        },
+        {
+          "name": "feign retreat",
+          "when": [ { "type": "EnemyCommits" } ],
+          "do": { "type": "FeignRetreat", "anchor": "trap", "fireWhileWithdrawing": true }
+        },
+        {
+          "name": "wheel out left",
+          "when": [ { "type": "SignalReceived", "signal": "spring-trap" } ],
+          "do": { "type": "FlankArc", "side": "Left", "standoffMeters": 50, "missileOnly": true }
+        }
+      ]
+    },
+    {
+      "formation": "LightCavalry",
+      "stages": [
+        {
+          "name": "skirmish",
+          "do": { "type": "Skirmish", "standoffMeters": 60 }
+        },
+        {
+          "name": "feign retreat",
+          "when": [ { "type": "EnemyCommits" } ],
+          "do": { "type": "FeignRetreat", "anchor": "trap", "fireWhileWithdrawing": true }
+        },
+        {
+          "name": "wheel out right",
+          "when": [ { "type": "SignalReceived", "signal": "spring-trap" } ],
+          "do": { "type": "FlankArc", "side": "Right", "standoffMeters": 50, "missileOnly": true }
+        }
+      ]
+    },
+    {
+      "formation": "Infantry",
+      "stages": [
+        {
+          "name": "shieldwall",
+          "do": { "type": "Hold", "arrangement": "ShieldWall" }
+        },
+        {
+          "name": "spring the trap",
+          "when": [ { "type": "EnemyWithinDistance", "meters": 40, "anchor": "trap" } ],
+          "do": { "type": "Charge" },
+          "emit": [ "spring-trap" ]
+        }
+      ]
+    },
+    {
+      "formation": "HeavyInfantry",
+      "stages": [
+        {
+          "name": "shieldwall",
+          "do": { "type": "Hold", "arrangement": "ShieldWall" }
+        },
+        {
+          "name": "spring the trap",
+          "when": [ { "type": "EnemyWithinDistance", "meters": 40, "anchor": "trap" } ],
+          "do": { "type": "Charge" }
+        }
+      ]
+    }
+  ]
+}

@@ -80,9 +80,13 @@ namespace RealisticBattlePlanning.Diagnostics
             Method(typeof(Formation), "SetArrangementOrder", typeof(ArrangementOrder));
             Method(typeof(Formation), "SetFacingOrder", typeof(FacingOrder));
             Method(typeof(Formation), "SetFormOrder", typeof(FormOrder), typeof(bool));
+            Method(typeof(Formation), "SetFiringOrder", typeof(FiringOrder));
             Method(typeof(Formation), "SetControlledByAI", typeof(bool), typeof(bool));
             StaticMember(typeof(MovementOrder), "MovementOrderMove");
             StaticMember(typeof(MovementOrder), "MovementOrderCharge");
+            StaticMember(typeof(FiringOrder), "FiringOrderFireAtWill");
+            StaticMember(typeof(FiringOrder), "FiringOrderHoldYourFire");
+            StaticMember(typeof(FacingOrder), "FacingOrderLookAtDirection");
             StaticMember(typeof(ArrangementOrder), "ArrangementOrderLine");
             StaticMember(typeof(ArrangementOrder), "ArrangementOrderShieldWall");
             StaticMember(typeof(ArrangementOrder), "ArrangementOrderLoose");

@@ -18,13 +18,23 @@ namespace RealisticBattlePlanning.Planning.Model
         public List<string> PlayerSignals { get; set; } = new();
     }
 
-    /// <summary>The four plannable formation classes (spec §2 Formation).</summary>
+    /// <summary>
+    /// The plannable formation slots — the eight vanilla regular
+    /// order-of-battle groups (spec §2: a Formation is a Bannerlord battle
+    /// formation). The extra four exist so multi-formation maneuvers can
+    /// address two formations of the same troop type (A6 fields two
+    /// horse-archer and two infantry formations).
+    /// </summary>
     public enum PlannedFormationClass
     {
         Infantry,
         Ranged,
         Cavalry,
         HorseArcher,
+        Skirmisher,
+        HeavyInfantry,
+        LightCavalry,
+        HeavyCavalry,
     }
 
     public sealed class FormationPlan

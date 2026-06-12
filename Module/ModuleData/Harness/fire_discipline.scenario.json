@@ -1,0 +1,8 @@
+{
+  "description": "FireControl smoke: archers hold fire 15 s, then switch to free fire (watch for the first volley on the transition).",
+  "planFile": "fire_discipline.plan.json",
+  "assertions": [
+    { "type": "StageActivatedBetween", "formation": "Ranged", "stage": 1, "minSeconds": 0, "maxSeconds": 5 },
+    { "type": "StageActivatedAfterPrevious", "formation": "Ranged", "stage": 2, "minSeconds": 14, "maxSeconds": 20 }
+  ]
+}

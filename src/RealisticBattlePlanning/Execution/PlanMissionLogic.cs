@@ -166,6 +166,10 @@ namespace RealisticBattlePlanning.Execution
                     _executor.Move(formation, moveTarget.Target);
                     break;
 
+                case SteeringTargetChanged steering:
+                    _executor.Move(formation, steering.Target);
+                    break;
+
                 case SignalEmitted:
                     // Logged above; the signal bus wires receipt in I4.
                     break;

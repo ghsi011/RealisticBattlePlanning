@@ -82,6 +82,7 @@ namespace RealisticBattlePlanning.Execution
             {
                 if (!TryAdvance(state, snapshot, events))
                     TickWaypointProgression(state, snapshot, events);
+                TickSteering(state, snapshot, events);
             }
 
             return events;
@@ -106,6 +107,7 @@ namespace RealisticBattlePlanning.Execution
             state.ActiveStageIndex = stageIndex;
             state.ActivatedAtSeconds = snapshot.TimeSeconds;
             state.WaypointIndex = 0;
+            state.LastSteeringTarget = null;
             state.ActiveDirective = ResolveDirective(state.Plan.Formation, stage.Do);
 
             events.Add(new StageActivated(state.Plan.Formation, stageIndex, stage, state.ActiveDirective));
@@ -168,11 +170,18 @@ namespace RealisticBattlePlanning.Execution
 
                 case TriggerType.EnemyWithinDistance:
                 {
-                    var own = snapshot.GetOwn(state.Plan.Formation);
-                    if (own is not { Exists: true } || condition.Meters is not { } meters)
+                    if (condition.Meters is not { } meters)
+                        return false;
+                    // Distance is measured from the named anchor when given
+                    // (A6: "enemy within 40 m of the HA retreat anchor"),
+                    // else from the own formation.
+                    var reference = condition.Anchor != null
+                        ? Anchors.Resolve(state.Plan.Formation, condition.Anchor)
+                        : (snapshot.GetOwn(state.Plan.Formation) is { Exists: true } own ? own.Position : (MapVec?)null);
+                    if (reference is not { } point)
                         return false;
                     return MatchingEnemies(condition.Formation, snapshot)
-                        .Any(enemy => own.Position.DistanceTo(enemy.Position) <= meters);
+                        .Any(enemy => point.DistanceTo(enemy.Position) <= meters);
                 }
 
                 case TriggerType.FriendlyWithinDistance:
@@ -346,6 +355,111 @@ namespace RealisticBattlePlanning.Execution
             return new ResolvedDirective(spec, target, path);
         }
 
+        /// <summary>
+        /// Steering directives (A5: Skirmish, FlankArc, Screen, Follow) track
+        /// moving references, so their move goal is recomputed every tick and
+        /// re-issued when it shifts noticeably. The geometry lives here, not
+        /// in the engine: an order stream the engine merely relays is what
+        /// keeps the whole vocabulary scripted-timeline-testable.
+        /// </summary>
+        private void TickSteering(FormationState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        {
+            var directive = state.ActiveDirective;
+            if (state.ActiveStageIndex < 0 || directive == null)
+                return;
+
+            if (ComputeSteeringTarget(directive.Spec, state, snapshot) is not { } target)
+                return;
+
+            if (state.LastSteeringTarget is { } last &&
+                last.DistanceTo(target) < DirectiveDefaults.SteeringUpdateThresholdMeters)
+                return;
+
+            state.LastSteeringTarget = target;
+            events.Add(new SteeringTargetChanged(state.Plan.Formation, target));
+        }
+
+        private MapVec? ComputeSteeringTarget(DirectiveSpec spec, FormationState state, IBattlefieldSnapshot snapshot)
+        {
+            var own = snapshot.GetOwn(state.Plan.Formation);
+            if (own is not { Exists: true })
+                return null;
+
+            switch (spec.Type)
+            {
+                case DirectiveType.Skirmish:
+                {
+                    // Stand at the standoff distance on the line back toward
+                    // our current position: gives ground as the enemy closes,
+                    // follows as it withdraws.
+                    var enemy = NearestEnemy(spec.Target, own.Position, snapshot);
+                    if (enemy == null)
+                        return null;
+                    var standoff = spec.StandoffMeters ?? DirectiveDefaults.SkirmishStandoffMeters;
+                    var away = own.Position - enemy.Position;
+                    var direction = away.Length > 1e-3f ? away.Normalized() : snapshot.AttackDirection * -1f;
+                    return enemy.Position + direction * standoff;
+                }
+
+                case DirectiveType.FlankArc:
+                {
+                    // Abeam of the target at standoff, on the chosen side of
+                    // the battle axis. Missile-only is upheld by construction:
+                    // steering never emits a charge transition.
+                    var enemy = NearestEnemy(spec.Target, own.Position, snapshot);
+                    if (enemy == null)
+                        return null;
+                    var standoff = spec.StandoffMeters ?? DirectiveDefaults.FlankArcStandoffMeters;
+                    var side = spec.Side == FlankSide.Left ? -1f : 1f;
+                    return enemy.Position + snapshot.AttackDirection.Normalized().Right() * (side * standoff);
+                }
+
+                case DirectiveType.Screen:
+                {
+                    // Stand between the protected formation and the nearest
+                    // threat, gap meters out (toward the battle axis when no
+                    // enemy is left).
+                    if (ResolveFriendlyPosition(spec.Target, snapshot) is not { } guarded)
+                        return null;
+                    var gap = spec.GapMeters ?? DirectiveDefaults.ScreenGapMeters;
+                    var threat = NearestEnemy(null, guarded, snapshot);
+                    var toward = threat != null ? threat.Position - guarded : snapshot.AttackDirection;
+                    var direction = toward.Length > 1e-3f ? toward.Normalized() : snapshot.AttackDirection;
+                    return guarded + direction * gap;
+                }
+
+                case DirectiveType.Follow:
+                {
+                    if (ResolveFriendlyPosition(spec.Target, snapshot) is not { } followed)
+                        return null;
+                    var forward = snapshot.AttackDirection.Normalized();
+                    var alongForward = spec.OffsetForwardMeters ?? -DirectiveDefaults.FollowDefaultBehindMeters;
+                    var alongRight = spec.OffsetRightMeters ?? 0f;
+                    return followed + forward * alongForward + forward.Right() * alongRight;
+                }
+
+                default:
+                    return null;
+            }
+        }
+
+        private static IEnemyFormationSnapshot NearestEnemy(string selector, MapVec from, IBattlefieldSnapshot snapshot)
+        {
+            IEnemyFormationSnapshot nearest = null;
+            var nearestDistance = float.MaxValue;
+            foreach (var enemy in MatchingEnemies(selector, snapshot))
+            {
+                var distance = from.DistanceTo(enemy.Position);
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearest = enemy;
+                }
+            }
+
+            return nearest;
+        }
+
         private void TickWaypointProgression(FormationState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
             var directive = state.ActiveDirective;
@@ -393,6 +507,7 @@ namespace RealisticBattlePlanning.Execution
             public float ActivatedAtSeconds { get; set; }
             public int WaypointIndex { get; set; }
             public ResolvedDirective ActiveDirective { get; set; }
+            public MapVec? LastSteeringTarget { get; set; }
         }
     }
 }

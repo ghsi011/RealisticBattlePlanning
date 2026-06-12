@@ -1,0 +1,30 @@
+{
+  // Follow smoke: archers escort the advancing infantry 15 m behind it.
+  // "behind_dest" marks where the escort should end up for the assertion.
+
+  "anchors": [
+    { "id": "dest", "basis": "TeamCenter", "forward": 60.0 },
+    { "id": "behind_dest", "basis": "TeamCenter", "forward": 45.0 }
+  ],
+
+  "formations": [
+    {
+      "formation": "Infantry",
+      "stages": [
+        {
+          "name": "advance",
+          "do": { "type": "MoveTo", "anchor": "dest" }
+        }
+      ]
+    },
+    {
+      "formation": "Ranged",
+      "stages": [
+        {
+          "name": "escort behind",
+          "do": { "type": "Follow", "target": "Infantry", "offsetForwardMeters": -15 }
+        }
+      ]
+    }
+  ]
+}
