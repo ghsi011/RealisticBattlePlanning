@@ -41,6 +41,7 @@ namespace RealisticBattlePlanning.Harness
                 _battleStartSeconds = snapshot.TimeSeconds;
                 _lastSampleAt = float.MinValue;
                 CaptureAnchors(snapshot);
+                CaptureMissingFormations(snapshot);
             }
 
             var time = snapshot.TimeSeconds - _battleStartSeconds;
@@ -131,6 +132,22 @@ namespace RealisticBattlePlanning.Harness
                         });
                     }
                 }
+            }
+        }
+
+        /// <summary>
+        /// A planned formation with no units at battle start is a scenario
+        /// precondition failure (order-of-battle setup), recorded so the
+        /// evaluator can report the cause instead of downstream symptoms.
+        /// </summary>
+        private void CaptureMissingFormations(IBattlefieldSnapshot snapshot)
+        {
+            foreach (var formationPlan in _plan.Formations)
+            {
+                if (formationPlan.Stages.Count == 0)
+                    continue;
+                if (snapshot.GetOwn(formationPlan.Formation) is not { Exists: true })
+                    _record.MissingFormations.Add(formationPlan.Formation);
             }
         }
 

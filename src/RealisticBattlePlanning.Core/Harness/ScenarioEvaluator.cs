@@ -56,6 +56,19 @@ namespace RealisticBattlePlanning.Harness
                 });
             }
 
+            // Empty planned formations are a setup problem; name the slots up
+            // front instead of letting them surface as misleading
+            // "stage N never activated" assertion failures.
+            if (record.MissingFormations is { Count: > 0 } missing)
+            {
+                result.Assertions.Add(new AssertionResult
+                {
+                    Description = "all planned formations fielded",
+                    Pass = false,
+                    Message = $"no units at battle start in: {string.Join(", ", missing)} — populate those order-of-battle slots and re-run",
+                });
+            }
+
             foreach (var assertion in spec.Assertions)
                 result.Assertions.Add(Check(assertion, record));
 

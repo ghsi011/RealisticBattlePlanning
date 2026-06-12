@@ -144,6 +144,28 @@ namespace RealisticBattlePlanning.Tests
             Assert.Equal("first", recorder.Complete("PlayerVictory").Fault);
         }
 
+        [Fact]
+        public void PlannedFormationWithoutUnitsIsRecordedAsMissing()
+        {
+            // SimpleValid plans Infantry + Ranged; field only Infantry.
+            var (monitor, recorder) = Setup(TestPlans.SimpleValid());
+
+            Tick(monitor, recorder, new FakeBattlefield(0f).WithOwn(PlannedFormationClass.Infantry, 0f, 0f));
+
+            var record = recorder.Complete(null);
+            Assert.Equal(new[] { PlannedFormationClass.Ranged }, record.MissingFormations);
+        }
+
+        [Fact]
+        public void NoMissingFormationsWhenAllPlannedSlotsAreFielded()
+        {
+            var (monitor, recorder) = Setup(TestPlans.SimpleValid());
+
+            Tick(monitor, recorder, Snapshot(0f, started: true));
+
+            Assert.Empty(recorder.Complete(null).MissingFormations);
+        }
+
         private static (PlanMonitor, RunRecorder) Setup(BattlePlan plan)
             => (new PlanMonitor(plan), new RunRecorder("test", plan));
 

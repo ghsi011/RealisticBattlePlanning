@@ -178,6 +178,25 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void MissingFormationsFailTheRunWithTheSlotNamed()
+        {
+            // 2026-06-12 playtest: empty OoB slots surfaced as misleading
+            // "stage 2 never activated" failures; the cause must lead.
+            var record = Record(StageEvent(PlannedFormationClass.Infantry, stage: 2, time: 25f));
+            record.MissingFormations.Add(PlannedFormationClass.LightCavalry);
+            record.MissingFormations.Add(PlannedFormationClass.HeavyInfantry);
+
+            var result = Evaluate(record, StageBetween(2, 10f, 30f));
+
+            Assert.False(result.Pass);
+            var precondition = result.Assertions.Single(a => !a.Pass);
+            Assert.Contains("all planned formations fielded", precondition.Description);
+            Assert.Contains("LightCavalry", precondition.Message);
+            Assert.Contains("HeavyInfantry", precondition.Message);
+            Assert.Contains("order-of-battle", precondition.Message);
+        }
+
+        [Fact]
         public void MessagesUseInvariantDecimalSeparatorRegardlessOfCulture()
         {
             var previous = System.Globalization.CultureInfo.CurrentCulture;

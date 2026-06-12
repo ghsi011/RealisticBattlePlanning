@@ -29,6 +29,14 @@ namespace RealisticBattlePlanning.Harness
         /// </summary>
         public string Fault { get; set; }
 
+        /// <summary>
+        /// Formations the plan fields that had no units at battle start —
+        /// a scenario precondition failure (wrong order-of-battle setup),
+        /// reported up front instead of as misleading per-assertion failures
+        /// ("stage 2 never activated").
+        /// </summary>
+        public List<PlannedFormationClass> MissingFormations { get; set; } = new();
+
         /// <summary>Plan anchors resolved against battle-start geometry, per formation.</summary>
         public List<AnchorPosition> Anchors { get; set; } = new();
 
