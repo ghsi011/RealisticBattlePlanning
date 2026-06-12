@@ -50,6 +50,11 @@ namespace RealisticBattlePlanning.Harness
         StageActivated,
         SignalEmitted,
         WaypointReached,
+        PlanSuspended,
+        PlanResumed,
+        PlanAborted,
+        StageSkipped,
+        PlanHolding,
     }
 
     /// <summary>A plan event flattened for the results file.</summary>

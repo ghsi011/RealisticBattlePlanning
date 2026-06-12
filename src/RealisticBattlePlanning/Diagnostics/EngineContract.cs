@@ -74,6 +74,13 @@ namespace RealisticBattlePlanning.Diagnostics
             Property(typeof(Agent), "Position");
             Property(typeof(Agent), "IsRunningAway");
 
+            // Override detection & plan control (PlanMissionLogic, I7).
+            Property(typeof(Team), "PlayerOrderController");
+            if (typeof(OrderController).GetEvent("OnOrderIssued") == null)
+                failures.Add("OrderController.OnOrderIssued (event)");
+            Method(typeof(Agent), "IsActive");
+            StaticMember(typeof(InformationManager), "DisplayMessage");
+
             // Harness recorder (HarnessRecorderLogic).
             Method(typeof(Mission), "SetFastForwardingFromUI", typeof(bool));
             Property(typeof(MissionResult), "PlayerVictory");

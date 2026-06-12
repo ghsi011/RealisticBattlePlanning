@@ -99,6 +99,75 @@ namespace RealisticBattlePlanning.Execution
             => $"[{Formation}] steering to {Target}";
     }
 
+    /// <summary>A manual player order took the formation off its plan (B5).</summary>
+    public sealed class PlanSuspended : PlanEvent
+    {
+        public PlanSuspended(PlannedFormationClass formation)
+            : base(formation)
+        {
+        }
+
+        public override string Describe() => $"[{Formation}] plan suspended: player override";
+    }
+
+    /// <summary>Resume picked a stage and the plan is governing again (B5).</summary>
+    public sealed class PlanResumed : PlanEvent
+    {
+        public PlanResumed(PlannedFormationClass formation, int stageIndex)
+            : base(formation)
+        {
+            StageIndex = stageIndex;
+        }
+
+        public int StageIndex { get; }
+
+        public override string Describe() => $"[{Formation}] plan resumed at stage {StageIndex + 1}";
+    }
+
+    /// <summary>An abort condition fired; the formation leaves the plan for good (B4).</summary>
+    public sealed class PlanAborted : PlanEvent
+    {
+        public PlanAborted(PlannedFormationClass formation, string reason)
+            : base(formation)
+        {
+            Reason = reason;
+        }
+
+        public string Reason { get; }
+
+        public override string Describe() => $"[{Formation}] plan ABORTED: {Reason}";
+    }
+
+    /// <summary>A stage's directive was no longer evaluable and was skipped (B6).</summary>
+    public sealed class StageSkipped : PlanEvent
+    {
+        public StageSkipped(PlannedFormationClass formation, int stageIndex, string reason)
+            : base(formation)
+        {
+            StageIndex = stageIndex;
+            Reason = reason;
+        }
+
+        public int StageIndex { get; }
+        public string Reason { get; }
+
+        public override string Describe() => $"[{Formation}] stage {StageIndex + 1} skipped: {Reason}";
+    }
+
+    /// <summary>No remaining stage was evaluable; the formation holds (B6).</summary>
+    public sealed class PlanHolding : PlanEvent
+    {
+        public PlanHolding(PlannedFormationClass formation, string reason)
+            : base(formation)
+        {
+            Reason = reason;
+        }
+
+        public string Reason { get; }
+
+        public override string Describe() => $"[{Formation}] holding: {Reason}";
+    }
+
     public sealed class SignalEmitted : PlanEvent
     {
         public SignalEmitted(PlannedFormationClass formation, string signal)

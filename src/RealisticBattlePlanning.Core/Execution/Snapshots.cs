@@ -19,6 +19,16 @@ namespace RealisticBattlePlanning.Execution
 
         /// <summary>Losses since battle start, 0–100.</summary>
         float CasualtiesPercent { get; }
+
+        /// <summary>
+        /// True when the formation had a commander at deployment and that
+        /// commander is no longer active (A3.7/B4 abort input). False when
+        /// no commander was ever assigned.
+        /// </summary>
+        bool CommanderDown { get; }
+
+        /// <summary>Routing/fleeing (majority of units running away).</summary>
+        bool IsBroken { get; }
     }
 
     /// <summary>An enemy formation as seen at a single monitor tick.</summary>

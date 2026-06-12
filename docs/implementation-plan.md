@@ -329,6 +329,23 @@ melee targets; FeignRetreat reads as flight via movement-direction facing
 Resume-stage selection, abort evaluation, and invalidation skipping are Core
 logic; the engine side only reports overrides and reverts formations to
 vanilla AI.
+**Status: implemented, pending in-game verification** (145 tests green).
+Implementation notes: override detection needs NO Harmony — the player's
+orders flow through `Team.PlayerOrderController.OnOrderIssued` (a public
+event), and our executor issues orders directly on `Formation`, so anything
+on that event is genuinely player-issued. "Resume plan" ships as console
+commands (`rbp.resume <formation|all>`, `rbp.plan_status`); the order-menu
+entry is deferred to the UI iterations (I9+), as allowed by the session
+brief. Semantics pinned by tests: commander death aborts unconditionally
+(the `OnCommanderIncapacitated` flag is reserved for Phase 2's
+incapacitated-but-alive distinction); a suspended formation does not abort
+under the player's control — abort conditions are re-checked when resume is
+requested; resume's TimerElapsed evaluation measures from the last
+activation before the override (approximation, B5's "most appropriate
+stage"); B6 skips bypass the skipped-to stage's trigger; a hold-and-notify
+formation leaves the hold automatically if a later stage becomes evaluable
+again. New plan events (PlanSuspended/PlanResumed/PlanAborted/StageSkipped/
+PlanHolding) flow through the recorder into harness records.
 
 - Any manual player order suspends that formation's plan; *Resume plan* entry
   in the order menu picks the most appropriate stage (B5).
