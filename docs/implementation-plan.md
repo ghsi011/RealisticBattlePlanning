@@ -9,7 +9,7 @@ fidelity.
 **Resolved (2026-06-11):** the v0.1 launch crash was the assembly targeting
 `net6.0` while the Steam build of Bannerlord hosts the .NET Framework CLR
 (crash log: unresolved `System.Runtime 6.0` → `0xE0434352`). Retargeted to
-`net472`. Pending one in-game confirmation launch.
+`net472`; confirmed by every verified launch since (I3–I6 in-game passes).
 
 ---
 
@@ -28,10 +28,12 @@ refine flows that must exist first.
 
 ### Phase 1 scope decisions
 
-- **Fidelity is fixed.** A `IFidelityModel` seam exists from day one with a
-  pass-through implementation (perfect execution, or a single configurable
-  tier). Phase 2 swaps in the real model — no Phase 1 code rewritten.
-  This is also the spec's "progression off" master toggle (F), built first.
+- **Fidelity is fixed.** An `IFidelityModel` seam with a pass-through
+  implementation (perfect execution, or a single configurable tier) **must
+  exist before Phase 2 starts** so the real model swaps in without
+  rewriting Phase 1 code; it doubles as the spec's "progression off" master
+  toggle (F). *Reality check 2026-06-12: the seam has NOT been built yet —
+  directives execute directly. Building it is now an explicit I12 item.*
 - **UI is the fallback presentation** (A2.5): vanilla deployment top-down
   camera + Gauntlet overlay. The stylized battle map is Phase 3.
 - **Friction reducers** (A3.9): only the "suggested opening stage" default
@@ -45,21 +47,22 @@ refine flows that must exist first.
 
 ### Front-loaded risks
 
-1. **Team-AI suppression** (B1) — keeping the general AI's tactic system from
-   overriding planned formations is the make-or-break engine unknown. It is
-   I3, immediately after the assembly split. Reference: RTSCamera's
-   formation/order patches (`Patch_MissionOrderTroopControllerVM`,
-   `Patch_OrderTroopPlacer`). Testability is part of the mitigation: the Plan
-   Monitor's logic lives in Core behind snapshot interfaces (Layer 1 below),
-   so it stays unit-testable with scripted timelines even while in-engine
-   behavior is flaky — an in-game failure is then an adapter/suppression
-   problem, not a logic unknown. The Layer-3 contract check (also I3) catches
-   engine signature drift before it becomes a mid-battle crash.
+1. **Team-AI suppression** (B1) — ✅ **RESOLVED 2026-06-12.** With the player
+   as general, `SetControlledByAI(false)` suppresses the team AI for planned
+   formations; orders issue directly on `Formation` (no Harmony needed).
+   Verified in-game, and compatible with RBM by design (its tactics guard on
+   `!IsPlayerGeneral`). The Layer-1 snapshot architecture and the Layer-3
+   contract check did their mitigation jobs and stay.
 2. **Custom formation behaviors** (feign retreat, missile-only flank arc,
-   rear guard) — probed in I6 right after vanilla-relative ones.
-3. **Deployment-phase UI injection** — I9; RTSCamera's
-   `Patch_DeploymentMissionController` and mission view registration are the
-   pattern.
+   rear guard) — ✅ **RESOLVED in I6**: the whole vocabulary runs through the
+   vanilla order system with Core-side steering; `BehaviorComponent` reuse
+   was deliberately not taken (they don't tick under the suppression model).
+3. **Deployment-phase UI injection** — **the one remaining open engine risk**,
+   now next up (I9). RTSCamera's `Patch_DeploymentMissionController` and
+   mission view registration are the pattern. Fallback if Gauntlet injection
+   fights back: the debug-plan file plus templates remain a complete
+   (developer-grade) authoring path, so I10–I12 are not blocked on the
+   editor — but the MVP is not shippable without it.
 
 ---
 
@@ -90,10 +93,13 @@ trigger, directive transition, abort rule, and fidelity formula.**
 
 ### Layer 2 — engine integration (scenario harness, dev-mode only)
 
-Console commands / a dev menu that: load a plan from JSON, spawn a scripted
-battle on a flat test scene, run at high time-scale, and record results (stage
-activation times, positions vs. anchors, aborts, signals) to a results file
-via a recorder `MissionBehavior`. Every numeric acceptance criterion in spec
+Console commands that load a plan from JSON, run the armed battle at high
+time-scale, and record results (stage activation times, positions vs.
+anchors, aborts, signals) to a results file via a recorder `MissionBehavior`.
+As shipped (I5), scenarios run on the next player-started field battle —
+unattended after Ready; auto-spawning a scripted battle on a flat test scene
+is the target and becomes an I12 prerequisite now that the pack is too big
+to launch by hand (see I12). Every numeric acceptance criterion in spec
 H1–H10 is encoded as a scenario with **tolerance-based assertions** — ranges,
 never exact ticks; battles are non-deterministic. Regression = run the
 scenario pack, diff results. (Pure time-budget criteria — H1/H10 authoring
@@ -129,6 +135,10 @@ with every new patch; the first version lands with the first Harmony patches
 Each iteration ends green: builds clean, `dotnet test` green, deploys, and its
 verify step passes. From I5 on, the harness scenario pack must also diff
 clean. Earlier iterations' verify steps keep passing (manual regression).
+Split gate since cloud development began (I5+): the cloud commit gate is
+`dotnet test` green (with the pack validated against the Layer-1
+simulation); deploy, the in-game pack diff, and the iteration's in-game
+verify run at the local merge of each commit.
 
 ### I1 — Mission gating, infrastructure, plan model
 
@@ -220,7 +230,9 @@ point the I8 palette and C7 drill cues will use).
   with configurable defaults — tune later against RBM, R3), *Enemy/Friendly
   formation within distance*, *Casualties above*, *Enemy broken/fleeing*.
 - "Player's formation" usable as the reference formation in triggers (A3.10).
-- All thresholds/defaults data-driven in config (D3 prep).
+- All thresholds/defaults data-driven in config (D3 prep). *(Shipped as
+  named constants — `TriggerDefaults`/`DirectiveDefaults`; the actual config
+  file is I12's config pass.)*
 - **Verify:** scripted-timeline unit tests — *EnemyCommitsAttack* fires after
   a sustained approach across consecutive snapshots and does **not** fire on a
   brief probe that reverses; a signal emitted on one formation's stage
@@ -300,6 +312,8 @@ melee targets; FeignRetreat reads as flight via movement-direction facing
 
 - Vanilla-relative first (reuse/subclass `BehaviorComponent`s, per 1.1):
   *Skirmish/Harass*, *Pull back*, *Follow/Escort*, *Hold/Free fire*.
+  *(Original scope — superseded by the decision note above: everything runs
+  through the order system instead.)*
 - Custom behaviors: *Feign retreat toward* (fire-while-withdrawing flag),
   *Flank arc* (side, standoff, **missile-only**), *Screen/Rear guard*
   (delaying posture).
@@ -452,6 +466,20 @@ after, the fidelity/timing interdependencies make it expensive.
 
 ### I12 — MVP hardening & acceptance pass
 
+- **Prerequisite — harness auto-spawn:** probe the CustomBattle start API
+  in-game and teach `rbp.harness_arm` to spawn its own scripted battles; the
+  pack is 7+ scenarios and this pass runs it 3× on ≥2 scene types (~40+
+  launches by hand otherwise). If the API is hostile, document the manual
+  procedure and budget the time.
+- **Harness scripted actions:** H2 and H8 involve player input, which the
+  unattended harness lacks. Add a scenario `actions` list ("at t=30 inject
+  signal 'hammer'"; "at t=20 override Infantry, resume at t=40") driving the
+  monitor's existing entry points (`RaiseExternalSignal`,
+  `NotifyPlayerOverride`, `RequestResume`) in both the simulation and the
+  engine recorder.
+- **`IFidelityModel` pass-through seam** + the progression-off master toggle
+  (F): build the seam the Phase 1 scope decision promises, so Phase 2 swaps
+  the real model in without touching Phase 1 code.
 - Encode H1 (fixed fidelity), H2, H3, and H8 core as harness scenarios with
   tolerance-based assertions; this pack is the Phase 1 regression gate from
   here on. Run the pack 3×, on at least 2 scene types; diff results.
@@ -493,6 +521,14 @@ tiered H-scenarios: H1 run at Untrained and at Veteran+ with tier-appropriate
 tolerance bands.
 
 Acceptance: tiered H1, H4, H6, H9; pacing targets sanity-checked (D4).
+
+Two pins inherited from Phase 1 (recorded at the code level, surfaced here
+so they are found from the planning side): `AbortConditions.
+OnCommanderIncapacitated` is dead config in Phase 1 — commander death always
+aborts; Phase 2 implements the incapacitated-but-alive distinction the flag
+reserves. And B6 skip semantics are pinned by test: a skipped-to stage
+activates immediately (trigger bypassed, timers re-baselined) — fidelity
+reaction delays layer on top of activation, never on trigger arming.
 
 ## Phase 3 — Playbook & Polish (summary)
 
