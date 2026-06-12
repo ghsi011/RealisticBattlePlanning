@@ -30,7 +30,10 @@ namespace RealisticBattlePlanning.Planning.Model
         /// </summary>
         public string Formation { get; set; }
 
-        /// <summary>Distance triggers: threshold in meters.</summary>
+        /// <summary>
+        /// Distance triggers: threshold in meters. For EnemyCommits: the
+        /// engagement range inside which approach counts as committing.
+        /// </summary>
         public float? Meters { get; set; }
 
         /// <summary>PositionReached: anchor id and arrival tolerance.</summary>

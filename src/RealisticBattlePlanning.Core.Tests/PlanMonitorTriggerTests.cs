@@ -178,6 +178,29 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void EnemyCommitsIgnoresApproachOutsideEngagementRange()
+        {
+            // Default max range 150 m: a steady advance from 300 m out is
+            // maneuvering, not committing (2026-06-12 playtest finding).
+            var monitor = Monitor(StageOf(null, Hold()), StageOf(
+                new[] { new TriggerSpec { Type = TriggerType.EnemyCommits, SpeedThreshold = 2f, SustainSeconds = 2f } },
+                Charge()));
+
+            monitor.Tick(Field(0).WithEnemy(1, 0, 300));
+            // Closing 10 m/s but far outside range: never sustains.
+            Assert.Empty(monitor.Tick(Field(1).WithEnemy(1, 0, 290)));
+            Assert.Empty(monitor.Tick(Field(2).WithEnemy(1, 0, 280)));
+            Assert.Empty(monitor.Tick(Field(3).WithEnemy(1, 0, 270)));
+            Assert.Empty(monitor.Tick(Field(4).WithEnemy(1, 0, 260)));
+
+            // Jump cut: now inside range. Sustain starts here, fires 2 s later.
+            Assert.Empty(monitor.Tick(Field(5).WithEnemy(1, 0, 140)));
+            Assert.Empty(monitor.Tick(Field(6).WithEnemy(1, 0, 130)));
+            var fired = monitor.Tick(Field(7).WithEnemy(1, 0, 120));
+            Assert.Single(fired.OfType<StageActivated>());
+        }
+
+        [Fact]
         public void BrokenEnemiesDoNotSustainEnemyCommits()
         {
             var monitor = Monitor(StageOf(null, Hold()), StageOf(

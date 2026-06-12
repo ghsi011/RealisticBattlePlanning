@@ -229,14 +229,16 @@ namespace RealisticBattlePlanning.Execution
 
             var threshold = condition.SpeedThreshold ?? TriggerDefaults.EnemyCommitsSpeedThreshold;
             var sustain = condition.SustainSeconds ?? TriggerDefaults.EnemyCommitsSustainSeconds;
+            var maxRange = condition.Meters ?? TriggerDefaults.EnemyCommitsMaxRangeMeters;
             var fires = false;
 
             foreach (var enemy in snapshot.Enemies)
             {
                 var closing = ClosingSpeed(refKey, refPos.Value, enemy, snapshot.TimeSeconds);
                 var key = (condition, enemy.Id);
+                var inRange = refPos.Value.DistanceTo(enemy.Position) <= maxRange;
 
-                if (closing is { } speed && speed >= threshold && !enemy.IsBroken)
+                if (inRange && closing is { } speed && speed >= threshold && !enemy.IsBroken)
                 {
                     if (!_sustainedSince.ContainsKey(key))
                         _sustainedSince[key] = snapshot.TimeSeconds;

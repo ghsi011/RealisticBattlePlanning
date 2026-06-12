@@ -16,6 +16,15 @@ namespace RealisticBattlePlanning.Execution
         /// <summary>How long the approach must be sustained before EnemyCommits fires.</summary>
         public const float EnemyCommitsSustainSeconds = 4f;
 
+        /// <summary>
+        /// Approach only counts as "committing" inside this range. Without it
+        /// the trigger fires at battle start against any advancing army
+        /// (2026-06-12 playtest) — an army marching at 300 m is maneuvering,
+        /// a line closing at 100 m is attacking. Override per-trigger via
+        /// the Meters parameter.
+        /// </summary>
+        public const float EnemyCommitsMaxRangeMeters = 150f;
+
         /// <summary>Fraction of a formation running away that counts as broken.</summary>
         public const float BrokenRunningAwayFraction = 0.5f;
     }
