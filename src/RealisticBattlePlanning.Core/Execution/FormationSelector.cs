@@ -18,7 +18,11 @@ namespace RealisticBattlePlanning.Execution
 
         public static PlannedFormationClass? ParseClass(string selector)
         {
-            if (selector == null || IsPlayer(selector) || IsNearest(selector))
+            if (string.IsNullOrEmpty(selector) || IsPlayer(selector) || IsNearest(selector))
+                return null;
+            // Enum.TryParse accepts numeric strings ("3", even out-of-range
+            // "99") — only class NAMES are valid selectors.
+            if (!char.IsLetter(selector[0]))
                 return null;
             return Enum.TryParse<PlannedFormationClass>(selector, ignoreCase: true, out var parsed)
                 ? parsed

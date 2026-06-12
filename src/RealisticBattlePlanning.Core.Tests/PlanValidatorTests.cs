@@ -76,6 +76,33 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void NumericFormationSelectorIsRejected()
+        {
+            // Enum.TryParse would accept "3" (HorseArcher) and even
+            // out-of-range "99"; only class names are valid selectors.
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec
+            {
+                Type = TriggerType.EnemyWithinDistance,
+                Meters = 40f,
+                Formation = "3",
+            };
+
+            Assert.Contains(PlanValidator.Validate(plan).Errors, e => e.Contains("'3'"));
+        }
+
+        [Fact]
+        public void DisablingTheCommanderAbortWarnsThatItHasNoEffectYet()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Abort.OnCommanderIncapacitated = false;
+
+            var result = PlanValidator.Validate(plan);
+            Assert.True(result.IsValid);
+            Assert.Contains(result.Warnings, w => w.Contains("commander death always aborts"));
+        }
+
+        [Fact]
         public void BlankEmittedSignalIsAnError()
         {
             var plan = TestPlans.SimpleValid();

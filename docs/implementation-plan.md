@@ -389,6 +389,13 @@ instantaneous and reliable for now.
 ### I9 — Planning Mode UI: core editor
 
 The biggest UI lift; primary authoring path replaces the debug file.
+Carried from the 2026-06-12 review: standardize plan-logic discovery on
+`Mission.GetMissionBehavior<PlanMissionLogic>()` when the UI lands —
+`PlanCommands` currently reaches it via the `PlanMissionLogic.Current`
+static while `HarnessRecorderLogic` already uses the vanilla pattern; one
+idiom should win before more UI consumers appear, and the I7/I8 deferred
+order-menu entries (Resume plan, the Signal Palette) belong to this
+iteration's scope.
 
 - Enter/exit Planning Mode during deployment (keybind + button), time frozen
   (A1.1); confirming starts the battle (A1.3). Skipping = pure vanilla (A1.2).
@@ -421,6 +428,13 @@ The biggest UI lift; primary authoring path replaces the debug file.
 - Spec: A3.6, A3.8 (partial), A3.9 (partial), A3.10, R4 (partial).
 
 ### I11 — Battlefield HUD & notifications
+
+Carried from the 2026-06-12 review: begin this iteration by extracting a
+`FormationExecutionState` (mode, active stage, timing, hold state) out of
+`PlanMonitor` — the monitor already owns eight concerns at ~900 lines, and
+both the HUD's queryable state and Phase 2's fidelity model want exactly
+that per-formation state object. Splitting it before they land is cheap;
+after, the fidelity/timing interdependencies make it expensive.
 
 - Per-planned-formation HUD element: current stage, pending trigger,
   override/abort badge (B7) — rendered from the Plan Monitor's Core-side

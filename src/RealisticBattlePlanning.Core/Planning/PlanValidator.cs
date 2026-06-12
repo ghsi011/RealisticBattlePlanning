@@ -88,6 +88,9 @@ namespace RealisticBattlePlanning.Planning
             if (formation.Abort.CasualtiesAbovePercent <= 0 || formation.Abort.CasualtiesAbovePercent > 100)
                 result.Errors.Add($"[{formation.Formation}] abort casualties threshold must be in (0, 100]; got {formation.Abort.CasualtiesAbovePercent}.");
 
+            if (!formation.Abort.OnCommanderIncapacitated)
+                result.Warnings.Add($"[{formation.Formation}] onCommanderIncapacitated=false has no effect yet: commander death always aborts in Phase 1 (the flag is reserved for Phase 2's incapacitated-but-alive distinction).");
+
             for (var i = 0; i < formation.Stages.Count; i++)
             {
                 var stage = formation.Stages[i];

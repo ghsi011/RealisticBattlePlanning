@@ -210,7 +210,9 @@ namespace RealisticBattlePlanning.Execution
                 return any ? "resuming all suspended formations" : "nothing is suspended";
             }
 
-            if (!Enum.TryParse<PlannedFormationClass>(formationArg, ignoreCase: true, out var cls))
+            // ParseClass, not Enum.TryParse: the latter accepts numeric
+            // strings ("3", out-of-range "99") as enum values.
+            if (FormationSelector.ParseClass(formationArg) is not { } cls)
                 return $"unknown formation '{formationArg}'";
             if (!_monitor.Governs(cls))
                 return $"{cls} has no plan this battle";
