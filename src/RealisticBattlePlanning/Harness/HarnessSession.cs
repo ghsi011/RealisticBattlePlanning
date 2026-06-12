@@ -59,6 +59,14 @@ namespace RealisticBattlePlanning.Harness
         /// <summary>Arms the named scenarios (in order). Returns null on success, else a readable error; on error nothing is armed.</summary>
         public static string Arm(IReadOnlyList<string> names)
         {
+            // Duplicate names would collide in records and pack results.
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in names)
+            {
+                if (!seen.Add(name))
+                    return $"scenario '{name}' is listed twice";
+            }
+
             var armed = new List<ArmedScenario>();
             foreach (var name in names)
             {

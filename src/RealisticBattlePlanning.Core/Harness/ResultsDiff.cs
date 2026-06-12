@@ -42,7 +42,11 @@ namespace RealisticBattlePlanning.Harness
         public static DiffResult Diff(PackResult baseline, PackResult current)
         {
             var diff = new DiffResult { Clean = true };
-            var baselineByName = (baseline?.Scenarios ?? new List<ScenarioResult>()).ToDictionary(s => s.Scenario);
+            // Last-wins on duplicate names: a malformed results file must
+            // degrade to an odd diff, never crash the console command.
+            var baselineByName = new Dictionary<string, ScenarioResult>();
+            foreach (var scenario in baseline?.Scenarios ?? new List<ScenarioResult>())
+                baselineByName[scenario.Scenario] = scenario;
             var currentNames = new HashSet<string>(current.Scenarios.Select(s => s.Scenario));
 
             foreach (var scenario in current.Scenarios)

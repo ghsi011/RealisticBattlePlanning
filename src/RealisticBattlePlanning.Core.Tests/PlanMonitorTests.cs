@@ -194,6 +194,29 @@ namespace RealisticBattlePlanning.Tests
             Assert.Equal(PlannedFormationClass.Ranged, rangedCharge.Formation);
         }
 
+        [Fact]
+        public void ALateArrivingFormationStartsItsPlanWhereItAppears()
+        {
+            // Reinforcement-wave slot: no units at battle start, so stage 1
+            // waits; on arrival the OwnStart basis is the arrival point.
+            var plan = Plan(
+                Formation(PlannedFormationClass.Cavalry,
+                    StageOf(null, MoveToAnchor("goal"))),
+                AnchorOwnStart("goal", forward: 50f));
+            var monitor = new PlanMonitor(plan);
+
+            Assert.Empty(monitor.Tick(Snap(0f, started: true, InfantryAt(0, 0))));
+            Assert.Empty(monitor.Tick(Snap(5f, started: true, InfantryAt(0, 0))));
+
+            var arrival = monitor.Tick(new FakeBattlefield(10f, started: true)
+                .WithOwn(PlannedFormationClass.Infantry, 0, 0)
+                .WithOwn(PlannedFormationClass.Cavalry, 30, 40));
+
+            var activated = Assert.Single(arrival.OfType<StageActivated>());
+            Assert.Equal(PlannedFormationClass.Cavalry, activated.Formation);
+            Assert.Equal(new MapVec(30f, 90f), activated.Directive.FirstMoveTarget);
+        }
+
         // ---- builders ----
 
         /// <summary>Infantry: Hold on battle start, Charge after a timer.</summary>

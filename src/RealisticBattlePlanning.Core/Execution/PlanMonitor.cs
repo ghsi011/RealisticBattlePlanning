@@ -29,7 +29,12 @@ namespace RealisticBattlePlanning.Execution
         private readonly Dictionary<(TriggerSpec Spec, int EnemyId), float> _sustainedSince = new();
         private readonly HashSet<(int Id, PlannedFormationClass? Class)> _initialEnemies = new();
         private readonly HashSet<string> _warnedConditions = new(StringComparer.Ordinal);
+        private readonly HashSet<int> _aliveEnemyIds = new();
+        private readonly List<(TriggerSpec Spec, int EnemyId)> _staleSustainKeys = new();
+        private readonly List<(string RefKey, int EnemyId)> _staleApproachKeys = new();
         private float _battleStartSeconds;
+        /// <summary>Battle axis captured at start — anchors and steering share it; the per-tick snapshot direction drifts as armies maneuver.</summary>
+        private MapVec _attackAxis = new(0f, 1f);
 
         public PlanMonitor(BattlePlan plan)
         {
@@ -68,6 +73,7 @@ namespace RealisticBattlePlanning.Execution
 
                 Started = true;
                 _battleStartSeconds = snapshot.TimeSeconds;
+                _attackAxis = snapshot.AttackDirection.Normalized();
                 Anchors = ResolvedAnchors.FromSnapshot(_plan.Anchors, snapshot);
                 foreach (var enemy in snapshot.Enemies)
                     _initialEnemies.Add((enemy.Id, enemy.Class));
@@ -77,6 +83,9 @@ namespace RealisticBattlePlanning.Execution
             foreach (var signal in _pendingSignals)
                 _signals.Add(signal);
             _pendingSignals.Clear();
+
+            PurgeVanishedEnemyState(snapshot);
+            RegisterLateStartPositions(snapshot);
 
             foreach (var state in _states)
             {
@@ -88,10 +97,67 @@ namespace RealisticBattlePlanning.Execution
             return events;
         }
 
+        /// <summary>
+        /// Drops approach/sustain state for enemy ids no longer on the field.
+        /// Engine ids are team/slot based, so a reinforcement wave reuses the
+        /// id of a wiped formation — without the purge it would inherit the
+        /// old wave's approach history and fire EnemyCommits without
+        /// re-sustaining (or with a fabricated closing speed).
+        /// </summary>
+        private void PurgeVanishedEnemyState(IBattlefieldSnapshot snapshot)
+        {
+            _aliveEnemyIds.Clear();
+            foreach (var enemy in snapshot.Enemies)
+                _aliveEnemyIds.Add(enemy.Id);
+
+            _staleSustainKeys.Clear();
+            foreach (var key in _sustainedSince.Keys)
+            {
+                if (!_aliveEnemyIds.Contains(key.EnemyId))
+                    _staleSustainKeys.Add(key);
+            }
+            foreach (var key in _staleSustainKeys)
+                _sustainedSince.Remove(key);
+
+            _staleApproachKeys.Clear();
+            foreach (var key in _approach.Keys)
+            {
+                if (!_aliveEnemyIds.Contains(key.EnemyId))
+                    _staleApproachKeys.Add(key);
+            }
+            foreach (var key in _staleApproachKeys)
+                _approach.Remove(key);
+        }
+
+        /// <summary>
+        /// OwnStart geometry for a planned formation that had no units at
+        /// battle start (reinforcement waves): its basis is wherever it first
+        /// appears. Until then its stages stay unactivated (see TryAdvance) —
+        /// a plan can't govern troops that aren't on the field.
+        /// </summary>
+        private void RegisterLateStartPositions(IBattlefieldSnapshot snapshot)
+        {
+            foreach (var state in _states)
+            {
+                if (Anchors.HasStartPosition(state.Plan.Formation))
+                    continue;
+                if (snapshot.GetOwn(state.Plan.Formation) is { Exists: true } own)
+                {
+                    Anchors.RegisterLateStart(state.Plan.Formation, own.Position);
+                    RbpLog.Info($"[{state.Plan.Formation}] arrived late; OwnStart anchors resolve from {own.Position}.");
+                }
+            }
+        }
+
         private bool TryAdvance(FormationState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
             var nextIndex = state.ActiveStageIndex + 1;
             if (nextIndex >= state.Plan.Stages.Count)
+                return false;
+
+            // A formation that never fielded units doesn't start its plan;
+            // its first stage activates when (if) it appears.
+            if (state.ActiveStageIndex < 0 && snapshot.GetOwn(state.Plan.Formation) is not { Exists: true })
                 return false;
 
             var stage = state.Plan.Stages[nextIndex];
@@ -180,8 +246,15 @@ namespace RealisticBattlePlanning.Execution
                         : (snapshot.GetOwn(state.Plan.Formation) is { Exists: true } own ? own.Position : (MapVec?)null);
                     if (reference is not { } point)
                         return false;
-                    return MatchingEnemies(condition.Formation, snapshot)
-                        .Any(enemy => point.DistanceTo(enemy.Position) <= meters);
+                    var withinClass = FormationSelector.ParseClass(condition.Formation);
+                    foreach (var enemy in snapshot.Enemies)
+                    {
+                        if (withinClass != null && enemy.Class != withinClass)
+                            continue;
+                        if (point.DistanceTo(enemy.Position) <= meters)
+                            return true;
+                    }
+                    return false;
                 }
 
                 case TriggerType.FriendlyWithinDistance:
@@ -215,13 +288,20 @@ namespace RealisticBattlePlanning.Execution
 
                 case TriggerType.EnemyBroken:
                 {
-                    if (MatchingEnemies(condition.Formation, snapshot).Any(enemy => enemy.IsBroken))
-                        return true;
-                    // A battle-start enemy that has since vanished fled or died.
                     var selectorClass = FormationSelector.ParseClass(condition.Formation);
-                    var alive = new HashSet<int>(snapshot.Enemies.Select(e => e.Id));
-                    return _initialEnemies.Any(initial =>
-                        (selectorClass == null || initial.Class == selectorClass) && !alive.Contains(initial.Id));
+                    foreach (var enemy in snapshot.Enemies)
+                    {
+                        if (enemy.IsBroken && (selectorClass == null || enemy.Class == selectorClass))
+                            return true;
+                    }
+                    // A battle-start enemy that has since vanished fled or
+                    // died (alive ids are refreshed each tick by the purge).
+                    foreach (var initial in _initialEnemies)
+                    {
+                        if ((selectorClass == null || initial.Class == selectorClass) && !_aliveEnemyIds.Contains(initial.Id))
+                            return true;
+                    }
+                    return false;
                 }
 
                 default:
@@ -319,14 +399,6 @@ namespace RealisticBattlePlanning.Execution
             return formation is { Exists: true } ? formation.Position : null;
         }
 
-        private static IEnumerable<IEnemyFormationSnapshot> MatchingEnemies(string selector, IBattlefieldSnapshot snapshot)
-        {
-            var selectorClass = FormationSelector.ParseClass(selector);
-            return selectorClass == null
-                ? snapshot.Enemies
-                : snapshot.Enemies.Where(enemy => enemy.Class == selectorClass);
-        }
-
         private ResolvedDirective ResolveDirective(PlannedFormationClass formationClass, DirectiveSpec spec)
         {
             if (spec == null)
@@ -397,7 +469,7 @@ namespace RealisticBattlePlanning.Execution
                         return null;
                     var standoff = spec.StandoffMeters ?? DirectiveDefaults.SkirmishStandoffMeters;
                     var away = own.Position - enemy.Position;
-                    var direction = away.Length > 1e-3f ? away.Normalized() : snapshot.AttackDirection * -1f;
+                    var direction = away.Length > 1e-3f ? away.Normalized() : _attackAxis * -1f;
                     return enemy.Position + direction * standoff;
                 }
 
@@ -411,7 +483,7 @@ namespace RealisticBattlePlanning.Execution
                         return null;
                     var standoff = spec.StandoffMeters ?? DirectiveDefaults.FlankArcStandoffMeters;
                     var side = spec.Side == FlankSide.Left ? -1f : 1f;
-                    return enemy.Position + snapshot.AttackDirection.Normalized().Right() * (side * standoff);
+                    return enemy.Position + _attackAxis.Right() * (side * standoff);
                 }
 
                 case DirectiveType.Screen:
@@ -423,8 +495,8 @@ namespace RealisticBattlePlanning.Execution
                         return null;
                     var gap = spec.GapMeters ?? DirectiveDefaults.ScreenGapMeters;
                     var threat = NearestEnemy(null, guarded, snapshot);
-                    var toward = threat != null ? threat.Position - guarded : snapshot.AttackDirection;
-                    var direction = toward.Length > 1e-3f ? toward.Normalized() : snapshot.AttackDirection;
+                    var toward = threat != null ? threat.Position - guarded : _attackAxis;
+                    var direction = toward.Length > 1e-3f ? toward.Normalized() : _attackAxis;
                     return guarded + direction * gap;
                 }
 
@@ -432,7 +504,7 @@ namespace RealisticBattlePlanning.Execution
                 {
                     if (ResolveFriendlyPosition(spec.Target, snapshot) is not { } followed)
                         return null;
-                    var forward = snapshot.AttackDirection.Normalized();
+                    var forward = _attackAxis;
                     var alongForward = spec.OffsetForwardMeters ?? -DirectiveDefaults.FollowDefaultBehindMeters;
                     var alongRight = spec.OffsetRightMeters ?? 0f;
                     return followed + forward * alongForward + forward.Right() * alongRight;
@@ -445,10 +517,13 @@ namespace RealisticBattlePlanning.Execution
 
         private static IEnemyFormationSnapshot NearestEnemy(string selector, MapVec from, IBattlefieldSnapshot snapshot)
         {
+            var selectorClass = FormationSelector.ParseClass(selector);
             IEnemyFormationSnapshot nearest = null;
             var nearestDistance = float.MaxValue;
-            foreach (var enemy in MatchingEnemies(selector, snapshot))
+            foreach (var enemy in snapshot.Enemies)
             {
+                if (selectorClass != null && enemy.Class != selectorClass)
+                    continue;
                 var distance = from.DistanceTo(enemy.Position);
                 if (distance < nearestDistance)
                 {

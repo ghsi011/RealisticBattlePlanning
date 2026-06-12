@@ -175,8 +175,8 @@ src\RealisticBattlePlanning.Core.Tests` runs gameless).
 ### I3 — Plan Monitor + AI suppression (the risk spike)
 
 The engine make-or-break. Smallest possible trigger/directive set, deepest
-engine question. **Status: implemented, pending in-game verification** (51
-tests green; suppression approach: planned formations get
+engine question. **Status: implemented, verified in-game 2026-06-12** (51
+tests green at the time; suppression approach: planned formations get
 `SetControlledByAI(false)` so the player-side general AI leaves them alone,
 orders issued directly via `Formation.SetMovementOrder` etc.).
 
@@ -207,7 +207,8 @@ orders issued directly via `Formation.SetMovementOrder` etc.).
 
 ### I4 — Signal bus + full trigger vocabulary
 
-**Status: implemented, pending in-game verification** (60 tests green;
+**Status: implemented, verified in-game 2026-06-12** — signal relay ~250 ms,
+counter-charge at 40 m, suppression holding (60 tests green at the time;
 signals are latched and become visible the tick after they are raised, so
 in-tick evaluation order never matters; `RaiseExternalSignal` is the entry
 point the I8 palette and C7 drill cues will use).
@@ -234,7 +235,9 @@ point the I8 palette and C7 drill cues will use).
 
 Built now — before the full directive vocabulary — so the A6/H1 geometry and
 timing criteria in I6 land as executable scenarios, not prose.
-**Status: implemented, pending in-game verification** (88 tests green; pack
+**Status: implemented, verified in-game 2026-06-12** — armed battles
+fast-forward and write results to `Logs\Harness`; empty planned formations
+fail as named preconditions (88 tests green at the time; pack
 lives in `ModuleData\Harness`, console flow `rbp.harness_arm all` → fight the
 armed battles → `rbp.harness_diff` / `rbp.harness_accept`; results in
 `Logs\Harness`. One deliberate deviation: v1 does **not** auto-spawn the
@@ -273,7 +276,9 @@ deploy is skipped — so cloud/CI sessions can build and API-check engine code.)
 
 Core owns directive selection, parameters, and transitions; the behaviors
 themselves are engine-side.
-**Status: implemented, pending in-game verification** (121 tests green).
+**Status: implemented, core verified in-game 2026-06-12** — the A6 trap
+sprang correctly on the formations that were fielded (121 tests green at the
+time).
 Implementation decision: the whole A5 vocabulary is expressed through the
 vanilla **order system**, not FormationAI `BehaviorComponent`s — the
 in-game-verified B1 suppression (`SetControlledByAI(false)`) turns formation

@@ -24,5 +24,16 @@ namespace RealisticBattlePlanning.Execution
                 ? parsed
                 : null;
         }
+
+        /// <summary>
+        /// Validator support: a typo'd selector ("Nearset", "Infntry") parses
+        /// to null and silently means "nearest/any" at runtime — the
+        /// validator rejects anything that isn't a recognized word.
+        /// </summary>
+        public static bool IsValidEnemySelector(string selector)
+            => IsNearest(selector) || (!IsPlayer(selector) && ParseClass(selector) != null);
+
+        public static bool IsValidFriendlySelector(string selector)
+            => selector != null && (IsPlayer(selector) || ParseClass(selector) != null);
     }
 }
