@@ -13,6 +13,7 @@ $mainBin = Join-Path $GameDir 'bin\Win64_Shipping_Client'
 $nativeBin = Join-Path $GameDir 'Modules\Native\bin\Win64_Shipping_Client'
 $sandboxBin = Join-Path $GameDir 'Modules\SandBox\bin\Win64_Shipping_Client'
 $sandboxCoreBin = Join-Path $GameDir 'Modules\SandBoxCore\bin\Win64_Shipping_Client'
+$customBattleBin = Join-Path $GameDir 'Modules\CustomBattle\bin\Win64_Shipping_Client'
 
 # (bin dir, assembly name) — the set that matters for mission/order/UI work.
 $assemblies = @(
@@ -38,7 +39,8 @@ $assemblies = @(
     @($sandboxBin, 'SandBox.View'),
     @($sandboxBin, 'SandBox.GauntletUI'),
     @($sandboxBin, 'SandBox.ViewModelCollection'),
-    @($sandboxCoreBin, 'SandBoxCore')
+    @($sandboxCoreBin, 'SandBoxCore'),
+    @($customBattleBin, 'TaleWorlds.MountAndBlade.CustomBattle')
 )
 
 New-Item -ItemType Directory -Force $OutDir | Out-Null

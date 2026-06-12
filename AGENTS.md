@@ -56,9 +56,13 @@ When you need a pattern (registering a behavior, patching a vanilla type,
 extending a Gauntlet prefab), grep these two before inventing one.
 
 Decompiled vanilla sources live at `C:\github\bannerlord-decompiled`
-(22 assemblies, regenerate with `tools/decompile-game.ps1` after game
+(23 assemblies, regenerate with `tools/decompile-game.ps1` after game
 patches — version recorded in its VERSION.txt). **Grep these before assuming
-any engine API exists or behaves as expected.**
+any engine API exists or behaves as expected.** In cloud/CI sessions where
+that path doesn't exist, clone the private mirror as a sibling of the repo:
+`gh repo clone ghsi011/bannerlord-decompiled ../bannerlord-decompiled`.
+That repo is TaleWorlds' proprietary code: it stays private, and nothing is
+ever copied from it into this codebase — read it for API reference only.
 
 ## Build & run
 
