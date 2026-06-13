@@ -26,6 +26,17 @@ namespace RealisticBattlePlanning.Diagnostics
                     failures.Add($"{type.Name}.{name} (property)");
             }
 
+            // Some TaleWorlds members we read are public fields, not
+            // properties (e.g. Formation.FormationIndex). Field/property access
+            // is identical in C#, so accept either — checking only for a
+            // property would cry wolf on a member that exists and works.
+            void InstanceMember(Type type, string name)
+            {
+                const BindingFlags flags = BindingFlags.Public | BindingFlags.Instance;
+                if (type.GetProperty(name, flags) == null && type.GetField(name, flags) == null)
+                    failures.Add($"{type.Name}.{name} (instance field/property)");
+            }
+
             void Method(Type type, string name, params Type[] parameters)
             {
                 if (type.GetMethod(name, BindingFlags.Public | BindingFlags.Instance, null, parameters, null) == null)
@@ -69,7 +80,7 @@ namespace RealisticBattlePlanning.Diagnostics
             Property(typeof(Formation), "CurrentPosition");
             Property(typeof(Formation), "CountOfUnits");
             Property(typeof(Formation), "Captain");
-            Property(typeof(Formation), "FormationIndex");
+            InstanceMember(typeof(Formation), "FormationIndex");
             Method(typeof(Formation), "ApplyActionOnEachUnit", typeof(Action<Agent>), typeof(Agent));
             Property(typeof(Agent), "Position");
             Property(typeof(Agent), "IsRunningAway");
