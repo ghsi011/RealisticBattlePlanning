@@ -47,7 +47,11 @@ namespace RealisticBattlePlanning.Harness
     /// <summary>One scripted harness input, fired once when the clock passes <see cref="AtSeconds"/>.</summary>
     public sealed class ScenarioAction
     {
-        /// <summary>Battle-relative time (0 = battle start) to fire at.</summary>
+        /// <summary>
+        /// Battle-relative time (0 = battle start) to fire at. The effect lands
+        /// on the next monitor tick (~0.25s later), so leave that slack when
+        /// pairing an action with a tight assertion band.
+        /// </summary>
         public float AtSeconds { get; set; }
 
         public ScenarioActionType Type { get; set; }

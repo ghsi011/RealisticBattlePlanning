@@ -44,6 +44,9 @@ namespace RealisticBattlePlanning.Execution
             OrderType.FollowMe, OrderType.FollowEntity, OrderType.Retreat,
             OrderType.AdvanceTenPaces, OrderType.FallBackTenPaces, OrderType.Advance, OrderType.FallBack,
             OrderType.AttackEntity, OrderType.PointDefence,
+            // Explicitly handing a governed formation to the AI (or taking it
+            // back) is a control change, not a posture tweak — it suspends.
+            OrderType.AIControlOn, OrderType.AIControlOff,
         };
 
         private readonly Dictionary<PlannedFormationClass, int> _initialCounts = new();

@@ -103,6 +103,48 @@ namespace RealisticBattlePlanning.Tests
             Assert.Contains(ScenarioValidator.Validate(spec), e => e.Contains("'formation'"));
         }
 
+        [Fact]
+        public void PlanEventBetweenRejectsANonControlEventKind()
+        {
+            var spec = Spec(new ScenarioAssertion
+            {
+                Type = AssertionType.PlanEventBetween,
+                Formation = PlannedFormationClass.Infantry,
+                Event = RecordedEventKind.StageActivated, // not a plan-control event
+                MinSeconds = 0f,
+                MaxSeconds = 30f,
+            });
+
+            Assert.Contains(ScenarioValidator.Validate(spec), e => e.Contains("PlanSuspended"));
+        }
+
+        [Fact]
+        public void PlanEventBetweenAcceptsAControlEventKind()
+        {
+            var spec = Spec(new ScenarioAssertion
+            {
+                Type = AssertionType.PlanEventBetween,
+                Formation = PlannedFormationClass.Infantry,
+                Event = RecordedEventKind.PlanSuspended,
+                MinSeconds = 0f,
+                MaxSeconds = 30f,
+            });
+
+            Assert.Empty(ScenarioValidator.Validate(spec));
+        }
+
+        [Fact]
+        public void ScriptedActionRequiresItsParameters()
+        {
+            var spec = ValidSpec();
+            spec.Actions.Add(new ScenarioAction { AtSeconds = 5f, Type = ScenarioActionType.Signal });   // no signal
+            spec.Actions.Add(new ScenarioAction { AtSeconds = -1f, Type = ScenarioActionType.Override, Formation = "Infantry" });
+
+            var errors = ScenarioValidator.Validate(spec);
+            Assert.Contains(errors, e => e.Contains("Action 1") && e.Contains("signal"));
+            Assert.Contains(errors, e => e.Contains("Action 2") && e.Contains("atSeconds"));
+        }
+
         private static ScenarioSpec ValidSpec() => Spec(new ScenarioAssertion
         {
             Type = AssertionType.StageActivatedBetween,

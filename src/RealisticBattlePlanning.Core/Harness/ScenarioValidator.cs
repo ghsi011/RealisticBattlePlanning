@@ -80,6 +80,12 @@ namespace RealisticBattlePlanning.Harness
                     case AssertionType.PlanEventBetween:
                         Require(assertion.Formation != null, "formation");
                         Require(assertion.Event != null, "event");
+                        // Only the plan-control events carry a formation+time the
+                        // way this assertion reads them; the others (StageActivated,
+                        // SignalEmitted, WaypointReached) have their own assertions
+                        // and would match ambiguously here.
+                        if (assertion.Event is { } ev && !IsPlanControlEvent(ev))
+                            errors.Add($"{who}: event must be one of PlanSuspended/PlanResumed/PlanAborted/StageSkipped/PlanHolding; got {ev}.");
                         RequireBand();
                         break;
 
@@ -118,5 +124,12 @@ namespace RealisticBattlePlanning.Harness
 
             return errors;
         }
+
+        private static bool IsPlanControlEvent(RecordedEventKind kind)
+            => kind == RecordedEventKind.PlanSuspended
+               || kind == RecordedEventKind.PlanResumed
+               || kind == RecordedEventKind.PlanAborted
+               || kind == RecordedEventKind.StageSkipped
+               || kind == RecordedEventKind.PlanHolding;
     }
 }

@@ -51,7 +51,13 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
-        /// <summary>Appends a stage (defaults to a hold) to a formation, adding the formation if needed.</summary>
+        /// <summary>
+        /// Appends a stage (defaults to a hold) to a formation, adding the
+        /// formation if needed. Note: unlike <see cref="AddFormation"/>, a
+        /// formation first created via AddStage is NOT seeded with an opening
+        /// stage — the appended stage is its first, so one-click patterns
+        /// produce exactly their own stages.
+        /// </summary>
         public PlanDraft AddStage(PlannedFormationClass formation, Stage stage = null)
         {
             var plan = Find(formation) ?? AddAndReturn(formation);

@@ -54,6 +54,20 @@ namespace RealisticBattlePlanning.UI
         public override void OnMissionScreenFinalize()
         {
             base.OnMissionScreenFinalize();
+            Teardown();
+        }
+
+        public override void OnRemoveBehavior()
+        {
+            // Belt-and-braces: the screen-finalize path normally runs, but a
+            // behavior removal that bypasses it must not leak the layer or a
+            // dead static reference. Both paths are idempotent.
+            Teardown();
+            base.OnRemoveBehavior();
+        }
+
+        private void Teardown()
+        {
             Hide();
             if (Current == this)
                 Current = null;
@@ -136,6 +150,7 @@ namespace RealisticBattlePlanning.UI
             }
             finally
             {
+                _dataSource?.OnFinalize();
                 _movie = null;
                 _layer = null;
                 _screen = null;
