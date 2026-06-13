@@ -103,7 +103,7 @@ namespace RealisticBattlePlanning.UI
                     return;
                 }
 
-                _dataSource = new PlanningModeVM("— Battle Plan —", BuildSummary());
+                _dataSource = new PlanningModeVM($"— Battle Plan —   ({ToggleKey} to close)", BuildSummary());
                 _layer = new GauntletLayer("RbpPlanningLayer", ViewOrderPriority);
                 _movie = _layer.LoadMovie(MovieName, _dataSource);
                 _screen.AddLayer(_layer);

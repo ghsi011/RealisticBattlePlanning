@@ -1,23 +1,28 @@
 <Prefab>
   <Window>
     <!--
-      First-slice Planning Mode panel: a read-only render of the loaded plan,
-      toggled during deployment. Structure mirrors a known-good 1.4.6 mission
-      overlay (absolute-positioned TextWidgets, vanilla brush) to keep the
-      blind first render low-risk; styling and the editor widgets land next.
+      Planning Mode panel (read-only slice). A dark fixed panel centred at the
+      top, clear of the left-side formation cards; left-aligned title + plan
+      summary. Attributes all verified against shipped vanilla/BannerKings
+      prefabs (Brush.FontSize, Brush.TextHorizontalAlignment, BlankWhiteSquare_9,
+      #RRGGBBAA colour). Editing widgets replace the summary text next.
     -->
     <Widget DoNotAcceptEvents="true" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent">
       <Children>
-        <TextWidget Text="@TitleText"
-                    WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
-                    HorizontalAlignment="Left" VerticalAlignment="Top"
-                    MarginLeft="60" MarginTop="70"
-                    Brush="AgentHUD.Interaction.Text" />
-        <TextWidget Text="@SummaryText"
-                    WidthSizePolicy="Fixed" SuggestedWidth="820" HeightSizePolicy="CoverChildren"
-                    HorizontalAlignment="Left" VerticalAlignment="Top"
-                    MarginLeft="60" MarginTop="120"
-                    Brush="AgentHUD.Interaction.Text" />
+        <Widget WidthSizePolicy="Fixed" SuggestedWidth="900" HeightSizePolicy="Fixed" SuggestedHeight="450"
+                HorizontalAlignment="Center" VerticalAlignment="Top" MarginTop="80"
+                Sprite="BlankWhiteSquare_9" Color="#0A0D11F2">
+          <Children>
+            <TextWidget Text="@TitleText"
+                        WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                        VerticalAlignment="Top" MarginTop="16" MarginLeft="28" MarginRight="28"
+                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="28" Brush.TextHorizontalAlignment="Left" />
+            <TextWidget Text="@SummaryText"
+                        WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                        VerticalAlignment="Top" MarginTop="66" MarginLeft="28" MarginRight="28"
+                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="19" Brush.TextHorizontalAlignment="Left" />
+          </Children>
+        </Widget>
       </Children>
     </Widget>
   </Window>
