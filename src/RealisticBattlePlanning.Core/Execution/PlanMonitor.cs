@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using static System.FormattableString;
 using RealisticBattlePlanning.Diagnostics;
+using RealisticBattlePlanning.Fidelity;
 using RealisticBattlePlanning.Planning.Model;
 
 namespace RealisticBattlePlanning.Execution
@@ -43,18 +44,40 @@ namespace RealisticBattlePlanning.Execution
         private readonly List<(string RefKey, int EnemyId)> _staleApproachKeys = new();
         private readonly HashSet<PlannedFormationClass> _pendingOverrides = new();
         private readonly HashSet<PlannedFormationClass> _pendingResumes = new();
+        private readonly IFidelityModel _fidelity;
+        private readonly Random _rng;
+        private readonly Dictionary<PlannedFormationClass, CommanderProfile> _commanders = new();
         private float _battleStartSeconds;
         /// <summary>Battle axis captured at start — anchors and steering share it; the per-tick snapshot direction drifts as armies maneuver.</summary>
         private MapVec _attackAxis = new(0f, 1f);
 
-        public PlanMonitor(BattlePlan plan)
+        /// <param name="fidelity">How competence becomes execution deviation (D3). Null = pass-through (perfect; the Phase-1 / progression-off default), so existing callers are unchanged.</param>
+        /// <param name="seed">Seeds the fidelity rolls so a battle replays identically and tests assert exact-per-seed outcomes.</param>
+        public PlanMonitor(BattlePlan plan, IFidelityModel fidelity = null, int seed = 20260613)
         {
             _plan = plan;
+            _fidelity = fidelity ?? new PassThroughFidelityModel();
+            _rng = new Random(seed);
             _states = plan.Formations
                 .Where(f => f.Stages.Count > 0)
                 .Select(f => new FormationState(f))
                 .ToList();
         }
+
+        /// <summary>
+        /// Sets the commander competence the fidelity model rolls against for
+        /// a formation (D1). Unset formations roll against
+        /// <see cref="CommanderProfile.Default"/>. The engine calls this at
+        /// battle start from each formation's captain.
+        /// </summary>
+        public void SetCommander(PlannedFormationClass formation, CommanderProfile commander)
+        {
+            if (commander != null)
+                _commanders[formation] = commander;
+        }
+
+        private CommanderProfile Commander(PlannedFormationClass formation)
+            => _commanders.TryGetValue(formation, out var commander) ? commander : CommanderProfile.Default;
 
         public bool Started { get; private set; }
 
@@ -146,7 +169,27 @@ namespace RealisticBattlePlanning.Execution
                 if (EvaluateAborts(state, snapshot, events))
                     continue;
 
-                if (!TryAdvance(state, snapshot, events))
+                bool activatedThisTick;
+                if (state.PendingStageIndex >= 0)
+                {
+                    // A triggered stage is waiting out the commander's reaction
+                    // delay (D3); the formation keeps doing its current thing
+                    // until the lag elapses, then the stage activates.
+                    activatedThisTick = false;
+                    if (snapshot.TimeSeconds >= state.PendingActivateAt)
+                    {
+                        var index = state.PendingStageIndex;
+                        state.PendingStageIndex = -1;
+                        ActivateChecked(state, index, snapshot, events);
+                        activatedThisTick = true;
+                    }
+                }
+                else
+                {
+                    activatedThisTick = TryAdvance(state, snapshot, events);
+                }
+
+                if (!activatedThisTick)
                     TickWaypointProgression(state, snapshot, events);
                 TickSteering(state, snapshot, events);
             }
@@ -167,6 +210,7 @@ namespace RealisticBattlePlanning.Execution
                     continue;
 
                 state.Mode = FormationPlanMode.Suspended;
+                state.PendingStageIndex = -1; // a queued reaction is the plan's, not the player's
                 events.Add(new PlanSuspended(state.Plan.Formation));
             }
 
@@ -265,6 +309,7 @@ namespace RealisticBattlePlanning.Execution
                 return false;
 
             state.Mode = FormationPlanMode.Aborted;
+            state.PendingStageIndex = -1;
             events.Add(new PlanAborted(state.Plan.Formation, reason));
             return true;
         }
@@ -427,8 +472,37 @@ namespace RealisticBattlePlanning.Execution
             if (state.Holding && !AnyStageEvaluableFrom(state, nextIndex, snapshot))
                 return false;
 
+            // Reaction delay (D3): a Master commander acts at once; a green one
+            // lags. A positive delay parks the stage as pending and keeps the
+            // current directive running until it elapses (so this is NOT an
+            // activation this tick — return false). The opening posture (first
+            // stage on battle start) is deployment, not a reaction to the
+            // field, so it activates immediately — the lag is for responding
+            // to triggers.
+            var isOpeningPosture = state.ActiveStageIndex < 0 && stage.When.Count == 0;
+            var delay = isOpeningPosture ? 0f : RollReactionDelay(state, nextIndex, events);
+            if (delay > 0f)
+            {
+                state.PendingStageIndex = nextIndex;
+                state.PendingActivateAt = snapshot.TimeSeconds + delay;
+                return false;
+            }
+
             ActivateChecked(state, nextIndex, snapshot, events);
             return true;
+        }
+
+        /// <summary>
+        /// Rolls the commander's reaction delay for activating a stage and, if
+        /// any, emits the INTENDED_FIDELITY event. Pass-through (the default)
+        /// always returns 0 — instant activation, the pre-fidelity behaviour.
+        /// </summary>
+        private float RollReactionDelay(FormationState state, int stageIndex, List<PlanEvent> events)
+        {
+            var profile = _fidelity.Roll(Commander(state.Plan.Formation), _rng);
+            if (profile.ReactionDelaySeconds > 0f)
+                events.Add(new ReactionDelayed(state.Plan.Formation, stageIndex, profile.ReactionDelaySeconds, profile.Tier));
+            return profile.ReactionDelaySeconds;
         }
 
         private bool AnyStageEvaluableFrom(FormationState state, int startIndex, IBattlefieldSnapshot snapshot)
@@ -447,6 +521,7 @@ namespace RealisticBattlePlanning.Execution
             state.ActivatedAtSeconds = snapshot.TimeSeconds;
             state.WaypointIndex = 0;
             state.LastSteeringTarget = null;
+            state.PendingStageIndex = -1;
         }
 
         private void Activate(FormationState state, int stageIndex, Stage stage, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
@@ -912,6 +987,9 @@ namespace RealisticBattlePlanning.Execution
             public FormationPlanMode Mode { get; set; } = FormationPlanMode.Active;
             /// <summary>Set when no evaluable stage remained (B6 hold).</summary>
             public bool Holding { get; set; }
+            /// <summary>Stage whose trigger fired but whose reaction delay (D3) hasn't elapsed; -1 when none.</summary>
+            public int PendingStageIndex { get; set; } = -1;
+            public float PendingActivateAt { get; set; }
         }
     }
 }

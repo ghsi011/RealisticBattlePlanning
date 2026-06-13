@@ -168,6 +168,31 @@ namespace RealisticBattlePlanning.Execution
         public override string Describe() => $"[{Formation}] holding: {Reason}";
     }
 
+    /// <summary>
+    /// A stage's trigger fired, but the commander's fidelity adds a reaction
+    /// delay before it activates (spec D3). Tagged INTENDED_FIDELITY so the
+    /// log distinguishes designed wobble from a genuine fault (R2).
+    /// </summary>
+    public sealed class ReactionDelayed : PlanEvent
+    {
+        public ReactionDelayed(PlannedFormationClass formation, int stageIndex, float delaySeconds, Fidelity.FidelityTier tier)
+            : base(formation)
+        {
+            StageIndex = stageIndex;
+            DelaySeconds = delaySeconds;
+            Tier = tier;
+        }
+
+        /// <summary>0-based index of the stage waiting to activate.</summary>
+        public int StageIndex { get; }
+        public float DelaySeconds { get; }
+        public Fidelity.FidelityTier Tier { get; }
+
+        public override string Describe()
+            => System.FormattableString.Invariant(
+                $"[INTENDED_FIDELITY] [{Formation}] {Tier} commander reacts to stage {StageIndex + 1} after {DelaySeconds:0.#}s");
+    }
+
     public sealed class SignalEmitted : PlanEvent
     {
         public SignalEmitted(PlannedFormationClass formation, string signal)
