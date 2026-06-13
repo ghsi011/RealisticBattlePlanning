@@ -29,12 +29,30 @@ namespace RealisticBattlePlanning.Execution
         private static readonly InputKey[] PaletteKeys =
             { InputKey.Numpad1, InputKey.Numpad2, InputKey.Numpad3, InputKey.Numpad4 };
 
+        /// <summary>
+        /// Player orders that REDIRECT a formation (movement/targeting)
+        /// suspend its plan (B5). Posture orders — arrangement, facing, fire
+        /// control, mount, cohesion — pass through, so the player can tune how
+        /// a formation fights without dropping it from the plan (the
+        /// conductor, not micromanager, vision). Anything not in this set
+        /// passes through.
+        /// </summary>
+        private static readonly HashSet<OrderType> OverridingOrders = new()
+        {
+            OrderType.Move, OrderType.MoveToLineSegment, OrderType.MoveToLineSegmentWithHorizontalLayout,
+            OrderType.Charge, OrderType.ChargeWithTarget, OrderType.StandYourGround,
+            OrderType.FollowMe, OrderType.FollowEntity, OrderType.Retreat,
+            OrderType.AdvanceTenPaces, OrderType.FallBackTenPaces, OrderType.Advance, OrderType.FallBack,
+            OrderType.AttackEntity, OrderType.PointDefence,
+        };
+
         private readonly Dictionary<PlannedFormationClass, int> _initialCounts = new();
         private readonly Dictionary<PlannedFormationClass, Agent> _initialCaptains = new();
         private BattlePlan _plan;
         private PlanMonitor _monitor;
         private FormationOrderExecutor _executor;
         private bool _deploymentFinished;
+        private bool _isHarnessRun;
         private float _sinceLastMonitorTick;
 
         /// <summary>The live instance, for console commands (rbp.resume / rbp.plan_status).</summary>
@@ -71,7 +89,9 @@ namespace RealisticBattlePlanning.Execution
                     return;
                 }
 
-                _plan = HarnessSession.PlanForNextBattle() ?? DebugPlanLoader.TryLoad();
+                var harnessPlan = HarnessSession.PlanForNextBattle();
+                _isHarnessRun = harnessPlan != null;
+                _plan = harnessPlan ?? DebugPlanLoader.TryLoad();
                 if (_plan == null)
                     return;
 
@@ -110,6 +130,12 @@ namespace RealisticBattlePlanning.Execution
 
                 if (Mission.PlayerTeam == null)
                     return;
+
+                // Harness runs auto-fill the scenario's formation slots so the
+                // pack needs no manual Order-of-Battle setup (e.g. A6's four
+                // slots). Never fires in normal play — only on an armed run.
+                if (_isHarnessRun)
+                    ApplySplit(PlannedFormationClasses());
 
                 RbpLog.Info("Deployment finished. Player formations:");
                 foreach (var formation in Mission.PlayerTeam.FormationsIncludingEmpty)
@@ -179,6 +205,15 @@ namespace RealisticBattlePlanning.Execution
                         continue;
                     if (_monitor.GetMode(cls) != FormationPlanMode.Active)
                         continue;
+
+                    // Posture tweaks (arrangement, facing, fire) don't redirect
+                    // the formation, so they leave the plan running (B5 reading
+                    // for the conductor vision).
+                    if (!OverridingOrders.Contains(orderType))
+                    {
+                        RbpLog.Info($"[{cls}] posture order ({orderType}); plan continues.");
+                        continue;
+                    }
 
                     RbpLog.Info($"[{cls}] player order ({orderType}); suspending its plan.");
                     _monitor.NotifyPlayerOverride(cls);
@@ -403,6 +438,50 @@ namespace RealisticBattlePlanning.Execution
             {
                 // Battle messages must never take the plan down.
             }
+        }
+
+        /// <summary>The classes this plan actually drives (those with stages).</summary>
+        private List<PlannedFormationClass> PlannedFormationClasses()
+        {
+            var list = new List<PlannedFormationClass>();
+            if (_plan == null)
+                return list;
+            foreach (var formationPlan in _plan.Formations)
+            {
+                if (formationPlan.Stages.Count > 0)
+                    list.Add(formationPlan.Formation);
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// Console-facing troop redistribution (rbp.harness_split): fills the
+        /// active plan's formation slots so a multi-formation scenario needs no
+        /// manual Order-of-Battle setup. Dev/test affordance.
+        /// </summary>
+        internal string SplitTroopsForPlan()
+        {
+            if (_monitor == null || _plan == null || Mission.PlayerTeam == null)
+                return "no plan is active this battle";
+
+            var planned = PlannedFormationClasses();
+            if (planned.Count == 0)
+                return "the active plan has no formations to fill";
+
+            var moved = ApplySplit(planned);
+            if (_deploymentFinished)
+                AdoptPlannedFormations(); // re-capture counts + adopt the now-filled slots
+            return $"spread {moved} unit(s) across {planned.Count} formation(s): {string.Join(", ", planned)}";
+        }
+
+        private int ApplySplit(List<PlannedFormationClass> planned)
+        {
+            if (planned.Count == 0)
+                return 0;
+            var targets = planned.ConvertAll(FormationClassMap.ToEngine);
+            var moved = FormationSplitter.SpreadAcross(Mission.PlayerTeam, targets, Mission.MainAgent);
+            RbpLog.Info($"Harness split: redistributed {moved} unit(s) across {string.Join(", ", planned)}.");
+            return moved;
         }
 
         /// <summary>

@@ -52,5 +52,15 @@ namespace RealisticBattlePlanning.Harness
 
         [CommandLineFunctionality.CommandLineArgumentFunction("harness_accept", "rbp")]
         public static string Accept(List<string> args) => HarnessSession.AcceptLastRun();
+
+        /// <summary>
+        /// Fills the active plan's formation slots by redistributing the
+        /// player's troops — no manual Order-of-Battle setup. Armed harness
+        /// runs do this automatically at deployment; this is the manual
+        /// trigger for debug-plan runs or a re-split.
+        /// </summary>
+        [CommandLineFunctionality.CommandLineArgumentFunction("harness_split", "rbp")]
+        public static string Split(List<string> args)
+            => Execution.PlanMissionLogic.Current?.SplitTroopsForPlan() ?? "no plan is active this battle";
     }
 }

@@ -84,6 +84,9 @@ namespace RealisticBattlePlanning.Diagnostics
             Method(typeof(Formation), "ApplyActionOnEachUnit", typeof(Action<Agent>), typeof(Agent));
             Property(typeof(Agent), "Position");
             Property(typeof(Agent), "IsRunningAway");
+            // Harness troop redistribution (FormationSplitter).
+            InstanceMember(typeof(Agent), "IsHuman");
+            InstanceMember(typeof(Agent), "Formation");
 
             // Override detection & plan control (PlanMissionLogic, I7).
             Property(typeof(Team), "PlayerOrderController");

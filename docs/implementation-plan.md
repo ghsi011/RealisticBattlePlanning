@@ -261,6 +261,13 @@ start API probed in-game first; it stays on the list for when the pack grows
 past two scenarios. Also new: the engine assembly now compiles without a game
 install — BUTR reference assemblies kick in as a compile-only fallback and
 deploy is skipped — so cloud/CI sessions can build and API-check engine code.)
+**Friction reducer added 2026-06-13:** an armed run auto-redistributes the
+player's troops into exactly the formation slots the scenario needs at
+deployment (so A6's four slots need no manual Order-of-Battle setup);
+`rbp.harness_split` is the manual trigger for debug-plan runs. This is the
+cheap "A" step toward the bigger automation lever — full auto-spawn +
+scripted scenario actions (signal/override injection) for unattended H2/H8
+runs — still queued for the I12 acceptance pass.
 
 - Console commands / dev menu: load a plan from JSON, spawn a scripted battle
   on a flat test scene, run at high time-scale.
@@ -361,8 +368,13 @@ formation leaves the hold automatically if a later stage becomes evaluable
 again. New plan events (PlanSuspended/PlanResumed/PlanAborted/StageSkipped/
 PlanHolding) flow through the recorder into harness records.
 
-- Any manual player order suspends that formation's plan; *Resume plan* entry
-  in the order menu picks the most appropriate stage (B5).
+- Any manual *movement/targeting* order suspends that formation's plan;
+  *Resume plan* entry in the order menu picks the most appropriate stage (B5).
+  **Refined 2026-06-13 (in-game):** posture orders (arrangement, facing, fire
+  control, mount, cohesion) pass through without suspending — the player tunes
+  *how* a formation fights without dropping it from the plan (conductor, not
+  micromanager). The suspend set is the redirecting OrderTypes; everything
+  else is posture.
 - Abort conditions with editable defaults: casualties %, commander
   incapacitated, formation broken (A3.7); on abort revert to vanilla AI +
   notification (B4). Commander death always aborts.
