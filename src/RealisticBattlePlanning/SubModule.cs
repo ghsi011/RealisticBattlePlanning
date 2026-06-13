@@ -54,7 +54,18 @@ namespace RealisticBattlePlanning
                     // Added after PlanMissionLogic so its AfterStart sees the
                     // plan logic already initialized.
                     if (HarnessSession.IsArmed)
+                    {
                         mission.AddMissionBehavior(new HarnessRecorderLogic());
+                    }
+                    else
+                    {
+                        // The Planning Mode UI is for interactive play, not the
+                        // fast-forwarded harness. A MissionView is a
+                        // MissionBehavior; the screen registers it at
+                        // OnMissionAfterStarting (verified in decompiled
+                        // MissionScreen).
+                        mission.AddMissionBehavior(new UI.PlanningModeView());
+                    }
                 }
                 else
                 {

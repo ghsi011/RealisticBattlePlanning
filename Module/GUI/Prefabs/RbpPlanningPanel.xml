@@ -1,0 +1,24 @@
+<Prefab>
+  <Window>
+    <!--
+      First-slice Planning Mode panel: a read-only render of the loaded plan,
+      toggled during deployment. Structure mirrors a known-good 1.4.6 mission
+      overlay (absolute-positioned TextWidgets, vanilla brush) to keep the
+      blind first render low-risk; styling and the editor widgets land next.
+    -->
+    <Widget DoNotAcceptEvents="true" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent">
+      <Children>
+        <TextWidget Text="@TitleText"
+                    WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
+                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                    MarginLeft="60" MarginTop="70"
+                    Brush="AgentHUD.Interaction.Text" />
+        <TextWidget Text="@SummaryText"
+                    WidthSizePolicy="Fixed" SuggestedWidth="820" HeightSizePolicy="CoverChildren"
+                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                    MarginLeft="60" MarginTop="120"
+                    Brush="AgentHUD.Interaction.Text" />
+      </Children>
+    </Widget>
+  </Window>
+</Prefab>

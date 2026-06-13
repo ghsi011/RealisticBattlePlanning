@@ -422,7 +422,13 @@ summaries; bounds-checked, no-throw) and `EditorDefaults` (the A3.9 opening
 stage + one-click patterns). The Gauntlet view becomes a thin shell over
 `PlanDraft`, so authoring correctness is already proven without the game;
 what remains is the deployment-phase view injection (the open engine risk),
-which needs in-game iteration. Carried from the 2026-06-12 review: standardize plan-logic discovery on
+which needs in-game iteration. **First UI slice shipped (pending in-game
+render check):** `PlanningModeView` (a `MissionView` added via
+`AddMissionBehavior`, registered by the screen at `OnMissionAfterStarting`)
+toggles a read-only Gauntlet panel (Numpad0) during deployment showing the
+loaded plan's plain-language summary. Every Gauntlet call is guarded so a UI
+fault degrades to a log line, never a mission crash. Proves the injection +
+prefab path before the editing widgets land. Carried from the 2026-06-12 review: standardize plan-logic discovery on
 `Mission.GetMissionBehavior<PlanMissionLogic>()` when the UI lands —
 `PlanCommands` currently reaches it via the `PlanMissionLogic.Current`
 static while `HarnessRecorderLogic` already uses the vanilla pattern; one
