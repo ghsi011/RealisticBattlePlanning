@@ -47,10 +47,12 @@ namespace RealisticBattlePlanning.Tests
             float dt = 0.5f,
             float speed = DefaultSpeed,
             string result = "PlayerVictory",
-            IReadOnlyList<SimEnemy> enemies = null)
+            IReadOnlyList<SimEnemy> enemies = null,
+            IReadOnlyList<ScenarioAction> actions = null)
         {
             var monitor = new PlanMonitor(plan);
             var recorder = new RunRecorder(scenarioName, plan);
+            var scheduler = new ScenarioActionScheduler(actions);
             var positions = plan.Formations.ToDictionary(f => f.Formation, f => StartPosition(f.Formation));
             var targets = new Dictionary<PlannedFormationClass, MapVec?>();
             var charging = new HashSet<PlannedFormationClass>();
@@ -66,6 +68,10 @@ namespace RealisticBattlePlanning.Tests
 
                 var events = monitor.Tick(snapshot);
                 recorder.Tick(snapshot, events);
+
+                // Scripted inputs fire after the tick (as the engine recorder
+                // does from MonitorTicked); they take effect next tick.
+                scheduler.Tick(time, monitor);
 
                 foreach (var planEvent in events)
                 {

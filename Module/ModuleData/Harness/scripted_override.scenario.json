@@ -1,0 +1,14 @@
+{
+  // Override & resume (H2), unattended via scripted actions — the recorder
+  // must show the suspend and the resume at the scripted times.
+  "description": "Harness suspends the infantry plan at 12s and resumes it at 18s; both transitions must appear in the record.",
+  "planFile": "scripted_override.plan.json",
+  "actions": [
+    { "atSeconds": 12, "type": "Override", "formation": "Infantry" },
+    { "atSeconds": 18, "type": "Resume", "formation": "Infantry" }
+  ],
+  "assertions": [
+    { "type": "PlanEventBetween", "formation": "Infantry", "event": "PlanSuspended", "minSeconds": 11, "maxSeconds": 15 },
+    { "type": "PlanEventBetween", "formation": "Infantry", "event": "PlanResumed", "minSeconds": 17, "maxSeconds": 21 }
+  ]
+}

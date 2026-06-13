@@ -1,0 +1,19 @@
+{
+  // H8 core, run unattended: infantry holds until the player's "go" signal,
+  // then charges. The scenario's scripted action fires "go" so no human is
+  // needed at the keyboard.
+  "playerSignals": [ "go" ],
+  "formations": [
+    {
+      "formation": "Infantry",
+      "stages": [
+        { "name": "hold until the call", "do": { "type": "Hold", "arrangement": "ShieldWall" } },
+        {
+          "name": "charge on signal",
+          "when": [ { "type": "PlayerSignal", "signal": "go" } ],
+          "do": { "type": "Charge" }
+        }
+      ]
+    }
+  ]
+}

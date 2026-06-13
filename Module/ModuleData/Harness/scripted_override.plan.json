@@ -1,0 +1,19 @@
+{
+  // H2 (override & resume), run unattended. The plan would only charge on a
+  // far-off timer (60s); the scenario's scripted actions suspend the plan at
+  // 12s and resume it at 18s, so the recorder captures both transitions
+  // without anyone issuing an order in-game.
+  "formations": [
+    {
+      "formation": "Infantry",
+      "stages": [
+        { "name": "hold", "do": { "type": "Hold", "arrangement": "ShieldWall" } },
+        {
+          "name": "advance late",
+          "when": [ { "type": "TimerElapsed", "seconds": 60 } ],
+          "do": { "type": "Charge" }
+        }
+      ]
+    }
+  ]
+}

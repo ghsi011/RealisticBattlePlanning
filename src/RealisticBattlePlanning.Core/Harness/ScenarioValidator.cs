@@ -77,8 +77,41 @@ namespace RealisticBattlePlanning.Harness
                             errors.Add($"{who}: bySeconds must be positive.");
                         break;
 
+                    case AssertionType.PlanEventBetween:
+                        Require(assertion.Formation != null, "formation");
+                        Require(assertion.Event != null, "event");
+                        RequireBand();
+                        break;
+
                     default:
                         errors.Add($"{who}: unknown assertion type.");
+                        break;
+                }
+            }
+
+            for (var i = 0; i < spec.Actions.Count; i++)
+            {
+                var action = spec.Actions[i];
+                var who = $"Action {i + 1} ({action.Type})";
+
+                if (action.AtSeconds < 0f)
+                    errors.Add($"{who}: atSeconds must be >= 0.");
+
+                switch (action.Type)
+                {
+                    case ScenarioActionType.Signal:
+                        if (string.IsNullOrWhiteSpace(action.Signal))
+                            errors.Add($"{who}: 'signal' is required.");
+                        break;
+
+                    case ScenarioActionType.Override:
+                    case ScenarioActionType.Resume:
+                        if (string.IsNullOrWhiteSpace(action.Formation))
+                            errors.Add($"{who}: 'formation' is required (a class name or 'all').");
+                        break;
+
+                    default:
+                        errors.Add($"{who}: unknown action type.");
                         break;
                 }
             }

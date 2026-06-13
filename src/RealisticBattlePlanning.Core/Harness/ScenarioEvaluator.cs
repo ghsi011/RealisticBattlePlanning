@@ -162,6 +162,18 @@ namespace RealisticBattlePlanning.Harness
                         Invariant($"closest approach {closest:0.#}m"));
                 }
 
+                case AssertionType.PlanEventBetween:
+                {
+                    if (assertion.Event is not { } kind)
+                        return Fail(result, "PlanEventBetween needs an event kind");
+                    var time = PlanEventTime(record, assertion.Formation, kind);
+                    if (time == null)
+                        return Fail(result, $"{assertion.Formation} {kind} never happened");
+                    result.Measured = time;
+                    return Verdict(result, time.Value >= assertion.MinSeconds && time.Value <= assertion.MaxSeconds,
+                        Invariant($"{kind} at {time:0.#}s"));
+                }
+
                 default:
                     return Fail(result, $"assertion type {assertion.Type} is not implemented");
             }
@@ -178,6 +190,12 @@ namespace RealisticBattlePlanning.Harness
             => record.Events.FirstOrDefault(e =>
                     e.Kind == RecordedEventKind.SignalEmitted &&
                     string.Equals(e.Name, signal, StringComparison.OrdinalIgnoreCase))
+                ?.TimeSeconds;
+
+        private static float? PlanEventTime(BattleRecord record, PlannedFormationClass? formation, RecordedEventKind kind)
+            => record.Events.FirstOrDefault(e =>
+                    e.Kind == kind &&
+                    e.Formation == formation)
                 ?.TimeSeconds;
 
         private static AssertionResult Fail(AssertionResult result, string message)

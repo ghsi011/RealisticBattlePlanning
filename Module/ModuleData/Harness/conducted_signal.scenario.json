@@ -1,0 +1,13 @@
+{
+  // Conducted charge (H8 core), unattended via a scripted player signal —
+  // proves the Signal Palette path end to end with no human input.
+  "description": "Harness fires the 'go' player signal at 10s; the gated infantry charge must follow within a tick.",
+  "planFile": "conducted_signal.plan.json",
+  "actions": [
+    { "atSeconds": 10, "type": "Signal", "signal": "go" }
+  ],
+  "assertions": [
+    { "type": "StageActivatedBetween", "formation": "Infantry", "stage": 1, "minSeconds": 0, "maxSeconds": 5 },
+    { "type": "StageActivatedBetween", "formation": "Infantry", "stage": 2, "minSeconds": 10, "maxSeconds": 13 }
+  ]
+}

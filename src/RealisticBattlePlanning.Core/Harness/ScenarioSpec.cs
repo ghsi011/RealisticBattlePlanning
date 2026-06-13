@@ -23,6 +23,48 @@ namespace RealisticBattlePlanning.Harness
         public float? TimeLimitSeconds { get; set; }
 
         public List<ScenarioAssertion> Assertions { get; set; } = new();
+
+        /// <summary>
+        /// Scripted player inputs the harness injects at battle-relative times,
+        /// so player-conducted scenarios (signals, override/resume) run
+        /// unattended — no human at the keyboard. Empty for autonomous plans.
+        /// </summary>
+        public List<ScenarioAction> Actions { get; set; } = new();
+    }
+
+    public enum ScenarioActionType
+    {
+        /// <summary>Fire a player signal through the bus (B9), like a palette press.</summary>
+        Signal,
+
+        /// <summary>Suspend a formation's plan as a manual override would (B5).</summary>
+        Override,
+
+        /// <summary>Resume a suspended formation's plan (B5).</summary>
+        Resume,
+    }
+
+    /// <summary>One scripted harness input, fired once when the clock passes <see cref="AtSeconds"/>.</summary>
+    public sealed class ScenarioAction
+    {
+        /// <summary>Battle-relative time (0 = battle start) to fire at.</summary>
+        public float AtSeconds { get; set; }
+
+        public ScenarioActionType Type { get; set; }
+
+        /// <summary>Signal name (Signal actions).</summary>
+        public string Signal { get; set; }
+
+        /// <summary>Formation class name or "all" (Override / Resume actions).</summary>
+        public string Formation { get; set; }
+
+        public string Describe() => Type switch
+        {
+            ScenarioActionType.Signal => Invariant($"fire signal '{Signal}' at {AtSeconds:0.#}s"),
+            ScenarioActionType.Override => Invariant($"override {Formation} at {AtSeconds:0.#}s"),
+            ScenarioActionType.Resume => Invariant($"resume {Formation} at {AtSeconds:0.#}s"),
+            _ => Type.ToString(),
+        };
     }
 
     public enum AssertionType
@@ -41,6 +83,9 @@ namespace RealisticBattlePlanning.Harness
 
         /// <summary>Formation comes within WithinMeters of the anchor, optionally by BySeconds.</summary>
         ReachesAnchor,
+
+        /// <summary>A plan event (suspend/resume/abort/skip/hold) for the formation lands inside [MinSeconds, MaxSeconds].</summary>
+        PlanEventBetween,
     }
 
     /// <summary>
@@ -72,6 +117,9 @@ namespace RealisticBattlePlanning.Harness
         /// <summary>StageAfterSignal: maximum allowed signal-to-activation delay.</summary>
         public float? MaxDelaySeconds { get; set; }
 
+        /// <summary>PlanEventBetween: which recorded plan event to look for.</summary>
+        public RecordedEventKind? Event { get; set; }
+
         /// <summary>
         /// Invariant-culture on purpose: descriptions are the join key when
         /// diffing runs against a baseline, so they must not vary with the
@@ -90,6 +138,8 @@ namespace RealisticBattlePlanning.Harness
             AssertionType.ReachesAnchor =>
                 Invariant($"{Formation} reaches anchor '{Anchor}' within {WithinMeters:0.#}m") +
                 (BySeconds is { } by ? Invariant($" by {by:0.#}s") : ""),
+            AssertionType.PlanEventBetween =>
+                Invariant($"{Formation} {Event} between {MinSeconds:0.#}s and {MaxSeconds:0.#}s"),
             _ => Type.ToString(),
         };
     }

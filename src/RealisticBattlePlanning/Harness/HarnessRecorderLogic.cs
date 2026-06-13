@@ -17,8 +17,10 @@ namespace RealisticBattlePlanning.Harness
     {
         private PlanMissionLogic _host;
         private RunRecorder _recorder;
+        private ScenarioActionScheduler _scheduler;
         private ScenarioSpec _scenario;
         private string _result;
+        private float? _battleStartSeconds;
         private bool _finalized;
 
         public override void AfterStart()
@@ -40,9 +42,11 @@ namespace RealisticBattlePlanning.Harness
                 }
 
                 _recorder = new RunRecorder(_scenario.Name, _host.ActivePlan);
+                _scheduler = new ScenarioActionScheduler(_scenario.Actions);
                 _host.MonitorTicked += OnMonitorTicked;
                 _host.MonitorFaulted += OnMonitorFaulted;
-                RbpLog.Info($"Harness: recording scenario '{_scenario.Name}'.");
+                RbpLog.Info($"Harness: recording scenario '{_scenario.Name}'" +
+                            (_scenario.Actions.Count > 0 ? $" ({_scenario.Actions.Count} scripted action(s))." : "."));
             }
             catch (Exception e)
             {
@@ -91,6 +95,7 @@ namespace RealisticBattlePlanning.Harness
             try
             {
                 _recorder?.Tick(snapshot, events);
+                FireScriptedActions(snapshot);
             }
             catch (Exception e)
             {
@@ -99,6 +104,23 @@ namespace RealisticBattlePlanning.Harness
                 _recorder = null;
                 _scenario = null;
             }
+        }
+
+        /// <summary>
+        /// Injects the scenario's scripted player inputs at their
+        /// battle-relative times — the same clock the recorder stamps events
+        /// with, so an action authored "at 10s" lines up with the record.
+        /// </summary>
+        private void FireScriptedActions(IBattlefieldSnapshot snapshot)
+        {
+            if (_scheduler == null || _scheduler.Done || !snapshot.BattleStarted)
+                return;
+
+            _battleStartSeconds ??= snapshot.TimeSeconds;
+            var battleTime = snapshot.TimeSeconds - _battleStartSeconds.Value;
+
+            foreach (var fired in _scheduler.Tick(battleTime, _host.Monitor))
+                RbpLog.Info($"Harness: scripted action — {fired}.");
         }
 
         private void FinalizeRun()

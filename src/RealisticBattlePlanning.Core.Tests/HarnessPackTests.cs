@@ -42,7 +42,7 @@ namespace RealisticBattlePlanning.Tests
             var spec = LoadSpec(name);
             var plan = LoadPlan(spec);
 
-            var record = HarnessSimulation.Run(plan, name, enemies: SimEnemiesFor(name));
+            var record = HarnessSimulation.Run(plan, name, enemies: SimEnemiesFor(name), actions: spec.Actions);
             var result = ScenarioEvaluator.Evaluate(spec, record);
 
             Assert.True(result.Pass, result.Summary());
