@@ -95,6 +95,13 @@ promote a run. Results live in `Modules\RealisticBattlePlanning\Logs\Harness`.
 The harness does not yet spawn battles itself, and anything it doesn't cover
 still needs a manual launch — say "verified by launching" or say you couldn't.
 
+**Seeing the game yourself (UI work):** the in-game `rbp.screenshot [name]`
+console command saves a frame to `Modules\RealisticBattlePlanning\Logs\
+Screenshots\<name>.bmp` (the engine writes BMP regardless of extension). Run
+`tools\view-screenshot.ps1 <name>` to convert it to a `.png`, then Read that
+PNG — the Read tool renders it, so you can visually verify UI/state directly
+instead of asking the user to describe it. Logs go to `Logs\rbp.log`.
+
 ## Testing
 
 Three binding layers — details in

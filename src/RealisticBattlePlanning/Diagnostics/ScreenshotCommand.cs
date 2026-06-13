@@ -23,13 +23,16 @@ namespace RealisticBattlePlanning.Diagnostics
                     ? Sanitize(args[0])
                     : "shot";
 
+                // The engine writes BMP regardless of extension, so name it
+                // honestly; tools\view-screenshot.ps1 converts it to a PNG the
+                // dev/test loop can read.
                 var dir = Path.Combine(ModuleHelper.GetModuleFullPath(SubModule.ModId), "Logs", "Screenshots");
                 Directory.CreateDirectory(dir);
-                var path = Path.Combine(dir, name + ".png");
+                var path = Path.Combine(dir, name + ".bmp");
 
                 TaleWorlds.Engine.Utilities.TakeScreenshot(path);
                 RbpLog.Info($"Screenshot requested -> {path}");
-                return $"screenshot -> {path} (written on the next frame)";
+                return $"screenshot -> {path} (written on the next frame; convert with tools\\view-screenshot.ps1)";
             }
             catch (Exception e)
             {
