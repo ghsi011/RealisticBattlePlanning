@@ -1,18 +1,29 @@
 {
-  // RealisticBattlePlanning debug plan (dev/test authoring path).
-  // I4 verify scenario — a proto-feigned-retreat using the new triggers:
-  //   1. Infantry holds in shieldwall.
-  //   2. When the enemy commits to an attack (sustained approach), infantry
-  //      falls back 30 m and signals; archers follow the signal back.
-  //   3. When the enemy closes within 40 m anyway, infantry counter-charges.
-  // Watch Logs\rbp.log for when "EnemyCommits" fires vs. what the AI did —
-  // that timing is the R3 tuning data.
+  // RealisticBattlePlanning debug plan — I7 + I8 verification round.
+  // A player-CONDUCTED assault: both formations hold until YOU call the
+  // moment, then act. This exercises the Signal Palette (I8) directly, and
+  // the override/resume/abort surfaces (I7) work on either formation.
+  //
+  // SIGNAL PALETTE (I8):
+  //   Numpad1 = "advance"  -> archers move up to the volley line
+  //   Numpad2 = "charge"   -> infantry charge
+  //   (or console: rbp.signal advance / rbp.signal charge)
+  //
+  // OVERRIDE / RESUME (I7): mid-battle, manually order Infantry somewhere.
+  //   Its plan suspends (watch for the battle message + rbp.log line naming
+  //   the captain). Bring it back with:  rbp.resume Infantry   (or all)
+  //   rbp.plan_status shows each formation's mode (Active/Suspended/Aborted).
+  //
+  // ABORT (I7): get the Infantry captain killed (or console-kill them).
+  //   The formation reverts to vanilla AI with a notification; the rest of
+  //   the plan keeps running.
+  //
   // Edit this file in the deployed module to iterate without rebuilding.
 
-  "playerSignals": [ "hammer" ],
+  "playerSignals": [ "advance", "charge" ],
 
   "anchors": [
-    { "id": "fallback", "basis": "OwnStart", "forward": -30.0, "right": 0.0 }
+    { "id": "volley-line", "basis": "OwnStart", "forward": 40.0, "right": 0.0 }
   ],
 
   "formations": [
@@ -20,18 +31,12 @@
       "formation": "Infantry",
       "stages": [
         {
-          "name": "hold the line",
+          "name": "hold until the call",
           "do": { "type": "Hold", "arrangement": "ShieldWall" }
         },
         {
-          "name": "give ground",
-          "when": [ { "type": "EnemyCommits" } ],
-          "do": { "type": "MoveTo", "anchor": "fallback" },
-          "emit": [ "falling-back" ]
-        },
-        {
-          "name": "counter-charge",
-          "when": [ { "type": "EnemyWithinDistance", "meters": 40 } ],
+          "name": "charge on signal",
+          "when": [ { "type": "PlayerSignal", "signal": "charge" } ],
           "do": { "type": "Charge" }
         }
       ],
@@ -41,12 +46,13 @@
       "formation": "Ranged",
       "stages": [
         {
+          "name": "hold loose",
           "do": { "type": "Hold", "arrangement": "Loose" }
         },
         {
-          "name": "fall back with the line",
-          "when": [ { "type": "SignalReceived", "signal": "falling-back" } ],
-          "do": { "type": "MoveTo", "anchor": "fallback" }
+          "name": "advance on signal",
+          "when": [ { "type": "PlayerSignal", "signal": "advance" } ],
+          "do": { "type": "MoveTo", "anchor": "volley-line" }
         }
       ]
     }
