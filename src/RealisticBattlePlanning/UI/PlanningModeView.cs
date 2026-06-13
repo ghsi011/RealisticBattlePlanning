@@ -7,6 +7,8 @@ using TaleWorlds.GauntletUI.Data;
 using TaleWorlds.InputSystem;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.MountAndBlade.View.MissionViews;
+using TaleWorlds.MountAndBlade.View.Screens;
+using TaleWorlds.ScreenSystem;
 
 namespace RealisticBattlePlanning.UI
 {
@@ -33,6 +35,7 @@ namespace RealisticBattlePlanning.UI
         private PlanningModeVM _dataSource;
         private GauntletLayer _layer;
         private GauntletMovieIdentifier _movie;
+        private MissionScreen _screen;
         private bool _shown;
 
         public PlanningModeView()
@@ -88,10 +91,22 @@ namespace RealisticBattlePlanning.UI
                 return;
             try
             {
+                // The view's MissionScreen property can be null: when we add
+                // the view at OnMissionBehaviorInitialize, the screen's
+                // RegisterView pass (which sets it) has already run, so only
+                // OnMissionScreenInitialize fires on us. The setter is
+                // internal, so resolve the live screen instead.
+                _screen = MissionScreen ?? ScreenManager.TopScreen as MissionScreen;
+                if (_screen == null)
+                {
+                    RbpLog.Error("[FAULT] Planning Mode: no MissionScreen to attach the panel to.");
+                    return;
+                }
+
                 _dataSource = new PlanningModeVM("— Battle Plan —", BuildSummary());
                 _layer = new GauntletLayer("RbpPlanningLayer", ViewOrderPriority);
                 _movie = _layer.LoadMovie(MovieName, _dataSource);
-                MissionScreen.AddLayer(_layer);
+                _screen.AddLayer(_layer);
                 _shown = true;
                 RbpLog.Info("Planning Mode opened.");
             }
@@ -112,7 +127,7 @@ namespace RealisticBattlePlanning.UI
                 {
                     if (_movie != null)
                         _layer.ReleaseMovie(_movie);
-                    MissionScreen.RemoveLayer(_layer);
+                    _screen?.RemoveLayer(_layer);
                 }
             }
             catch (Exception e)
@@ -123,6 +138,7 @@ namespace RealisticBattlePlanning.UI
             {
                 _movie = null;
                 _layer = null;
+                _screen = null;
                 _dataSource = null;
                 _shown = false;
             }
