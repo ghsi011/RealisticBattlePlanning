@@ -415,7 +415,14 @@ instantaneous and reliable for now.
 ### I9 — Planning Mode UI: core editor
 
 The biggest UI lift; primary authoring path replaces the debug file.
-Carried from the 2026-06-12 review: standardize plan-logic discovery on
+**In progress (2026-06-13):** the editor's *logic layer* shipped first,
+engine-free and unit-tested — `PlanDraft` (add/remove/reorder stages, set
+triggers/directives, declare signals/anchors, live validation + plain
+summaries; bounds-checked, no-throw) and `EditorDefaults` (the A3.9 opening
+stage + one-click patterns). The Gauntlet view becomes a thin shell over
+`PlanDraft`, so authoring correctness is already proven without the game;
+what remains is the deployment-phase view injection (the open engine risk),
+which needs in-game iteration. Carried from the 2026-06-12 review: standardize plan-logic discovery on
 `Mission.GetMissionBehavior<PlanMissionLogic>()` when the UI lands —
 `PlanCommands` currently reaches it via the `PlanMissionLogic.Current`
 static while `HarnessRecorderLogic` already uses the vanilla pattern; one
