@@ -2,7 +2,6 @@ using System;
 using RealisticBattlePlanning.Diagnostics;
 using RealisticBattlePlanning.Execution;
 using RealisticBattlePlanning.Planning;
-using TaleWorlds.Core;
 using TaleWorlds.Engine.GauntletUI;
 using TaleWorlds.GauntletUI.Data;
 using TaleWorlds.InputSystem;
@@ -27,6 +26,9 @@ namespace RealisticBattlePlanning.UI
         /// <summary>Toggle key. Numpad0 to avoid the deployment hotkeys; MCM rebinding arrives with Area F.</summary>
         private static readonly InputKey ToggleKey = InputKey.Numpad0;
 
+        /// <summary>The live view, for the rbp.plan console command (input-independent toggle).</summary>
+        internal static PlanningModeView Current { get; private set; }
+
         private PlanMissionLogic _planLogic;
         private PlanningModeVM _dataSource;
         private GauntletLayer _layer;
@@ -42,34 +44,37 @@ namespace RealisticBattlePlanning.UI
         {
             base.OnMissionScreenInitialize();
             _planLogic = Mission.GetMissionBehavior<PlanMissionLogic>();
-            RbpLog.Info($"Planning Mode view ready (press {ToggleKey} during deployment).");
+            Current = this;
+            RbpLog.Info($"Planning Mode view ready (press {ToggleKey}, or run rbp.plan).");
         }
 
         public override void OnMissionScreenFinalize()
         {
             base.OnMissionScreenFinalize();
             Hide();
+            if (Current == this)
+                Current = null;
             _planLogic = null;
         }
 
-        public override void OnMissionScreenTick(float dt)
+        // Polled on the MissionBehavior tick, not the screen tick: the screen
+        // does not tick views during the deployment phase, but the behavior
+        // tick runs throughout (the Signal Palette reads keys here too).
+        public override void OnMissionTick(float dt)
         {
-            base.OnMissionScreenTick(dt);
-
-            // Planning is a deployment-phase activity (A1.1); once the battle
-            // starts, the panel closes — the in-battle surface is the HUD (B7).
-            if (Mission.Mode != MissionMode.Deployment)
+            base.OnMissionTick(dt);
+            try
             {
-                if (_shown)
-                    Hide();
-                return;
+                if (TaleWorlds.InputSystem.Input.IsKeyPressed(ToggleKey))
+                    Toggle();
             }
-
-            if (TaleWorlds.InputSystem.Input.IsKeyPressed(ToggleKey))
-                Toggle();
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Planning Mode key poll failed.", e);
+            }
         }
 
-        private void Toggle()
+        internal void Toggle()
         {
             if (_shown)
                 Hide();
