@@ -39,7 +39,14 @@ namespace RealisticBattlePlanning.Diagnostics
                     failures.Add($"{type.Name}.{name} (static)");
             }
 
+            void Constructor(Type type, params Type[] parameters)
+            {
+                if (type.GetConstructor(parameters) == null)
+                    failures.Add($"{type.Name}..ctor({string.Join(", ", Array.ConvertAll(parameters, p => p.Name))})");
+            }
+
             // Mission lifecycle & gating (PlannableMission, PlanMissionLogic).
+            Method(typeof(Mission), "AddMissionBehavior", typeof(MissionBehavior));
             Property(typeof(Mission), "CurrentTime");
             Property(typeof(Mission), "IsFieldBattle");
             Property(typeof(Mission), "MissionTeamAIType");
@@ -62,9 +69,20 @@ namespace RealisticBattlePlanning.Diagnostics
             Property(typeof(Formation), "CurrentPosition");
             Property(typeof(Formation), "CountOfUnits");
             Property(typeof(Formation), "Captain");
+            Property(typeof(Formation), "FormationIndex");
             Method(typeof(Formation), "ApplyActionOnEachUnit", typeof(Action<Agent>), typeof(Agent));
             Property(typeof(Agent), "Position");
             Property(typeof(Agent), "IsRunningAway");
+
+            // Override detection & plan control (PlanMissionLogic, I7).
+            Property(typeof(Team), "PlayerOrderController");
+            if (typeof(OrderController).GetEvent("OnOrderIssued") == null)
+                failures.Add("OrderController.OnOrderIssued (event)");
+            Method(typeof(Agent), "IsActive");
+            StaticMember(typeof(InformationManager), "DisplayMessage");
+
+            // Signal Palette keybinds (PlanMissionLogic, I8).
+            StaticMember(typeof(TaleWorlds.InputSystem.Input), "IsKeyReleased");
 
             // Harness recorder (HarnessRecorderLogic).
             Method(typeof(Mission), "SetFastForwardingFromUI", typeof(bool));
@@ -94,6 +112,8 @@ namespace RealisticBattlePlanning.Diagnostics
             StaticMember(typeof(ArrangementOrder), "ArrangementOrderCircle");
             StaticMember(typeof(FacingOrder), "FacingOrderLookAtEnemy");
             StaticMember(typeof(FormOrder), "FormOrderCustom");
+            Constructor(typeof(TaleWorlds.Engine.WorldPosition),
+                typeof(TaleWorlds.Engine.Scene), typeof(UIntPtr), typeof(Vec3), typeof(bool));
 
             if (failures.Count == 0)
             {

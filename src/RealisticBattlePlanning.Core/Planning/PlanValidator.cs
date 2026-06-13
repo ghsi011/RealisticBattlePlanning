@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using RealisticBattlePlanning.Execution;
 using RealisticBattlePlanning.Planning.Model;
 
 namespace RealisticBattlePlanning.Planning
@@ -32,6 +33,15 @@ namespace RealisticBattlePlanning.Planning
             if (plan.PlayerSignals.Count > MaxPlayerSignals)
                 result.Errors.Add($"Plan declares {plan.PlayerSignals.Count} player signals; the maximum is {MaxPlayerSignals}.");
 
+            var declaredPlayerSignals = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var signal in plan.PlayerSignals)
+            {
+                if (string.IsNullOrWhiteSpace(signal))
+                    result.Errors.Add("A declared player signal is blank.");
+                else if (!declaredPlayerSignals.Add(signal))
+                    result.Errors.Add($"Player signal '{signal}' is declared twice.");
+            }
+
             var duplicateFormations = plan.Formations.GroupBy(f => f.Formation).Where(g => g.Count() > 1);
             foreach (var dup in duplicateFormations)
                 result.Errors.Add($"Formation '{dup.Key}' has more than one plan.");
@@ -47,18 +57,28 @@ namespace RealisticBattlePlanning.Planning
 
             var emittedSignals = new HashSet<string>(plan.PlayerSignals, StringComparer.OrdinalIgnoreCase);
             foreach (var formation in plan.Formations)
-                foreach (var stage in formation.Stages)
-                    foreach (var signal in stage.Emit)
-                        emittedSignals.Add(signal);
+            {
+                for (var i = 0; i < formation.Stages.Count; i++)
+                {
+                    foreach (var signal in formation.Stages[i].Emit)
+                    {
+                        if (string.IsNullOrWhiteSpace(signal))
+                            result.Errors.Add($"[{formation.Formation}] stage {i + 1} emits a blank signal name.");
+                        else
+                            emittedSignals.Add(signal);
+                    }
+                }
+            }
 
             foreach (var formation in plan.Formations)
-                ValidateFormationPlan(formation, anchorIds, emittedSignals, result);
+                ValidateFormationPlan(formation, anchorIds, emittedSignals, declaredPlayerSignals, result);
 
             return result;
         }
 
         private static void ValidateFormationPlan(
-            FormationPlan formation, HashSet<string> anchorIds, HashSet<string> emittedSignals, PlanValidationResult result)
+            FormationPlan formation, HashSet<string> anchorIds, HashSet<string> emittedSignals,
+            HashSet<string> declaredPlayerSignals, PlanValidationResult result)
         {
             string Where(int stageIndex) => $"[{formation.Formation}] stage {stageIndex + 1}";
 
@@ -67,6 +87,9 @@ namespace RealisticBattlePlanning.Planning
 
             if (formation.Abort.CasualtiesAbovePercent <= 0 || formation.Abort.CasualtiesAbovePercent > 100)
                 result.Errors.Add($"[{formation.Formation}] abort casualties threshold must be in (0, 100]; got {formation.Abort.CasualtiesAbovePercent}.");
+
+            if (!formation.Abort.OnCommanderIncapacitated)
+                result.Warnings.Add($"[{formation.Formation}] onCommanderIncapacitated=false has no effect yet: commander death always aborts in Phase 1 (the flag is reserved for Phase 2's incapacitated-but-alive distinction).");
 
             for (var i = 0; i < formation.Stages.Count; i++)
             {
@@ -79,7 +102,7 @@ namespace RealisticBattlePlanning.Planning
                     result.Errors.Add($"{Where(i)} has no trigger. Only the first stage may omit it (defaults to battle start).");
 
                 foreach (var trigger in stage.When)
-                    ValidateTrigger(trigger, Where(i), anchorIds, emittedSignals, result);
+                    ValidateTrigger(trigger, Where(i), anchorIds, emittedSignals, declaredPlayerSignals, result);
 
                 if (stage.Do == null)
                     result.Errors.Add($"{Where(i)} has no directive.");
@@ -89,8 +112,15 @@ namespace RealisticBattlePlanning.Planning
         }
 
         private static void ValidateTrigger(
-            TriggerSpec trigger, string where, HashSet<string> anchorIds, HashSet<string> emittedSignals, PlanValidationResult result)
+            TriggerSpec trigger, string where, HashSet<string> anchorIds, HashSet<string> emittedSignals,
+            HashSet<string> declaredPlayerSignals, PlanValidationResult result)
         {
+            void RequireEnemySelector(string selector)
+            {
+                if (!FormationSelector.IsValidEnemySelector(selector))
+                    result.Errors.Add($"{where}: '{selector}' is not a valid enemy selector (Nearest or a formation class).");
+            }
+
             switch (trigger.Type)
             {
                 case TriggerType.TimerElapsed:
@@ -98,13 +128,35 @@ namespace RealisticBattlePlanning.Planning
                         result.Errors.Add($"{where}: TimerElapsed needs seconds > 0.");
                     break;
 
+                case TriggerType.EnemyCommits:
+                    if (trigger.Meters is <= 0)
+                        result.Errors.Add($"{where}: EnemyCommits engagement range (meters) must be > 0 when given.");
+                    if (trigger.SustainSeconds is < 0)
+                        result.Errors.Add($"{where}: EnemyCommits sustainSeconds cannot be negative.");
+                    if (trigger.SpeedThreshold is <= 0)
+                        result.Errors.Add($"{where}: EnemyCommits speedThreshold must be > 0 when given.");
+                    if (trigger.Formation != null
+                        && !FormationSelector.IsPlayer(trigger.Formation)
+                        && FormationSelector.ParseClass(trigger.Formation) == null)
+                        result.Errors.Add($"{where}: '{trigger.Formation}' is not a valid reference formation (Player or a formation class).");
+                    break;
+
                 case TriggerType.EnemyWithinDistance:
+                    if (trigger.Meters is not > 0)
+                        result.Errors.Add($"{where}: {trigger.Type} needs meters > 0.");
+                    if (trigger.Anchor != null && !anchorIds.Contains(trigger.Anchor))
+                        result.Errors.Add($"{where}: anchor '{trigger.Anchor}' is not defined.");
+                    if (trigger.Formation != null)
+                        RequireEnemySelector(trigger.Formation);
+                    break;
+
                 case TriggerType.FriendlyWithinDistance:
                     if (trigger.Meters is not > 0)
                         result.Errors.Add($"{where}: {trigger.Type} needs meters > 0.");
-                    if (trigger.Type == TriggerType.EnemyWithinDistance
-                        && trigger.Anchor != null && !anchorIds.Contains(trigger.Anchor))
-                        result.Errors.Add($"{where}: anchor '{trigger.Anchor}' is not defined.");
+                    // A null/typo'd formation would make the trigger silently
+                    // never fire (there is no sensible self-distance default).
+                    if (!FormationSelector.IsValidFriendlySelector(trigger.Formation))
+                        result.Errors.Add($"{where}: FriendlyWithinDistance needs a formation (Player or a formation class).");
                     break;
 
                 case TriggerType.PositionReached:
@@ -119,12 +171,25 @@ namespace RealisticBattlePlanning.Planning
                         result.Errors.Add($"{where}: CasualtiesAbove needs percent in (0, 100].");
                     break;
 
+                case TriggerType.EnemyBroken:
+                    if (trigger.Formation != null)
+                        RequireEnemySelector(trigger.Formation);
+                    break;
+
                 case TriggerType.SignalReceived:
-                case TriggerType.PlayerSignal:
                     if (string.IsNullOrWhiteSpace(trigger.Signal))
-                        result.Errors.Add($"{where}: {trigger.Type} needs a signal name.");
+                        result.Errors.Add($"{where}: SignalReceived needs a signal name.");
                     else if (!emittedSignals.Contains(trigger.Signal))
                         result.Warnings.Add($"{where}: listens for signal '{trigger.Signal}', but nothing emits it and it is not a declared player signal.");
+                    break;
+
+                case TriggerType.PlayerSignal:
+                    // A PlayerSignal gate must be fireable from the palette,
+                    // which only carries the declared signals (B9).
+                    if (string.IsNullOrWhiteSpace(trigger.Signal))
+                        result.Errors.Add($"{where}: PlayerSignal needs a signal name.");
+                    else if (!declaredPlayerSignals.Contains(trigger.Signal))
+                        result.Errors.Add($"{where}: player signal '{trigger.Signal}' is not declared in playerSignals; the palette could never fire it.");
                     break;
             }
         }
@@ -140,6 +205,13 @@ namespace RealisticBattlePlanning.Planning
                     result.Errors.Add($"{where}: anchor '{anchor}' is not defined.");
             }
 
+            if (directive.StandoffMeters is <= 0)
+                result.Errors.Add($"{where}: standoffMeters must be > 0 when given.");
+            if (directive.GapMeters is <= 0)
+                result.Errors.Add($"{where}: gapMeters must be > 0 when given.");
+            if (directive.WidthMeters is <= 0)
+                result.Errors.Add($"{where}: widthMeters must be > 0 when given.");
+
             switch (directive.Type)
             {
                 case DirectiveType.MoveTo:
@@ -147,11 +219,19 @@ namespace RealisticBattlePlanning.Planning
                     {
                         foreach (var waypoint in directive.Path.Where(w => !anchorIds.Contains(w)))
                             result.Errors.Add($"{where}: path waypoint '{waypoint}' is not a defined anchor.");
+                        if (!string.IsNullOrWhiteSpace(directive.Anchor))
+                            result.Warnings.Add($"{where}: MoveTo has both an anchor and a path; the path wins.");
                     }
                     else
                     {
                         RequireAnchor(directive.Anchor, "a destination anchor or path");
                     }
+                    break;
+
+                case DirectiveType.Skirmish:
+                case DirectiveType.Charge:
+                    if (directive.Target != null && !FormationSelector.IsValidEnemySelector(directive.Target))
+                        result.Errors.Add($"{where}: '{directive.Target}' is not a valid enemy selector (Nearest or a formation class).");
                     break;
 
                 case DirectiveType.FeignRetreat:
@@ -162,12 +242,14 @@ namespace RealisticBattlePlanning.Planning
                 case DirectiveType.FlankArc:
                     if (directive.Side == null)
                         result.Errors.Add($"{where}: FlankArc needs a side (Left/Right).");
+                    if (directive.Target != null && !FormationSelector.IsValidEnemySelector(directive.Target))
+                        result.Errors.Add($"{where}: '{directive.Target}' is not a valid enemy selector (Nearest or a formation class).");
                     break;
 
                 case DirectiveType.Screen:
                 case DirectiveType.Follow:
-                    if (string.IsNullOrWhiteSpace(directive.Target))
-                        result.Errors.Add($"{where}: {directive.Type} needs a target formation.");
+                    if (!FormationSelector.IsValidFriendlySelector(directive.Target))
+                        result.Errors.Add($"{where}: {directive.Type} needs a target formation (Player or a formation class).");
                     break;
 
                 case DirectiveType.FireControl:

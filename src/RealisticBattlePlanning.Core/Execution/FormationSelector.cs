@@ -18,11 +18,26 @@ namespace RealisticBattlePlanning.Execution
 
         public static PlannedFormationClass? ParseClass(string selector)
         {
-            if (selector == null || IsPlayer(selector) || IsNearest(selector))
+            if (string.IsNullOrEmpty(selector) || IsPlayer(selector) || IsNearest(selector))
+                return null;
+            // Enum.TryParse accepts numeric strings ("3", even out-of-range
+            // "99") — only class NAMES are valid selectors.
+            if (!char.IsLetter(selector[0]))
                 return null;
             return Enum.TryParse<PlannedFormationClass>(selector, ignoreCase: true, out var parsed)
                 ? parsed
                 : null;
         }
+
+        /// <summary>
+        /// Validator support: a typo'd selector ("Nearset", "Infntry") parses
+        /// to null and silently means "nearest/any" at runtime — the
+        /// validator rejects anything that isn't a recognized word.
+        /// </summary>
+        public static bool IsValidEnemySelector(string selector)
+            => IsNearest(selector) || (!IsPlayer(selector) && ParseClass(selector) != null);
+
+        public static bool IsValidFriendlySelector(string selector)
+            => selector != null && (IsPlayer(selector) || ParseClass(selector) != null);
     }
 }

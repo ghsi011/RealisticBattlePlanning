@@ -1,11 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using static System.FormattableString;
 using RealisticBattlePlanning.Diagnostics;
 using RealisticBattlePlanning.Planning.Model;
 
 namespace RealisticBattlePlanning.Execution
 {
+    /// <summary>Per-formation plan execution mode (B4/B5).</summary>
+    public enum FormationPlanMode
+    {
+        Active,
+        Suspended,
+        Aborted,
+    }
+
     /// <summary>
     /// The stage machine (spec B2): evaluates triggers over battlefield
     /// snapshots and advances each formation through its stages. Pure logic —
@@ -29,7 +38,14 @@ namespace RealisticBattlePlanning.Execution
         private readonly Dictionary<(TriggerSpec Spec, int EnemyId), float> _sustainedSince = new();
         private readonly HashSet<(int Id, PlannedFormationClass? Class)> _initialEnemies = new();
         private readonly HashSet<string> _warnedConditions = new(StringComparer.Ordinal);
+        private readonly HashSet<int> _aliveEnemyIds = new();
+        private readonly List<(TriggerSpec Spec, int EnemyId)> _staleSustainKeys = new();
+        private readonly List<(string RefKey, int EnemyId)> _staleApproachKeys = new();
+        private readonly HashSet<PlannedFormationClass> _pendingOverrides = new();
+        private readonly HashSet<PlannedFormationClass> _pendingResumes = new();
         private float _battleStartSeconds;
+        /// <summary>Battle axis captured at start — anchors and steering share it; the per-tick snapshot direction drifts as armies maneuver.</summary>
+        private MapVec _attackAxis = new(0f, 1f);
 
         public PlanMonitor(BattlePlan plan)
         {
@@ -57,6 +73,44 @@ namespace RealisticBattlePlanning.Execution
             RbpLog.Info($"External signal '{signal}' raised.");
         }
 
+        /// <summary>
+        /// A manual player order hit this formation (B5). Latched; the plan
+        /// suspends on the next tick so the monitor never re-steers over the
+        /// player's order.
+        /// </summary>
+        public void NotifyPlayerOverride(PlannedFormationClass formation)
+        {
+            _pendingOverrides.Add(formation);
+        }
+
+        /// <summary>"Resume plan" for one formation (B5). Latched; the stage
+        /// is selected against the next tick's snapshot.</summary>
+        public void RequestResume(PlannedFormationClass formation)
+        {
+            _pendingResumes.Add(formation);
+        }
+
+        public FormationPlanMode GetMode(PlannedFormationClass formation)
+        {
+            foreach (var state in _states)
+            {
+                if (state.Plan.Formation == formation)
+                    return state.Mode;
+            }
+            return FormationPlanMode.Active;
+        }
+
+        /// <summary>True when this formation has stages in the plan.</summary>
+        public bool Governs(PlannedFormationClass formation)
+        {
+            foreach (var state in _states)
+            {
+                if (state.Plan.Formation == formation)
+                    return true;
+            }
+            return false;
+        }
+
         public IReadOnlyList<PlanEvent> Tick(IBattlefieldSnapshot snapshot)
         {
             var events = new List<PlanEvent>();
@@ -68,6 +122,7 @@ namespace RealisticBattlePlanning.Execution
 
                 Started = true;
                 _battleStartSeconds = snapshot.TimeSeconds;
+                _attackAxis = snapshot.AttackDirection.Normalized();
                 Anchors = ResolvedAnchors.FromSnapshot(_plan.Anchors, snapshot);
                 foreach (var enemy in snapshot.Enemies)
                     _initialEnemies.Add((enemy.Id, enemy.Class));
@@ -78,8 +133,19 @@ namespace RealisticBattlePlanning.Execution
                 _signals.Add(signal);
             _pendingSignals.Clear();
 
+            PurgeVanishedEnemyState(snapshot);
+            RegisterLateStartPositions(snapshot);
+            ProcessOverrides(events);
+            ProcessResumes(snapshot, events);
+
             foreach (var state in _states)
             {
+                if (state.Mode != FormationPlanMode.Active)
+                    continue;
+
+                if (EvaluateAborts(state, snapshot, events))
+                    continue;
+
                 if (!TryAdvance(state, snapshot, events))
                     TickWaypointProgression(state, snapshot, events);
                 TickSteering(state, snapshot, events);
@@ -88,26 +154,305 @@ namespace RealisticBattlePlanning.Execution
             return events;
         }
 
+        private void ProcessOverrides(List<PlanEvent> events)
+        {
+            if (_pendingOverrides.Count == 0)
+                return;
+
+            foreach (var state in _states)
+            {
+                if (!_pendingOverrides.Contains(state.Plan.Formation))
+                    continue;
+                if (state.Mode != FormationPlanMode.Active)
+                    continue;
+
+                state.Mode = FormationPlanMode.Suspended;
+                events.Add(new PlanSuspended(state.Plan.Formation));
+            }
+
+            _pendingOverrides.Clear();
+        }
+
+        private void ProcessResumes(IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        {
+            if (_pendingResumes.Count == 0)
+                return;
+
+            foreach (var state in _states)
+            {
+                if (!_pendingResumes.Contains(state.Plan.Formation))
+                    continue;
+
+                if (state.Mode == FormationPlanMode.Aborted)
+                {
+                    RbpLog.Warn($"[{state.Plan.Formation}] cannot resume: its plan aborted.");
+                    continue;
+                }
+                if (state.Mode != FormationPlanMode.Suspended)
+                    continue;
+
+                // The battle moved on while the player had the formation: an
+                // abort condition that arose under manual control still ends
+                // the plan instead of resuming it.
+                if (EvaluateAborts(state, snapshot, events))
+                    continue;
+
+                state.Mode = FormationPlanMode.Active;
+                var stageIndex = SelectResumeStage(state, snapshot);
+                events.Add(new PlanResumed(state.Plan.Formation, stageIndex));
+                ActivateChecked(state, stageIndex, snapshot, events);
+            }
+
+            _pendingResumes.Clear();
+        }
+
+        /// <summary>
+        /// B5: the most recent stage whose trigger currently holds, else the
+        /// stage that was active at suspension (or the first stage if the
+        /// plan never started). TimerElapsed is measured from the last
+        /// activation before the override — an approximation, stated in the
+        /// plan doc.
+        /// </summary>
+        private int SelectResumeStage(FormationState state, IBattlefieldSnapshot snapshot)
+        {
+            for (var i = state.Plan.Stages.Count - 1; i >= 0; i--)
+            {
+                var stage = state.Plan.Stages[i];
+                if (stage.When.Count == 0)
+                {
+                    if (i == 0)
+                        return 0;
+                    continue;
+                }
+
+                if (AllConditionsHold(stage.When, state, snapshot, readOnly: true))
+                    return i;
+            }
+
+            return state.ActiveStageIndex < 0 ? 0 : state.ActiveStageIndex;
+        }
+
+        /// <summary>True when the formation just aborted (B4/A3.7). Only
+        /// started plans abort; commander death aborts unconditionally.</summary>
+        private bool EvaluateAborts(FormationState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        {
+            if (state.ActiveStageIndex < 0)
+                return false;
+
+            var abort = state.Plan.Abort;
+            var own = snapshot.GetOwn(state.Plan.Formation);
+            string reason = null;
+
+            if (own is { Exists: true })
+            {
+                // Unconditional on purpose: commander death always aborts in
+                // Phase 1; AbortConditions.OnCommanderIncapacitated is
+                // reserved for Phase 2's incapacitated-but-alive distinction
+                // (the validator warns when it is set to false).
+                if (own.CommanderDown)
+                    reason = "commander down";
+                else if (own.CasualtiesPercent >= abort.CasualtiesAbovePercent)
+                    reason = Invariant($"casualties {own.CasualtiesPercent:0.#}% (threshold {abort.CasualtiesAbovePercent:0.#}%)");
+                else if (own.IsBroken && abort.OnFormationBroken)
+                    reason = "formation broke";
+            }
+            else
+            {
+                reason = "formation wiped out";
+            }
+
+            if (reason == null)
+                return false;
+
+            state.Mode = FormationPlanMode.Aborted;
+            events.Add(new PlanAborted(state.Plan.Formation, reason));
+            return true;
+        }
+
+        /// <summary>
+        /// Whether a directive can be carried out right now: its anchor
+        /// resolves and its live reference (enemy / friendly) exists.
+        /// </summary>
+        private bool DirectiveEvaluable(DirectiveSpec spec, FormationState state, IBattlefieldSnapshot snapshot, out string reason)
+        {
+            reason = null;
+            if (spec == null)
+                return true;
+
+            switch (spec.Type)
+            {
+                case DirectiveType.MoveTo:
+                case DirectiveType.FeignRetreat:
+                case DirectiveType.PullBack:
+                {
+                    if (spec.Path is { Count: > 0 })
+                    {
+                        if (Anchors.Resolve(state.Plan.Formation, spec.Path[0]) != null)
+                            return true;
+                        reason = $"waypoint '{spec.Path[0]}' unresolvable";
+                        return false;
+                    }
+                    if (Anchors.Resolve(state.Plan.Formation, spec.Anchor) != null)
+                        return true;
+                    reason = $"anchor '{spec.Anchor}' unresolvable";
+                    return false;
+                }
+
+                case DirectiveType.Skirmish:
+                case DirectiveType.FlankArc:
+                {
+                    var own = snapshot.GetOwn(state.Plan.Formation);
+                    var from = own is { Exists: true } ? own.Position : default;
+                    if (NearestEnemy(spec.Target, from, snapshot) != null)
+                        return true;
+                    reason = spec.Target == null ? "no enemies left" : $"no '{spec.Target}' enemies left";
+                    return false;
+                }
+
+                case DirectiveType.Screen:
+                case DirectiveType.Follow:
+                {
+                    if (ResolveFriendlyPosition(spec.Target, snapshot) != null)
+                        return true;
+                    reason = $"'{spec.Target}' is gone";
+                    return false;
+                }
+
+                default:
+                    return true;
+            }
+        }
+
+        /// <summary>
+        /// Activates the first evaluable stage at or after the given index;
+        /// inevaluable ones are skipped (B6). When none remains, the
+        /// formation holds in place and says so — never a silent stall.
+        /// Pinned semantics (do not "fix" to arming): the skipped-to stage
+        /// activates IMMEDIATELY — its trigger is bypassed and its timers
+        /// re-baseline at skip time. Phase 2 reaction delays layer on top of
+        /// activation, never on trigger arming.
+        /// </summary>
+        private void ActivateChecked(FormationState state, int startIndex, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        {
+            for (var i = startIndex; i < state.Plan.Stages.Count; i++)
+            {
+                var stage = state.Plan.Stages[i];
+                if (DirectiveEvaluable(stage.Do, state, snapshot, out var reason))
+                {
+                    Activate(state, i, stage, snapshot, events);
+                    return;
+                }
+                events.Add(new StageSkipped(state.Plan.Formation, i, reason));
+            }
+
+            ResetStageState(state, Math.Min(startIndex, state.Plan.Stages.Count - 1), snapshot);
+            state.ActiveDirective = new ResolvedDirective(new DirectiveSpec { Type = DirectiveType.Hold }, null, null);
+            state.Holding = true;
+            events.Add(new PlanHolding(state.Plan.Formation, "no evaluable stage remains"));
+        }
+
+        /// <summary>
+        /// Drops approach/sustain state for enemy ids no longer on the field.
+        /// Engine ids are team/slot based, so a reinforcement wave reuses the
+        /// id of a wiped formation — without the purge it would inherit the
+        /// old wave's approach history and fire EnemyCommits without
+        /// re-sustaining (or with a fabricated closing speed).
+        /// </summary>
+        private void PurgeVanishedEnemyState(IBattlefieldSnapshot snapshot)
+        {
+            _aliveEnemyIds.Clear();
+            foreach (var enemy in snapshot.Enemies)
+                _aliveEnemyIds.Add(enemy.Id);
+
+            if (_sustainedSince.Count == 0 && _approach.Count == 0)
+                return;
+
+            _staleSustainKeys.Clear();
+            foreach (var key in _sustainedSince.Keys)
+            {
+                if (!_aliveEnemyIds.Contains(key.EnemyId))
+                    _staleSustainKeys.Add(key);
+            }
+            foreach (var key in _staleSustainKeys)
+                _sustainedSince.Remove(key);
+
+            _staleApproachKeys.Clear();
+            foreach (var key in _approach.Keys)
+            {
+                if (!_aliveEnemyIds.Contains(key.EnemyId))
+                    _staleApproachKeys.Add(key);
+            }
+            foreach (var key in _staleApproachKeys)
+                _approach.Remove(key);
+        }
+
+        /// <summary>
+        /// OwnStart geometry for a planned formation that had no units at
+        /// battle start (reinforcement waves): its basis is wherever it first
+        /// appears. Until then its stages stay unactivated (see TryAdvance) —
+        /// a plan can't govern troops that aren't on the field.
+        /// </summary>
+        private void RegisterLateStartPositions(IBattlefieldSnapshot snapshot)
+        {
+            foreach (var state in _states)
+            {
+                if (Anchors.HasStartPosition(state.Plan.Formation))
+                    continue;
+                if (snapshot.GetOwn(state.Plan.Formation) is { Exists: true } own)
+                {
+                    Anchors.RegisterLateStart(state.Plan.Formation, own.Position);
+                    RbpLog.Info($"[{state.Plan.Formation}] arrived late; OwnStart anchors resolve from {own.Position}.");
+                }
+            }
+        }
+
         private bool TryAdvance(FormationState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
             var nextIndex = state.ActiveStageIndex + 1;
             if (nextIndex >= state.Plan.Stages.Count)
                 return false;
 
+            // A formation that never fielded units doesn't start its plan;
+            // its first stage activates when (if) it appears.
+            if (state.ActiveStageIndex < 0 && snapshot.GetOwn(state.Plan.Formation) is not { Exists: true })
+                return false;
+
             var stage = state.Plan.Stages[nextIndex];
             if (!TriggerFires(stage, state, snapshot))
                 return false;
 
-            Activate(state, nextIndex, stage, snapshot, events);
+            // Already holding (B6): only leave the hold when some remaining
+            // stage became evaluable again — otherwise the same skip/hold
+            // events would re-emit every tick the trigger stays true.
+            if (state.Holding && !AnyStageEvaluableFrom(state, nextIndex, snapshot))
+                return false;
+
+            ActivateChecked(state, nextIndex, snapshot, events);
             return true;
         }
 
-        private void Activate(FormationState state, int stageIndex, Stage stage, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        private bool AnyStageEvaluableFrom(FormationState state, int startIndex, IBattlefieldSnapshot snapshot)
+        {
+            for (var i = startIndex; i < state.Plan.Stages.Count; i++)
+            {
+                if (DirectiveEvaluable(state.Plan.Stages[i].Do, state, snapshot, out _))
+                    return true;
+            }
+            return false;
+        }
+
+        private static void ResetStageState(FormationState state, int stageIndex, IBattlefieldSnapshot snapshot)
         {
             state.ActiveStageIndex = stageIndex;
             state.ActivatedAtSeconds = snapshot.TimeSeconds;
             state.WaypointIndex = 0;
             state.LastSteeringTarget = null;
+        }
+
+        private void Activate(FormationState state, int stageIndex, Stage stage, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        {
+            ResetStageState(state, stageIndex, snapshot);
+            state.Holding = false;
             state.ActiveDirective = ResolveDirective(state.Plan.Formation, stage.Do);
 
             events.Add(new StageActivated(state.Plan.Formation, stageIndex, stage, state.ActiveDirective));
@@ -124,19 +469,30 @@ namespace RealisticBattlePlanning.Execution
             if (stage.When.Count == 0)
                 return state.ActiveStageIndex < 0;
 
-            // AND of up to 3 atomic conditions (A3.5). No short-circuit:
-            // stateful conditions (EnemyCommits) must observe every tick.
+            return AllConditionsHold(stage.When, state, snapshot, readOnly: false);
+        }
+
+        /// <summary>
+        /// AND of up to 3 atomic conditions (A3.5). No short-circuit:
+        /// stateful conditions (EnemyCommits) must observe every tick.
+        /// readOnly is for out-of-band evaluation (the resume scan): it must
+        /// never touch tracker state — seeding the sustain tracker outside
+        /// continuous observation lets EnemyCommits fire later without its
+        /// sustain window.
+        /// </summary>
+        private bool AllConditionsHold(List<TriggerSpec> conditions, FormationState state, IBattlefieldSnapshot snapshot, bool readOnly)
+        {
             var allHold = true;
-            foreach (var condition in stage.When)
+            foreach (var condition in conditions)
             {
-                if (!ConditionHolds(condition, state, snapshot))
+                if (!ConditionHolds(condition, state, snapshot, readOnly))
                     allHold = false;
             }
 
             return allHold;
         }
 
-        private bool ConditionHolds(TriggerSpec condition, FormationState state, IBattlefieldSnapshot snapshot)
+        private bool ConditionHolds(TriggerSpec condition, FormationState state, IBattlefieldSnapshot snapshot, bool readOnly = false)
         {
             switch (condition.Type)
             {
@@ -166,7 +522,7 @@ namespace RealisticBattlePlanning.Execution
                     return condition.Signal != null && _signals.Contains(condition.Signal);
 
                 case TriggerType.EnemyCommits:
-                    return EnemyCommits(condition, state, snapshot);
+                    return EnemyCommits(condition, state, snapshot, readOnly);
 
                 case TriggerType.EnemyWithinDistance:
                 {
@@ -180,8 +536,15 @@ namespace RealisticBattlePlanning.Execution
                         : (snapshot.GetOwn(state.Plan.Formation) is { Exists: true } own ? own.Position : (MapVec?)null);
                     if (reference is not { } point)
                         return false;
-                    return MatchingEnemies(condition.Formation, snapshot)
-                        .Any(enemy => point.DistanceTo(enemy.Position) <= meters);
+                    var withinClass = FormationSelector.ParseClass(condition.Formation);
+                    foreach (var enemy in snapshot.Enemies)
+                    {
+                        if (withinClass != null && enemy.Class != withinClass)
+                            continue;
+                        if (point.DistanceTo(enemy.Position) <= meters)
+                            return true;
+                    }
+                    return false;
                 }
 
                 case TriggerType.FriendlyWithinDistance:
@@ -215,13 +578,20 @@ namespace RealisticBattlePlanning.Execution
 
                 case TriggerType.EnemyBroken:
                 {
-                    if (MatchingEnemies(condition.Formation, snapshot).Any(enemy => enemy.IsBroken))
-                        return true;
-                    // A battle-start enemy that has since vanished fled or died.
                     var selectorClass = FormationSelector.ParseClass(condition.Formation);
-                    var alive = new HashSet<int>(snapshot.Enemies.Select(e => e.Id));
-                    return _initialEnemies.Any(initial =>
-                        (selectorClass == null || initial.Class == selectorClass) && !alive.Contains(initial.Id));
+                    foreach (var enemy in snapshot.Enemies)
+                    {
+                        if (enemy.IsBroken && (selectorClass == null || enemy.Class == selectorClass))
+                            return true;
+                    }
+                    // A battle-start enemy that has since vanished fled or
+                    // died (alive ids are refreshed each tick by the purge).
+                    foreach (var initial in _initialEnemies)
+                    {
+                        if ((selectorClass == null || initial.Class == selectorClass) && !_aliveEnemyIds.Contains(initial.Id))
+                            return true;
+                    }
+                    return false;
                 }
 
                 default:
@@ -230,7 +600,7 @@ namespace RealisticBattlePlanning.Execution
             }
         }
 
-        private bool EnemyCommits(TriggerSpec condition, FormationState state, IBattlefieldSnapshot snapshot)
+        private bool EnemyCommits(TriggerSpec condition, FormationState state, IBattlefieldSnapshot snapshot, bool readOnly)
         {
             var (refKey, refPos) = ResolveReference(condition.Formation, state, snapshot);
             if (refPos == null)
@@ -243,6 +613,20 @@ namespace RealisticBattlePlanning.Execution
 
             foreach (var enemy in snapshot.Enemies)
             {
+                if (readOnly)
+                {
+                    // Peek at sustain state only; the trackers are owned by
+                    // the continuous (pending-stage) evaluation path.
+                    if (!enemy.IsBroken
+                        && refPos.Value.DistanceTo(enemy.Position) <= maxRange
+                        && _sustainedSince.TryGetValue((condition, enemy.Id), out var since)
+                        && snapshot.TimeSeconds - since >= sustain)
+                    {
+                        fires = true;
+                    }
+                    continue;
+                }
+
                 var closing = ClosingSpeed(refKey, refPos.Value, enemy, snapshot.TimeSeconds);
                 var key = (condition, enemy.Id);
                 var inRange = refPos.Value.DistanceTo(enemy.Position) <= maxRange;
@@ -319,14 +703,6 @@ namespace RealisticBattlePlanning.Execution
             return formation is { Exists: true } ? formation.Position : null;
         }
 
-        private static IEnumerable<IEnemyFormationSnapshot> MatchingEnemies(string selector, IBattlefieldSnapshot snapshot)
-        {
-            var selectorClass = FormationSelector.ParseClass(selector);
-            return selectorClass == null
-                ? snapshot.Enemies
-                : snapshot.Enemies.Where(enemy => enemy.Class == selectorClass);
-        }
-
         private ResolvedDirective ResolveDirective(PlannedFormationClass formationClass, DirectiveSpec spec)
         {
             if (spec == null)
@@ -361,15 +737,28 @@ namespace RealisticBattlePlanning.Execution
         /// re-issued when it shifts noticeably. The geometry lives here, not
         /// in the engine: an order stream the engine merely relays is what
         /// keeps the whole vocabulary scripted-timeline-testable.
+        ///
+        /// The same single scan also carries B6 mid-stage invalidation: a
+        /// null goal while the formation itself is alive means the live
+        /// reference is gone (escorted formation wiped, no matching enemy
+        /// left), so the stage skips forward.
         /// </summary>
         private void TickSteering(FormationState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
             var directive = state.ActiveDirective;
-            if (state.ActiveStageIndex < 0 || directive == null)
+            if (state.ActiveStageIndex < 0 || state.Holding || directive == null)
                 return;
+            if (!IsSteeringDirective(directive.Spec.Type))
+                return;
+            if (snapshot.GetOwn(state.Plan.Formation) is not { Exists: true })
+                return; // A wiped formation is the abort path's business.
 
             if (ComputeSteeringTarget(directive.Spec, state, snapshot) is not { } target)
+            {
+                events.Add(new StageSkipped(state.Plan.Formation, state.ActiveStageIndex, SteeringReferenceGone(directive.Spec)));
+                ActivateChecked(state, state.ActiveStageIndex + 1, snapshot, events);
                 return;
+            }
 
             if (state.LastSteeringTarget is { } last &&
                 last.DistanceTo(target) < DirectiveDefaults.SteeringUpdateThresholdMeters)
@@ -378,6 +767,15 @@ namespace RealisticBattlePlanning.Execution
             state.LastSteeringTarget = target;
             events.Add(new SteeringTargetChanged(state.Plan.Formation, target));
         }
+
+        private static bool IsSteeringDirective(DirectiveType type)
+            => type is DirectiveType.Skirmish or DirectiveType.FlankArc or DirectiveType.Screen or DirectiveType.Follow;
+
+        private static string SteeringReferenceGone(DirectiveSpec spec) => spec.Type switch
+        {
+            DirectiveType.Screen or DirectiveType.Follow => $"'{spec.Target}' is gone",
+            _ => spec.Target == null ? "no enemies left" : $"no '{spec.Target}' enemies left",
+        };
 
         private MapVec? ComputeSteeringTarget(DirectiveSpec spec, FormationState state, IBattlefieldSnapshot snapshot)
         {
@@ -397,7 +795,7 @@ namespace RealisticBattlePlanning.Execution
                         return null;
                     var standoff = spec.StandoffMeters ?? DirectiveDefaults.SkirmishStandoffMeters;
                     var away = own.Position - enemy.Position;
-                    var direction = away.Length > 1e-3f ? away.Normalized() : snapshot.AttackDirection * -1f;
+                    var direction = away.Length > 1e-3f ? away.Normalized() : _attackAxis * -1f;
                     return enemy.Position + direction * standoff;
                 }
 
@@ -411,7 +809,7 @@ namespace RealisticBattlePlanning.Execution
                         return null;
                     var standoff = spec.StandoffMeters ?? DirectiveDefaults.FlankArcStandoffMeters;
                     var side = spec.Side == FlankSide.Left ? -1f : 1f;
-                    return enemy.Position + snapshot.AttackDirection.Normalized().Right() * (side * standoff);
+                    return enemy.Position + _attackAxis.Right() * (side * standoff);
                 }
 
                 case DirectiveType.Screen:
@@ -423,8 +821,8 @@ namespace RealisticBattlePlanning.Execution
                         return null;
                     var gap = spec.GapMeters ?? DirectiveDefaults.ScreenGapMeters;
                     var threat = NearestEnemy(null, guarded, snapshot);
-                    var toward = threat != null ? threat.Position - guarded : snapshot.AttackDirection;
-                    var direction = toward.Length > 1e-3f ? toward.Normalized() : snapshot.AttackDirection;
+                    var toward = threat != null ? threat.Position - guarded : _attackAxis;
+                    var direction = toward.Length > 1e-3f ? toward.Normalized() : _attackAxis;
                     return guarded + direction * gap;
                 }
 
@@ -432,7 +830,7 @@ namespace RealisticBattlePlanning.Execution
                 {
                     if (ResolveFriendlyPosition(spec.Target, snapshot) is not { } followed)
                         return null;
-                    var forward = snapshot.AttackDirection.Normalized();
+                    var forward = _attackAxis;
                     var alongForward = spec.OffsetForwardMeters ?? -DirectiveDefaults.FollowDefaultBehindMeters;
                     var alongRight = spec.OffsetRightMeters ?? 0f;
                     return followed + forward * alongForward + forward.Right() * alongRight;
@@ -445,10 +843,13 @@ namespace RealisticBattlePlanning.Execution
 
         private static IEnemyFormationSnapshot NearestEnemy(string selector, MapVec from, IBattlefieldSnapshot snapshot)
         {
+            var selectorClass = FormationSelector.ParseClass(selector);
             IEnemyFormationSnapshot nearest = null;
             var nearestDistance = float.MaxValue;
-            foreach (var enemy in MatchingEnemies(selector, snapshot))
+            foreach (var enemy in snapshot.Enemies)
             {
+                if (selectorClass != null && enemy.Class != selectorClass)
+                    continue;
                 var distance = from.DistanceTo(enemy.Position);
                 if (distance < nearestDistance)
                 {
@@ -508,6 +909,9 @@ namespace RealisticBattlePlanning.Execution
             public int WaypointIndex { get; set; }
             public ResolvedDirective ActiveDirective { get; set; }
             public MapVec? LastSteeringTarget { get; set; }
+            public FormationPlanMode Mode { get; set; } = FormationPlanMode.Active;
+            /// <summary>Set when no evaluable stage remained (B6 hold).</summary>
+            public bool Holding { get; set; }
         }
     }
 }

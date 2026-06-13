@@ -105,6 +105,56 @@ namespace RealisticBattlePlanning.Harness
                         Waypoint = moved.WaypointIndex + 1,
                     });
                     break;
+
+                case PlanSuspended suspended:
+                    _record.Events.Add(new RecordedEvent
+                    {
+                        TimeSeconds = time,
+                        Formation = suspended.Formation,
+                        Kind = RecordedEventKind.PlanSuspended,
+                    });
+                    break;
+
+                case PlanResumed resumed:
+                    _record.Events.Add(new RecordedEvent
+                    {
+                        TimeSeconds = time,
+                        Formation = resumed.Formation,
+                        Kind = RecordedEventKind.PlanResumed,
+                        Stage = resumed.StageIndex + 1,
+                    });
+                    break;
+
+                case PlanAborted aborted:
+                    _record.Events.Add(new RecordedEvent
+                    {
+                        TimeSeconds = time,
+                        Formation = aborted.Formation,
+                        Kind = RecordedEventKind.PlanAborted,
+                        Name = aborted.Reason,
+                    });
+                    break;
+
+                case StageSkipped skipped:
+                    _record.Events.Add(new RecordedEvent
+                    {
+                        TimeSeconds = time,
+                        Formation = skipped.Formation,
+                        Kind = RecordedEventKind.StageSkipped,
+                        Stage = skipped.StageIndex + 1,
+                        Name = skipped.Reason,
+                    });
+                    break;
+
+                case PlanHolding holding:
+                    _record.Events.Add(new RecordedEvent
+                    {
+                        TimeSeconds = time,
+                        Formation = holding.Formation,
+                        Kind = RecordedEventKind.PlanHolding,
+                        Name = holding.Reason,
+                    });
+                    break;
             }
         }
 

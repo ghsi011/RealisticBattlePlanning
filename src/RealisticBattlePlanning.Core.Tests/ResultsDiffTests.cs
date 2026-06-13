@@ -74,6 +74,16 @@ namespace RealisticBattlePlanning.Tests
             Assert.Empty(ResultsDiff.Diff(baseline, steady).Lines);
         }
 
+        [Fact]
+        public void DuplicateScenarioNamesDegradeGracefullyInsteadOfThrowing()
+        {
+            // A malformed results file must produce an odd diff, never crash
+            // the console command. Last entry wins.
+            var diff = ResultsDiff.Diff(Pack(Pass("walk"), Pass("walk")), Pack(Pass("walk")));
+
+            Assert.True(diff.Clean);
+        }
+
         // ---- builders ----
 
         private static PackResult Pack(params ScenarioResult[] scenarios)

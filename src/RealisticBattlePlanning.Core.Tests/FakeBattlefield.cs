@@ -29,9 +29,11 @@ namespace RealisticBattlePlanning.Tests
         public IFormationSnapshot GetOwn(PlannedFormationClass formationClass)
             => _own.TryGetValue(formationClass, out var snapshot) ? snapshot : null;
 
-        public FakeBattlefield WithOwn(PlannedFormationClass cls, float x, float y, float casualtiesPercent = 0f)
+        public FakeBattlefield WithOwn(
+            PlannedFormationClass cls, float x, float y, float casualtiesPercent = 0f,
+            bool commanderDown = false, bool broken = false)
         {
-            _own[cls] = new FakeFormation(cls, new MapVec(x, y), casualtiesPercent);
+            _own[cls] = new FakeFormation(cls, new MapVec(x, y), casualtiesPercent, commanderDown, broken);
             return this;
         }
 
@@ -49,17 +51,21 @@ namespace RealisticBattlePlanning.Tests
 
         private sealed class FakeFormation : IFormationSnapshot
         {
-            public FakeFormation(PlannedFormationClass cls, MapVec position, float casualtiesPercent)
+            public FakeFormation(PlannedFormationClass cls, MapVec position, float casualtiesPercent, bool commanderDown, bool isBroken)
             {
                 Class = cls;
                 Position = position;
                 CasualtiesPercent = casualtiesPercent;
+                CommanderDown = commanderDown;
+                IsBroken = isBroken;
             }
 
             public PlannedFormationClass Class { get; }
             public bool Exists => true;
             public MapVec Position { get; }
             public float CasualtiesPercent { get; }
+            public bool CommanderDown { get; }
+            public bool IsBroken { get; }
         }
 
         private sealed class FakeEnemy : IEnemyFormationSnapshot

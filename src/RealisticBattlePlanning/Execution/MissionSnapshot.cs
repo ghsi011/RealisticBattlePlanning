@@ -28,7 +28,8 @@ namespace RealisticBattlePlanning.Execution
         public static MissionSnapshot Capture(
             Mission mission,
             bool battleStarted,
-            IReadOnlyDictionary<PlannedFormationClass, int> initialCounts)
+            IReadOnlyDictionary<PlannedFormationClass, int> initialCounts,
+            IReadOnlyDictionary<PlannedFormationClass, Agent> initialCaptains)
         {
             var snapshot = new MissionSnapshot
             {
@@ -65,7 +66,15 @@ namespace RealisticBattlePlanning.Execution
                     casualties = 100f * (initial - formation.CountOfUnits) / initial;
                 }
 
-                snapshot._own[planned] = new FormationSnapshot(planned, ToMapVec(formation.CurrentPosition), casualties);
+                // "Commander down" means: HAD a captain at deployment and that
+                // agent is no longer active. Never-assigned stays false.
+                var commanderDown = initialCaptains != null
+                    && initialCaptains.TryGetValue(planned, out var captain)
+                    && captain != null
+                    && !captain.IsActive();
+
+                snapshot._own[planned] = new FormationSnapshot(
+                    planned, ToMapVec(formation.CurrentPosition), casualties, commanderDown, IsBroken(formation));
             }
 
             foreach (var otherTeam in mission.Teams)
@@ -118,17 +127,21 @@ namespace RealisticBattlePlanning.Execution
 
         private sealed class FormationSnapshot : IFormationSnapshot
         {
-            public FormationSnapshot(PlannedFormationClass formationClass, MapVec position, float casualtiesPercent)
+            public FormationSnapshot(PlannedFormationClass formationClass, MapVec position, float casualtiesPercent, bool commanderDown, bool isBroken)
             {
                 Class = formationClass;
                 Position = position;
                 CasualtiesPercent = casualtiesPercent;
+                CommanderDown = commanderDown;
+                IsBroken = isBroken;
             }
 
             public PlannedFormationClass Class { get; }
             public bool Exists => true;
             public MapVec Position { get; }
             public float CasualtiesPercent { get; }
+            public bool CommanderDown { get; }
+            public bool IsBroken { get; }
         }
 
         private sealed class EnemyFormationSnapshot : IEnemyFormationSnapshot
@@ -162,6 +175,16 @@ namespace RealisticBattlePlanning.Execution
             (PlannedFormationClass.LightCavalry, FormationClass.LightCavalry),
             (PlannedFormationClass.HeavyCavalry, FormationClass.HeavyCavalry),
         };
+
+        public static PlannedFormationClass? ToPlanned(FormationClass engine)
+        {
+            foreach (var (p, e) in All)
+            {
+                if (e == engine)
+                    return p;
+            }
+            return null;
+        }
 
         public static FormationClass ToEngine(PlannedFormationClass planned)
         {

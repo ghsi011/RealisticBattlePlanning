@@ -215,6 +215,37 @@ namespace RealisticBattlePlanning.Tests
             Assert.Empty(monitor.Tick(Field(4).WithEnemy(1, 0, 60, broken: true)));
         }
 
+        [Fact]
+        public void EnemyCommitsRebaselinesWhenAnEnemyIdVanishesAndReturns()
+        {
+            // Engine ids are team/slot based: a reinforcement wave reuses the
+            // id of a wiped formation. Stale sustain/approach state must not
+            // let the new wave fire EnemyCommits without re-sustaining.
+            var monitor = Monitor(StageOf(null, Hold()), StageOf(
+                new[] { new TriggerSpec { Type = TriggerType.EnemyCommits, SpeedThreshold = 2f, SustainSeconds = 4f } },
+                Charge()));
+
+            // First wave: sustains 2 s of the required 4, then is wiped.
+            monitor.Tick(Field(0).WithEnemy(1, 0, 140));
+            Assert.Empty(monitor.Tick(Field(1).WithEnemy(1, 0, 135)));
+            Assert.Empty(monitor.Tick(Field(2).WithEnemy(1, 0, 130)));
+            Assert.Empty(monitor.Tick(Field(3).WithEnemy(1, 0, 125)));
+            Assert.Empty(monitor.Tick(Field(4))); // wave gone
+
+            // Second wave reuses id 1, much closer. Without the purge the
+            // stale state fires immediately on reappearance.
+            Assert.Empty(monitor.Tick(Field(5).WithEnemy(1, 0, 60)));
+            Assert.Empty(monitor.Tick(Field(6).WithEnemy(1, 0, 55)));
+            Assert.Empty(monitor.Tick(Field(7).WithEnemy(1, 0, 50)));
+            Assert.Empty(monitor.Tick(Field(8).WithEnemy(1, 0, 45)));
+            Assert.Empty(monitor.Tick(Field(9).WithEnemy(1, 0, 40)));
+
+            // Sustain re-baselined at t=6 (first computable closing speed):
+            // four sustained seconds land at t=10.
+            var fired = monitor.Tick(Field(10).WithEnemy(1, 0, 35));
+            Assert.Single(fired.OfType<StageActivated>());
+        }
+
         // ---- builders ----
 
         /// <summary>A single-infantry-formation plan from the given stages.</summary>

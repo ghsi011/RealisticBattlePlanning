@@ -101,6 +101,26 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void FlankArcSideIsStableWhenTheSnapshotAxisDriftsMidBattle()
+        {
+            // The per-tick AttackDirection follows army centroids and can
+            // swing or flip as the trap closes; flank sides must stay pinned
+            // to the battle-start axis (the one anchors use).
+            var monitor = new PlanMonitor(Plan(Formation(PlannedFormationClass.HorseArcher,
+                StageOf(null, new DirectiveSpec { Type = DirectiveType.FlankArc, Side = FlankSide.Left, StandoffMeters = 50f, MissileOnly = true }))));
+
+            var first = monitor.Tick(Snap(0f).WithOwn(PlannedFormationClass.HorseArcher, 0, 0).WithEnemy(1, 0, 100));
+            Assert.Equal(new MapVec(-50f, 100f), Assert.Single(first.OfType<SteeringTargetChanged>()).Target);
+
+            var flipped = Snap(1f).WithOwn(PlannedFormationClass.HorseArcher, -30, 60).WithEnemy(1, 0, 80);
+            flipped.AttackDirection = new MapVec(0f, -1f);
+            var second = monitor.Tick(flipped);
+
+            var steering = Assert.Single(second.OfType<SteeringTargetChanged>());
+            Assert.Equal(new MapVec(-50f, 80f), steering.Target);
+        }
+
+        [Fact]
         public void NoEnemiesMeansNoSteeringForEnemyRelativeDirectives()
         {
             var monitor = new PlanMonitor(Plan(Formation(PlannedFormationClass.HorseArcher,

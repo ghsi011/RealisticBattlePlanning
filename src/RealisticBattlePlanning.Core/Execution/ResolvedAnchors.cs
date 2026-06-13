@@ -12,7 +12,7 @@ namespace RealisticBattlePlanning.Execution
     public sealed class ResolvedAnchors
     {
         private readonly Dictionary<string, MapAnchor> _anchors;
-        private readonly IReadOnlyDictionary<PlannedFormationClass, MapVec> _startPositions;
+        private readonly Dictionary<PlannedFormationClass, MapVec> _startPositions;
         private readonly MapVec _teamCenter;
         private readonly MapVec _forward;
         private readonly MapVec _right;
@@ -30,10 +30,25 @@ namespace RealisticBattlePlanning.Execution
                     _anchors[anchor.Id] = anchor;
             }
 
-            _startPositions = formationStartPositions;
+            _startPositions = new Dictionary<PlannedFormationClass, MapVec>();
+            foreach (var pair in formationStartPositions)
+                _startPositions[pair.Key] = pair.Value;
             _teamCenter = teamCenter;
             _forward = attackDirection.Normalized();
             _right = _forward.Right();
+        }
+
+        public bool HasStartPosition(PlannedFormationClass formationClass)
+            => _startPositions.ContainsKey(formationClass);
+
+        /// <summary>
+        /// A formation that had no units at battle start gets its OwnStart
+        /// basis from wherever it first appears (reinforcement waves).
+        /// </summary>
+        public void RegisterLateStart(PlannedFormationClass formationClass, MapVec position)
+        {
+            if (!_startPositions.ContainsKey(formationClass))
+                _startPositions[formationClass] = position;
         }
 
         /// <summary>Captures battle-start geometry from a snapshot.</summary>

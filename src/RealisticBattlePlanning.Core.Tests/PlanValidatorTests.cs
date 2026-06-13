@@ -62,6 +62,109 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void TypoedEnemySelectorIsAnError()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec
+            {
+                Type = TriggerType.EnemyWithinDistance,
+                Meters = 40f,
+                Formation = "Nearset", // would silently mean "any enemy"
+            };
+
+            Assert.Contains(PlanValidator.Validate(plan).Errors, e => e.Contains("Nearset"));
+        }
+
+        [Fact]
+        public void NumericFormationSelectorIsRejected()
+        {
+            // Enum.TryParse would accept "3" (HorseArcher) and even
+            // out-of-range "99"; only class names are valid selectors.
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec
+            {
+                Type = TriggerType.EnemyWithinDistance,
+                Meters = 40f,
+                Formation = "3",
+            };
+
+            Assert.Contains(PlanValidator.Validate(plan).Errors, e => e.Contains("'3'"));
+        }
+
+        [Fact]
+        public void DisablingTheCommanderAbortWarnsThatItHasNoEffectYet()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Abort.OnCommanderIncapacitated = false;
+
+            var result = PlanValidator.Validate(plan);
+            Assert.True(result.IsValid);
+            Assert.Contains(result.Warnings, w => w.Contains("commander death always aborts"));
+        }
+
+        [Fact]
+        public void BlankEmittedSignalIsAnError()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].Emit.Add("  ");
+
+            Assert.Contains(PlanValidator.Validate(plan).Errors, e => e.Contains("blank signal"));
+        }
+
+        [Fact]
+        public void FriendlyWithinDistanceWithoutAFormationIsAnError()
+        {
+            // No formation means the trigger could never fire (no sensible
+            // self-distance default exists).
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec
+            {
+                Type = TriggerType.FriendlyWithinDistance,
+                Meters = 25f,
+            };
+
+            Assert.Contains(PlanValidator.Validate(plan).Errors, e => e.Contains("FriendlyWithinDistance needs a formation"));
+        }
+
+        [Fact]
+        public void NonPositiveDistancesAreErrors()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].Do = new DirectiveSpec
+            {
+                Type = DirectiveType.Skirmish,
+                StandoffMeters = -5f,
+            };
+            plan.Formations[1].Stages[1].When[0] = new TriggerSpec
+            {
+                Type = TriggerType.EnemyCommits,
+                Meters = -1f,
+                SpeedThreshold = 0f,
+            };
+
+            var result = PlanValidator.Validate(plan);
+            Assert.Contains(result.Errors, e => e.Contains("standoffMeters"));
+            Assert.Contains(result.Errors, e => e.Contains("engagement range"));
+            Assert.Contains(result.Errors, e => e.Contains("speedThreshold"));
+        }
+
+        [Fact]
+        public void MoveToWithBothAnchorAndPathWarnsThatThePathWins()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].Do = new DirectiveSpec
+            {
+                Type = DirectiveType.MoveTo,
+                Anchor = "advance-50",
+                Path = new List<string> { "advance-50" },
+            };
+
+            var result = PlanValidator.Validate(plan);
+            Assert.True(result.IsValid);
+            Assert.Contains(result.Warnings, w => w.Contains("the path wins"));
+        }
+
+        [Fact]
         public void MoreThanThreeConditionsIsAnError()
         {
             var plan = TestPlans.SimpleValid();
