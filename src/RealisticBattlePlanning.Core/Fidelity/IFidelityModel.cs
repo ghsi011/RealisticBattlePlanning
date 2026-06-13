@@ -40,6 +40,18 @@ namespace RealisticBattlePlanning.Fidelity
             => FidelityRolls.ForTier(_tier, rng);
     }
 
+    /// <summary>
+    /// The real progression model: each commander executes at their own
+    /// derived Command Competence tier (D1-D3). This is what "progression on"
+    /// installs; turning it off swaps in <see cref="FixedTierFidelityModel"/>
+    /// or <see cref="PassThroughFidelityModel"/>.
+    /// </summary>
+    public sealed class CompetenceFidelityModel : IFidelityModel
+    {
+        public FidelityProfile Roll(CommanderProfile commander, Random rng)
+            => FidelityRolls.ForTier((commander ?? CommanderProfile.Default).Competence, rng);
+    }
+
     /// <summary>Shared rolling so every model draws the same way (one rng draw per dimension, in a fixed order).</summary>
     public static class FidelityRolls
     {

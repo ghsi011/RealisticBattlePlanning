@@ -9,12 +9,23 @@ namespace RealisticBattlePlanning.Fidelity
     /// </summary>
     public sealed class CommanderProfile
     {
-        public CommanderProfile(FidelityTier competence)
+        public CommanderProfile(FidelityTier competence, float competenceScore = 0f)
         {
             Competence = competence;
+            CompetenceScore = competenceScore;
         }
 
         public FidelityTier Competence { get; }
+
+        /// <summary>The raw effective-competence score behind the tier (for the Dossier/AAR; 0 when tier-only).</summary>
+        public float CompetenceScore { get; }
+
+        /// <summary>Builds a profile from vanilla stats + the mod's familiarity layer (D1).</summary>
+        public static CommanderProfile FromStats(int tactics, int leadership, int planFamiliarity = 0)
+        {
+            var score = CompetenceModel.Score(tactics, leadership, planFamiliarity);
+            return new CommanderProfile(CompetenceModel.TierFor(score), score);
+        }
 
         /// <summary>Stand-in until a commander is known (treated as green).</summary>
         public static readonly CommanderProfile Default = new(FidelityTier.Untrained);
