@@ -4,6 +4,7 @@ using System.Reflection;
 using TaleWorlds.Core;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
+using TaleWorlds.MountAndBlade.CustomBattle.CustomBattle;
 
 namespace RealisticBattlePlanning.Diagnostics
 {
@@ -47,6 +48,15 @@ namespace RealisticBattlePlanning.Diagnostics
             {
                 const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
                 if (type.GetField(name, flags) == null && type.GetMethod(name, flags) == null)
+                    failures.Add($"{type.Name}.{name} (static)");
+            }
+
+            // Like StaticMember but tolerant of overloads (GetMethod throws on
+            // an ambiguous match; GetMethods + name search does not).
+            void StaticByName(Type type, string name)
+            {
+                const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
+                if (type.GetField(name, flags) == null && !Array.Exists(type.GetMethods(flags), m => m.Name == name))
                     failures.Add($"{type.Name}.{name} (static)");
             }
 
@@ -98,14 +108,26 @@ namespace RealisticBattlePlanning.Diagnostics
             // Signal Palette keybinds (PlanMissionLogic, I8).
             StaticMember(typeof(TaleWorlds.InputSystem.Input), "IsKeyReleased");
 
-            // Harness recorder (HarnessRecorderLogic).
+            // Harness recorder + auto-leave (HarnessRecorderLogic).
             Method(typeof(Mission), "SetFastForwardingFromUI", typeof(bool));
+            Method(typeof(Mission), "EndMission");
             Property(typeof(MissionResult), "PlayerVictory");
             Property(typeof(MissionResult), "PlayerDefeated");
+            Property(typeof(MissionResult), "BattleResolved");
             Property(typeof(MissionResult), "BattleState");
             if (!Array.Exists(typeof(Mission).GetMethods(BindingFlags.Public | BindingFlags.Instance),
                     m => m.Name == "GetMissionBehavior" && m.IsGenericMethod))
                 failures.Add("Mission.GetMissionBehavior<T>() (generic method)");
+
+            // Auto-spawn custom field battle (RbpAutoBattleFactory/GameManager,
+            // AutoBattleCommands). The CustomBattle assembly ships in the
+            // CustomBattle module; these are the exact members we call.
+            StaticByName(typeof(MBGameManager), "StartNewGame");
+            StaticByName(typeof(CustomBattleHelper), "StartGame");
+            StaticByName(typeof(CustomBattleHelper), "PrepareBattleData");
+            StaticByName(typeof(CustomBattleHelper), "GetCustomBattleParties");
+            StaticMember(typeof(CustomBattleHelper), "DefaultBattleGameTypeStringId");
+            StaticMember(typeof(CustomBattleData), "CoreContentDefaultSceneName");
 
             // Order issuance (FormationOrderExecutor).
             Method(typeof(Formation), "SetMovementOrder", typeof(MovementOrder));

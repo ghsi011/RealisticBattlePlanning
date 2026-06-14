@@ -15,8 +15,11 @@ namespace RealisticBattlePlanning.Harness
     /// </summary>
     internal sealed class HarnessRecorderLogic : MissionLogic
     {
-        /// <summary>Battle-time safety cap: end an armed run even if it never resolves and has no scenario time limit.</summary>
-        private const float HardCapSeconds = 300f;
+        /// <summary>Battle-time cap (fast path under fast-forward): end a run that never resolves and has no scenario time limit.</summary>
+        private const float BattleTimeCapSeconds = 300f;
+
+        /// <summary>Wall-clock backstop, independent of the monitor feed: ends the run even if that feed dies (a plan fault), so the cap can't be defeated by the failure it guards against.</summary>
+        private const float RealTimeCapSeconds = 180f;
 
         private PlanMissionLogic _host;
         private RunRecorder _recorder;
@@ -25,6 +28,10 @@ namespace RealisticBattlePlanning.Harness
         private string _result;
         private float? _battleStartSeconds;
         private float _battleTimeSeconds;
+        private float _clockSeconds;
+        private bool _deployed;
+        private bool _resolved;
+        private bool _forceEnd;
         private bool _finalized;
         private bool _ended;
 
@@ -66,6 +73,7 @@ namespace RealisticBattlePlanning.Harness
             if (_recorder == null)
                 return;
 
+            _deployed = true; // the wall-clock backstop runs from here (monitor-independent)
             try
             {
                 Mission.SetFastForwardingFromUI(true);
@@ -81,6 +89,9 @@ namespace RealisticBattlePlanning.Harness
         {
             base.OnMissionResultReady(missionResult);
             _result = Describe(missionResult);
+            // Only a genuinely resolved battle (victory/defeat) ends the run; a
+            // transient/None result must not.
+            _resolved = missionResult is { BattleResolved: true };
         }
 
         protected override void OnEndMission()
@@ -113,6 +124,7 @@ namespace RealisticBattlePlanning.Harness
                 Unsubscribe();
                 _recorder = null;
                 _scenario = null;
+                _forceEnd = true; // a dead recorder must still let the auto-leave tear the mission down
             }
         }
 
@@ -132,30 +144,43 @@ namespace RealisticBattlePlanning.Harness
 
         /// <summary>
         /// Auto-leave (dev-tool, armed runs only — G5): an armed run is meant
-        /// to be hands-off, so end the mission once the battle is decided or
-        /// the scenario's clock runs out, rather than waiting for a manual
-        /// Victory -> Done. FinalizeRun then evaluates and writes results.
+        /// to be hands-off, so end the mission once the battle is decided, the
+        /// scenario's clock runs out, the recorder faulted, or a wall-clock
+        /// backstop trips — rather than waiting for a manual Victory -> Done.
+        /// FinalizeRun then evaluates and writes results. The wall-clock
+        /// backstop (RealTimeCapSeconds) is driven by this tick's dt, NOT the
+        /// monitor feed, so a plan fault that kills the feed can't wedge the run
+        /// at fast-forward forever.
         /// </summary>
         public override void OnMissionTick(float dt)
         {
             base.OnMissionTick(dt);
-            if (_ended || _recorder is not { Started: true } || _scenario == null)
+            if (_ended || _scenario == null)
                 return;
+            if (_deployed)
+                _clockSeconds += dt;
 
             var limit = _scenario.TimeLimitSeconds ?? 0f;
-            var timeUp = (limit > 0f && _battleTimeSeconds >= limit) || _battleTimeSeconds >= HardCapSeconds;
-            if (_result == null && !timeUp)
+            var timeUp = (limit > 0f && _battleTimeSeconds >= limit)
+                         || _battleTimeSeconds >= BattleTimeCapSeconds
+                         || _clockSeconds >= RealTimeCapSeconds;
+            if (!_resolved && !_forceEnd && !timeUp)
                 return;
 
             _ended = true;
-            RbpLog.Info($"Harness: '{_scenario.Name}' finished ({_result ?? $"{_battleTimeSeconds:0}s elapsed"}); ending the mission.");
+            var why = _resolved ? _result
+                : _forceEnd ? "recorder faulted"
+                : _clockSeconds >= RealTimeCapSeconds ? $"{_clockSeconds:0}s wall-clock cap"
+                : $"{_battleTimeSeconds:0}s battle elapsed";
+            RbpLog.Info($"Harness: '{_scenario.Name}' finished ({why}); ending the mission.");
             try
             {
                 Mission.EndMission();
             }
             catch (Exception e)
             {
-                RbpLog.Error("[FAULT] Harness auto-leave failed; finish the battle manually.", e);
+                RbpLog.Error("[FAULT] Harness auto-leave EndMission threw; flushing results directly.", e);
+                FinalizeRun(); // belt-and-braces: a throw must still write what we have
             }
         }
 
@@ -191,6 +216,7 @@ namespace RealisticBattlePlanning.Harness
         private void OnMonitorFaulted(string reason)
         {
             _recorder?.MarkFault(reason);
+            _forceEnd = true; // a faulted run is invalid; end promptly rather than wait out the cap
         }
 
         private void Unsubscribe()

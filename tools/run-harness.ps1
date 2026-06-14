@@ -29,7 +29,10 @@ if (-not (Test-Path $exe)) { throw "BLSE Standalone not found at $exe" }
 # but guarantee our mod is present.
 $launcherData = Join-Path $env:USERPROFILE 'Documents\Mount and Blade II Bannerlord\Configs\LauncherData.xml'
 if (Test-Path $launcherData) {
-    $mods = ([xml](Get-Content $launcherData -Raw)).SelectNodes('//UserModData/Id') | ForEach-Object { $_.InnerText }
+    $xml = [xml](Get-Content $launcherData -Raw)
+    # Replicate the launcher's *current selection*, not every listed module.
+    $mods = $xml.SelectNodes("//UserModData[IsSelected='true']/Id") | ForEach-Object { $_.InnerText }
+    if (-not $mods) { $mods = $xml.SelectNodes('//UserModData/Id') | ForEach-Object { $_.InnerText } }
 } else {
     $mods = @('Bannerlord.Harmony','Bannerlord.ButterLib','Bannerlord.UIExtenderEx','Bannerlord.MBOptionScreen','Native','SandBoxCore','CustomBattle','Sandbox','StoryMode')
 }

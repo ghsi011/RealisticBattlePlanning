@@ -1,5 +1,7 @@
 using System;
 using RealisticBattlePlanning.Diagnostics;
+using TaleWorlds.Core;
+using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade.CustomBattle;
 using TaleWorlds.MountAndBlade.CustomBattle.CustomBattle;
 
@@ -26,6 +28,15 @@ namespace RealisticBattlePlanning.Harness
             catch (Exception e)
             {
                 RbpLog.Error("[FAULT] Auto-battle launch failed; left at the Custom Battle menu.", e);
+                try
+                {
+                    InformationManager.DisplayMessage(new InformationMessage(
+                        "rbp.autobattle: failed to launch — see Logs\\rbp.log.", Colors.Red));
+                }
+                catch (Exception)
+                {
+                    // A failed toast must not take the menu down.
+                }
             }
         }
     }

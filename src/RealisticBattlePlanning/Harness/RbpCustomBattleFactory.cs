@@ -1,3 +1,4 @@
+using System;
 using TaleWorlds.Core;
 using TaleWorlds.MountAndBlade.CustomBattle.CustomBattle;
 
@@ -17,11 +18,21 @@ namespace RealisticBattlePlanning.Harness
     {
         public static CustomBattleData BuildFieldBattle()
         {
-            var om = Game.Current.ObjectManager;
+            var om = Game.Current?.ObjectManager
+                ?? throw new InvalidOperationException("no active game/object manager; is the custom game loaded?");
+
+            // commander_1, commander_11 and empire are in the core content set
+            // (CustomBattleData.Characters/Factions), so they exist in every
+            // content config; aserai may be gated out (only-core-content), so
+            // fall back to empire rather than NPE deep in GetCustomBattleParties.
             var playerChar = om.GetObject<BasicCharacterObject>("commander_1");
             var enemyChar = om.GetObject<BasicCharacterObject>("commander_11");
             var playerFaction = om.GetObject<BasicCultureObject>("empire");
-            var enemyFaction = om.GetObject<BasicCultureObject>("aserai");
+            var enemyFaction = om.GetObject<BasicCultureObject>("aserai") ?? playerFaction;
+            if (playerChar == null || enemyChar == null || playerFaction == null)
+                throw new InvalidOperationException(
+                    $"custom-battle objects missing (commander_1={playerChar != null}, " +
+                    $"commander_11={enemyChar != null}, empire={playerFaction != null}); custom game not loaded?");
 
             // [infantry, ranged, cavalry, horse-archer]; the +1 commander char
             // is added by GetCustomBattleParties. Player is infantry-heavy

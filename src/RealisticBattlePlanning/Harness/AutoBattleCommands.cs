@@ -4,6 +4,7 @@ using RealisticBattlePlanning.Diagnostics;
 using TaleWorlds.Core;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
+using TaleWorlds.MountAndBlade.CustomBattle;
 using TaleWorlds.MountAndBlade.CustomBattle.CustomBattle;
 
 namespace RealisticBattlePlanning.Harness
@@ -23,9 +24,15 @@ namespace RealisticBattlePlanning.Harness
         {
             try
             {
-                // commander_1 exists only once the custom game's objects are
-                // loaded — the signal that we can launch a mission directly.
-                if (Game.Current?.ObjectManager?.GetObject<BasicCharacterObject>("commander_1") != null)
+                // Never push a second mission onto a live one (the console is
+                // available in-battle): that corrupts the state stack.
+                if (Mission.Current != null)
+                    return "already in a mission; finish it first";
+
+                // If the Custom Battle menu is the active state, the custom game
+                // is loaded — launch the mission directly. Otherwise (main menu),
+                // load the custom game first; its manager then launches.
+                if (Game.Current?.GameStateManager?.ActiveState is CustomBattleState)
                 {
                     CustomBattleHelper.StartGame(RbpCustomBattleFactory.BuildFieldBattle());
                     return "launched a custom field battle (arm a scenario first with rbp.harness_arm)";
