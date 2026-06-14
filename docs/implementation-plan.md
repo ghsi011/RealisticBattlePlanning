@@ -672,3 +672,125 @@ template, H10 <30 s preset) stay manual stopwatch checks.
 
 Acceptance: H5, H10, H1 in <3 min via template, full suite re-run on vanilla
 and RBM AI.
+
+---
+
+## Next-phase iterations (I13–I29)
+
+Detailed breakdown of Phase 2 completion → Phase 3, continuing the I1–I12
+sequence. **New capability that reshapes verification:** `rbp.autobattle` +
+the armed `HarnessRecorderLogic` make most fidelity work *assistant-verifiable*
+(launch → `rbp.harness_arm <scenarios>` → `rbp.autobattle` → read
+`Logs/Harness/last-run.results.json`). Each iteration flags **harness** (the
+assistant can verify) vs **blind** (needs the human / `rbp.screenshot`).
+
+**Guiding invariant for Phase 2A:** with fidelity off (the default), the
+monitor produces byte-for-byte identical records to today — the known-good
+harness baseline must diff clean after every 2A iteration except the two
+deliberate re-accepts (I15, I18).
+
+### Phase 2A — Fidelity switch-on
+
+- **I13 — Engine→CommanderProfile adapter + per-battle seed. ✅ DONE (2026-06-14).**
+  Read each captain's Tactics/Leadership (`DefaultSkills`, `GetSkillValue`) →
+  `CommanderProfile.FromStats`; `SetCommander` per formation at deployment;
+  per-battle seed (varied, pin-able). Shipped with I14. *(harness)*
+- **I14 — Fidelity engine toggle (progression on/off). ✅ DONE (2026-06-14).**
+  `FidelityConfig` (off / competence / fixed<tier>) + `rbp.fidelity` console
+  command; monitor built with the chosen model+seed. Verified in-game:
+  Untrained reaction delays (9.4/8.6s, in the 6–10s band, tagged
+  INTENDED_FIDELITY) + abort composure (42% = 60%×0.7). *(harness)*
+- **I15 — StageCompleted / PlanAborted→OnStageFailed events + XP firing.**
+  Core: new `StageCompleted` PlanEvent (prior stage ends when the next
+  activates / at battle end); `PlanAborted`→`OnStageFailed`, skipped→neither
+  (pin all three). Record it (new `RecordedEventKind`). Engine: fire
+  `ProgressionModel.OnStageCompleted/Failed` against a `CommanderRecordBook`
+  (in-memory; persistence is I21), only when progression is on (G3). Tests:
+  3-stage timeline emits StageCompleted correctly; XP pacing (Drilled in 3–5
+  battles). **One deliberate baseline re-accept** (the new event fires
+  regardless of model). *(harness)*
+- **I16 — ReactionDelayBetween assertion + tiered H-scenarios.** Core:
+  `AssertionType.ReactionDelayBetween` (delay in [min,max]); a scenario
+  `fidelity` field (off/tier/on) so a run fixes the model unattended. Clone
+  a6 into `a6_untrained` (wide bands, 6–10s reaction) and `a6_veteran` (tight
+  bands). This is H1-tiered, now executable: same plan plays differently by
+  tier. *(harness)*
+
+### Phase 2B — Remaining D3 dimensions
+
+- **I17 — Trigger misjudgment, discipline break, signal miss.** The audit's
+  2×3 taxonomy {trait|rolled}×{per-activation|per-tick|per-event}: trigger
+  jitter (rolled, per-activation — extend `FidelityProfile`/`Roll`);
+  **discipline break (rolled, per-tick — NEW hook, thread `_rng` into the tick
+  loop)** emits `DisciplineBroke`; **signal miss (rolled, per-event — NEW hook
+  at signal receipt)** emits `SignalMissed`. Pass-through must draw no rng
+  (rng-isolation test: new dimensions must not perturb existing reaction/drift
+  draws). *(harness for wiring; Core for exact rates)*
+
+### Phase 2C — Structured deviation tag
+
+- **I18 — DeviationTag on PlanEvent→RecordedEvent→RbpLog.** Replace the
+  `[INTENDED_FIDELITY]`/`[FAULT]` log substrings with a `DeviationTag` enum
+  property; derive the log prefix from the tag (single source of truth); tag
+  the untagged abort/skip/hold cases. Prereq for the AAR (B10) and H9. **One
+  deliberate baseline re-accept** (new `Tag` field). *(harness)*
+
+### Phase 2D — Player-facing surface
+
+- **I19 — B11 barks/HUD deviation feedback.** Core `BarkCatalog` (event+tag →
+  template) is unit-testable; engine fills the name + `DisplayMessage`. Every
+  IntendedFidelity event yields a bark (no-silent-deviation guard over the
+  event enum). *(blind render; logic testable; log trail is the proxy)*
+- **I20 — B10 After-Action Report.** Pure-Core `AfterActionReport` builder
+  over `BattleRecord` (planned-vs-actual timeline, deviations partitioned by
+  tag, XP/tier deltas); engine renders it at battle end. Golden tests over the
+  `a6_untrained` record. *(blind render; content harness-verifiable)*
+- **I21 — D5 Commander Dossier + tier pips, and G persistence.** Save
+  `CommanderRecordBook` (campaign behavior, keyed by hero id; death→Forget;
+  mod-removal must not corrupt — G2). Dossier screen + Planning-Mode tier
+  pips. Round-trip is Core-tested; the screen + save test are **blind/manual
+  (H6)**.
+- **I22 — Area-F config seam (RbpConfig).** Migrate the ~40 `public const`
+  tunables (the audit item) to a config object (defaults = today's values;
+  `const` inlines across the assembly boundary, so this precedes MCM). A pin
+  test per migrated constant; **the whole baseline must diff clean** (defaults
+  byte-identical). *(harness)*
+
+### Phase 2E — Drills
+
+- **I23 — C drills: drill mission, cues, gains, anti-grind caps.** Engine: a
+  `Drill the troops` campaign action launching an enemy-less battle-map mission
+  with Planning Mode + time-scale + cues (`rbp.signal`); time/food/denar cost
+  (C3), 1/day cap. Core: route XP through `OnStageCompleted(inDrill:true)`
+  (2× rate, Proficient cap — already built in P5). XP/cap math is Core-tested;
+  the drill mission is **blind/manual (H4)**.
+
+### Phase 3 — Playbook & Polish (coarser)
+
+- **I24 — Maneuver Template model + built-ins (E1, E2):** `ManeuverTemplate`
+  (1–6 role slots, relative anchors), built-ins (Feigned Retreat = A6,
+  Hedgehog, Organized Withdrawal), per-commander knowledge (E4). A stamped
+  Feigned-Retreat must execute-equal the hand-authored `a6_feigned_retreat`
+  (reuse the I9 authored-equals-executed trick). *(harness)*
+- **I25 — Stamping + mid-battle invocation + learn-by-doing (E5, E4, C6):**
+  planning-time stamping; three-input "Execute Maneuver" with auto-suggest;
+  learn-by-doing → `ProgressionModel`. Auto-suggest ranking Core-tested; the
+  radial UI is **blind (H5)**.
+- **I26 — Friction reducers: presets + repeat-last-plan (A3.9 remainder):**
+  Core preset round-trip + repeat-last remap (un-mappable flagged). Execution
+  is **harness**; the time budgets stay **manual (H10)**.
+- **I27 — Presentation & onboarding (A2, B7, R5):** stylized map, HUD polish,
+  onboarding. **Blind UI throughout.**
+- **I28 — Options surface (MCM) + comms realism (F, B8):** bind I22 `RbpConfig`
+  to MCM; distance-scaled signal delay (Core-computable, inserts at I17's
+  per-event hook). Comms delay **harness**; MCM screen **blind**.
+- **I29 — Compatibility + performance + release (G4, R3, perf):** RBM + RTS
+  Camera passes; the full H1–H10 pack re-run on vanilla and RBM AI (the
+  release gate — the autobattle loop was built for exactly this); 1000-agent
+  perf profile; packaging. **The most harness-verifiable iteration.**
+
+**Cross-cutting:** EngineContract grows in I13 (done), I21 (save/campaign),
+I23 (drill menu), I27/I28 (UI). Fold the opportunistic audit hardening
+(`MissionSnapshot` enemy-id `team*16+index` → key by tuple or assert ≤16; the
+`Speed` walk/run dropped-at-execution validator warning) into whichever
+iteration touches those files.
