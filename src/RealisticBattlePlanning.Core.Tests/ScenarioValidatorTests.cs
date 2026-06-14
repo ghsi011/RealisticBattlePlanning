@@ -145,6 +145,23 @@ namespace RealisticBattlePlanning.Tests
             Assert.Contains(errors, e => e.Contains("Action 2") && e.Contains("atSeconds"));
         }
 
+        [Fact]
+        public void ScriptedActionRejectsAnUnknownFormationSelector()
+        {
+            // A typo parses to null and would silently match nothing at
+            // runtime, so the scenario would fail later on an assertion. Catch
+            // it at arm time; 'all' and real class names stay valid.
+            var spec = ValidSpec();
+            spec.Actions.Add(new ScenarioAction { AtSeconds = 5f, Type = ScenarioActionType.Resume, Formation = "Infntry" });
+            spec.Actions.Add(new ScenarioAction { AtSeconds = 6f, Type = ScenarioActionType.Override, Formation = "all" });
+            spec.Actions.Add(new ScenarioAction { AtSeconds = 7f, Type = ScenarioActionType.Override, Formation = "Cavalry" });
+
+            var errors = ScenarioValidator.Validate(spec);
+            Assert.Contains(errors, e => e.Contains("Action 1") && e.Contains("Infntry"));
+            Assert.DoesNotContain(errors, e => e.Contains("Action 2"));
+            Assert.DoesNotContain(errors, e => e.Contains("Action 3"));
+        }
+
         private static ScenarioSpec ValidSpec() => Spec(new ScenarioAssertion
         {
             Type = AssertionType.StageActivatedBetween,

@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using RealisticBattlePlanning.Execution;
 
 namespace RealisticBattlePlanning.Harness
 {
@@ -112,8 +114,14 @@ namespace RealisticBattlePlanning.Harness
 
                     case ScenarioActionType.Override:
                     case ScenarioActionType.Resume:
+                        // Same fail-at-arm-time principle as the assertions: a
+                        // typo'd class ("Infntry") parses to null and the action
+                        // silently matches nothing at runtime, so the scenario
+                        // fails later on an unrelated assertion. Reject it here.
                         if (string.IsNullOrWhiteSpace(action.Formation))
                             errors.Add($"{who}: 'formation' is required (a class name or 'all').");
+                        else if (!IsAllFormations(action.Formation) && FormationSelector.ParseClass(action.Formation) == null)
+                            errors.Add($"{who}: '{action.Formation}' is not a formation class or 'all' (it would match nothing at runtime).");
                         break;
 
                     default:
@@ -124,6 +132,9 @@ namespace RealisticBattlePlanning.Harness
 
             return errors;
         }
+
+        private static bool IsAllFormations(string selector)
+            => string.Equals(selector, "all", StringComparison.OrdinalIgnoreCase);
 
         private static bool IsPlanControlEvent(RecordedEventKind kind)
             => kind == RecordedEventKind.PlanSuspended
