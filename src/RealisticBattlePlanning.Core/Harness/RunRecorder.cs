@@ -96,6 +96,20 @@ namespace RealisticBattlePlanning.Harness
                     });
                     break;
 
+                case ReactionDelayed reaction:
+                    // The intended fidelity deviation must be visible to the
+                    // harness, not just the live log (R2).
+                    _record.Events.Add(new RecordedEvent
+                    {
+                        TimeSeconds = time,
+                        Formation = reaction.Formation,
+                        Kind = RecordedEventKind.ReactionDelayed,
+                        Stage = reaction.StageIndex + 1,
+                        DelaySeconds = reaction.DelaySeconds,
+                        Name = reaction.Tier.ToString(),
+                    });
+                    break;
+
                 case MoveTargetChanged moved:
                     _record.Events.Add(new RecordedEvent
                     {

@@ -18,6 +18,8 @@ namespace RealisticBattlePlanning.Fidelity
     /// <summary>Perfect execution — no deviation, ignores competence (spec "progression off" / Phase-1 default).</summary>
     public sealed class PassThroughFidelityModel : IFidelityModel
     {
+        // Must not touch rng: pass-through draws nothing, or it would desync
+        // seeded replays and break the byte-for-byte backward-compat guarantee.
         public FidelityProfile Roll(CommanderProfile commander, Random rng) => FidelityProfile.Perfect;
     }
 
@@ -57,9 +59,21 @@ namespace RealisticBattlePlanning.Fidelity
     {
         public static FidelityProfile ForTier(FidelityTier tier, Random rng)
         {
-            var (min, max) = FidelityDefaults.ReactionDelaySeconds(tier);
-            var delay = min + (float)rng.NextDouble() * (max - min);
-            return new FidelityProfile(tier, delay);
+            // Fixed draw order keeps a seeded battle reproducible:
+            // reaction delay, then drift magnitude, then drift direction.
+            var (delayMin, delayMax) = FidelityDefaults.ReactionDelaySeconds(tier);
+            var delay = delayMin + (float)rng.NextDouble() * (delayMax - delayMin);
+
+            var (errMin, errMax) = FidelityDefaults.PositionErrorMeters(tier);
+            var magnitude = errMin + (float)rng.NextDouble() * (errMax - errMin);
+            var angle = (float)(rng.NextDouble() * 2.0 * Math.PI);
+
+            return new FidelityProfile(
+                tier,
+                delay,
+                magnitude,
+                magnitude * (float)Math.Cos(angle),
+                magnitude * (float)Math.Sin(angle));
         }
     }
 }

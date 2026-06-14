@@ -242,6 +242,7 @@ namespace RealisticBattlePlanning.Execution
                     continue;
 
                 state.Mode = FormationPlanMode.Active;
+                state.ActiveFidelity = FidelityProfile.Perfect; // resume is the player's clean re-adoption, not a rolled reaction
                 var stageIndex = SelectResumeStage(state, snapshot);
                 events.Add(new PlanResumed(state.Plan.Formation, stageIndex));
                 ActivateChecked(state, stageIndex, snapshot, events);
@@ -480,11 +481,11 @@ namespace RealisticBattlePlanning.Execution
             // field, so it activates immediately — the lag is for responding
             // to triggers.
             var isOpeningPosture = state.ActiveStageIndex < 0 && stage.When.Count == 0;
-            var delay = isOpeningPosture ? 0f : RollReactionDelay(state, nextIndex, events);
-            if (delay > 0f)
+            state.ActiveFidelity = isOpeningPosture ? FidelityProfile.Perfect : RollFidelity(state, nextIndex, events);
+            if (state.ActiveFidelity.ReactionDelaySeconds > 0f)
             {
                 state.PendingStageIndex = nextIndex;
-                state.PendingActivateAt = snapshot.TimeSeconds + delay;
+                state.PendingActivateAt = snapshot.TimeSeconds + state.ActiveFidelity.ReactionDelaySeconds;
                 return false;
             }
 
@@ -493,16 +494,19 @@ namespace RealisticBattlePlanning.Execution
         }
 
         /// <summary>
-        /// Rolls the commander's reaction delay for activating a stage and, if
-        /// any, emits the INTENDED_FIDELITY event. Pass-through (the default)
-        /// always returns 0 — instant activation, the pre-fidelity behaviour.
+        /// Rolls the commander's fidelity for activating a stage — reaction
+        /// delay (parked here) and positional drift (applied at activation),
+        /// from one roll so a battle replays consistently. Emits the
+        /// INTENDED_FIDELITY reaction event when there is a lag. Pass-through
+        /// (the default) returns Perfect — no delay, no drift, no rng draw —
+        /// so the pre-fidelity behaviour is byte-for-byte unchanged.
         /// </summary>
-        private float RollReactionDelay(FormationState state, int stageIndex, List<PlanEvent> events)
+        private FidelityProfile RollFidelity(FormationState state, int stageIndex, List<PlanEvent> events)
         {
             var profile = _fidelity.Roll(Commander(state.Plan.Formation), _rng);
             if (profile.ReactionDelaySeconds > 0f)
                 events.Add(new ReactionDelayed(state.Plan.Formation, stageIndex, profile.ReactionDelaySeconds, profile.Tier));
-            return profile.ReactionDelaySeconds;
+            return profile;
         }
 
         private bool AnyStageEvaluableFrom(FormationState state, int startIndex, IBattlefieldSnapshot snapshot)
@@ -528,7 +532,7 @@ namespace RealisticBattlePlanning.Execution
         {
             ResetStageState(state, stageIndex, snapshot);
             state.Holding = false;
-            state.ActiveDirective = ResolveDirective(state.Plan.Formation, stage.Do);
+            state.ActiveDirective = ApplyPositionError(ResolveDirective(state.Plan.Formation, stage.Do), state.ActiveFidelity);
 
             events.Add(new StageActivated(state.Plan.Formation, stageIndex, stage, state.ActiveDirective));
             foreach (var signal in stage.Emit)
@@ -778,6 +782,32 @@ namespace RealisticBattlePlanning.Execution
             return formation is { Exists: true } ? formation.Position : null;
         }
 
+        /// <summary>
+        /// Offsets a directive's resolved destination(s) by the commander's
+        /// positional drift (D3): a green formation ends up well off its
+        /// anchor, a Master one nearly on it. Steering directives carry no
+        /// pre-resolved target (they track per tick), so only Move / Feign /
+        /// PullBack destinations drift here.
+        /// </summary>
+        private static ResolvedDirective ApplyPositionError(ResolvedDirective directive, FidelityProfile fidelity)
+        {
+            if (fidelity.PositionErrorMeters <= 0f)
+                return directive;
+
+            var offset = new MapVec(fidelity.PositionErrorX, fidelity.PositionErrorY);
+            var target = directive.Target is { } t ? t + offset : (MapVec?)null;
+
+            List<MapVec> path = null;
+            if (directive.Path.Count > 0)
+            {
+                path = new List<MapVec>(directive.Path.Count);
+                foreach (var point in directive.Path)
+                    path.Add(point + offset);
+            }
+
+            return new ResolvedDirective(directive.Spec, target, path);
+        }
+
         private ResolvedDirective ResolveDirective(PlannedFormationClass formationClass, DirectiveSpec spec)
         {
             if (spec == null)
@@ -990,6 +1020,8 @@ namespace RealisticBattlePlanning.Execution
             /// <summary>Stage whose trigger fired but whose reaction delay (D3) hasn't elapsed; -1 when none.</summary>
             public int PendingStageIndex { get; set; } = -1;
             public float PendingActivateAt { get; set; }
+            /// <summary>Fidelity rolled for the current/pending activation (reaction delay + drift), carried from trigger to activation.</summary>
+            public FidelityProfile ActiveFidelity { get; set; } = FidelityProfile.Perfect;
         }
     }
 }

@@ -55,6 +55,7 @@ namespace RealisticBattlePlanning.Harness
         PlanAborted,
         StageSkipped,
         PlanHolding,
+        ReactionDelayed,
     }
 
     /// <summary>A plan event flattened for the results file.</summary>
@@ -74,6 +75,9 @@ namespace RealisticBattlePlanning.Harness
 
         /// <summary>1-based waypoint number for WaypointReached.</summary>
         public int? Waypoint { get; set; }
+
+        /// <summary>Reaction-delay seconds for ReactionDelayed (D3).</summary>
+        public float? DelaySeconds { get; set; }
     }
 
     public sealed class PositionSample
