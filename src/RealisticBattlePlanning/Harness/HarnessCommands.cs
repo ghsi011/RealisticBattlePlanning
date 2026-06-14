@@ -61,6 +61,6 @@ namespace RealisticBattlePlanning.Harness
         /// </summary>
         [CommandLineFunctionality.CommandLineArgumentFunction("harness_split", "rbp")]
         public static string Split(List<string> args)
-            => Execution.PlanMissionLogic.Current?.SplitTroopsForPlan() ?? "no plan is active this battle";
+            => Execution.PlanMissionLogic.Active?.SplitTroopsForPlan() ?? "no plan is active this battle";
     }
 }

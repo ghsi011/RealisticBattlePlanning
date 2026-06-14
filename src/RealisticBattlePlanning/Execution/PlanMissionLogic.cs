@@ -58,8 +58,13 @@ namespace RealisticBattlePlanning.Execution
         private bool _isHarnessRun;
         private float _sinceLastMonitorTick;
 
-        /// <summary>The live instance, for console commands (rbp.resume / rbp.plan_status).</summary>
-        internal static PlanMissionLogic Current { get; private set; }
+        /// <summary>
+        /// The active mission's plan logic, for console commands (rbp.resume /
+        /// rbp.plan_status / rbp.signal). Resolved live against Mission.Current
+        /// each call, so it can never be a stale reference outliving its
+        /// mission; the command-facing methods below handle the inert case.
+        /// </summary>
+        internal static PlanMissionLogic Active => Mission.Current?.GetMissionBehavior<PlanMissionLogic>();
 
         /// <summary>The validated plan driving this mission; null when inert.</summary>
         internal BattlePlan ActivePlan => _monitor == null ? null : _plan;
@@ -114,7 +119,6 @@ namespace RealisticBattlePlanning.Execution
                 RbpLog.Info(PlanFormatter.Describe(_plan));
                 _monitor = new PlanMonitor(_plan);
                 _executor = new FormationOrderExecutor(Mission);
-                Current = this;
             }
             catch (Exception e)
             {
@@ -158,8 +162,6 @@ namespace RealisticBattlePlanning.Execution
 
         public override void OnRemoveBehavior()
         {
-            if (Current == this)
-                Current = null;
             try
             {
                 var controller = Mission.PlayerTeam?.PlayerOrderController;

@@ -14,16 +14,17 @@ namespace RealisticBattlePlanning.Execution
         [CommandLineFunctionality.CommandLineArgumentFunction("resume", "rbp")]
         public static string Resume(List<string> args)
         {
-            if (PlanMissionLogic.Current == null)
+            var host = PlanMissionLogic.Active;
+            if (host == null)
                 return "no plan is active this battle";
             if (args.Count != 1)
                 return "usage: rbp.resume <formation|all>";
-            return PlanMissionLogic.Current.RequestResume(args[0]);
+            return host.RequestResume(args[0]);
         }
 
         [CommandLineFunctionality.CommandLineArgumentFunction("plan_status", "rbp")]
         public static string Status(List<string> args)
-            => PlanMissionLogic.Current?.DescribePlanStates() ?? "no plan is active this battle";
+            => PlanMissionLogic.Active?.DescribePlanStates() ?? "no plan is active this battle";
 
         /// <summary>
         /// Signal Palette fallback and the C7 drill-cue mechanism (B9):
@@ -33,11 +34,12 @@ namespace RealisticBattlePlanning.Execution
         [CommandLineFunctionality.CommandLineArgumentFunction("signal", "rbp")]
         public static string Signal(List<string> args)
         {
-            if (PlanMissionLogic.Current == null)
+            var host = PlanMissionLogic.Active;
+            if (host == null)
                 return "no plan is active this battle";
             if (args.Count != 1 || string.IsNullOrWhiteSpace(args[0]))
                 return "usage: rbp.signal <name>";
-            return PlanMissionLogic.Current.FirePlayerSignal(args[0]);
+            return host.FirePlayerSignal(args[0]);
         }
     }
 }

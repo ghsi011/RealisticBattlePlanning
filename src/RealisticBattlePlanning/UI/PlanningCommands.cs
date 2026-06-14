@@ -13,9 +13,10 @@ namespace RealisticBattlePlanning.UI
         [CommandLineFunctionality.CommandLineArgumentFunction("plan", "rbp")]
         public static string TogglePlan(List<string> args)
         {
-            if (PlanningModeView.Current == null)
+            var view = PlanningModeView.Active;
+            if (view == null)
                 return "no plannable mission is active (field battle you command)";
-            PlanningModeView.Current.Toggle();
+            view.Toggle();
             return "toggled the Planning Mode panel";
         }
     }

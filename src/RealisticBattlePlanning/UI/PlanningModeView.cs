@@ -28,8 +28,12 @@ namespace RealisticBattlePlanning.UI
         /// <summary>Toggle key. Numpad0 to avoid the deployment hotkeys; MCM rebinding arrives with Area F.</summary>
         private static readonly InputKey ToggleKey = InputKey.Numpad0;
 
-        /// <summary>The live view, for the rbp.plan console command (input-independent toggle).</summary>
-        internal static PlanningModeView Current { get; private set; }
+        /// <summary>
+        /// The active mission's planning view, for the rbp.plan console command
+        /// (input-independent toggle). Resolved live against Mission.Current, so
+        /// it is never a stale reference from a previous mission.
+        /// </summary>
+        internal static PlanningModeView Active => Mission.Current?.GetMissionBehavior<PlanningModeView>();
 
         private PlanMissionLogic _planLogic;
         private PlanningModeVM _dataSource;
@@ -47,7 +51,6 @@ namespace RealisticBattlePlanning.UI
         {
             base.OnMissionScreenInitialize();
             _planLogic = Mission.GetMissionBehavior<PlanMissionLogic>();
-            Current = this;
             RbpLog.Info($"Planning Mode view ready (press {ToggleKey}, or run rbp.plan).");
         }
 
@@ -60,8 +63,8 @@ namespace RealisticBattlePlanning.UI
         public override void OnRemoveBehavior()
         {
             // Belt-and-braces: the screen-finalize path normally runs, but a
-            // behavior removal that bypasses it must not leak the layer or a
-            // dead static reference. Both paths are idempotent.
+            // behavior removal that bypasses it must not leak the Gauntlet
+            // layer. Both paths are idempotent.
             Teardown();
             base.OnRemoveBehavior();
         }
@@ -69,8 +72,6 @@ namespace RealisticBattlePlanning.UI
         private void Teardown()
         {
             Hide();
-            if (Current == this)
-                Current = null;
             _planLogic = null;
         }
 
