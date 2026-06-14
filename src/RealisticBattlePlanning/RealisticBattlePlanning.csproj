@@ -76,6 +76,11 @@
       <HintPath>%(Identity)</HintPath>
       <Private>False</Private>
     </Reference>
+    <!-- Custom-battle launch API (auto-spawn harness loop): the assembly ships
+         in the CustomBattle module, not the core bin, so the bin wildcard misses it. -->
+    <Reference Include="$(BannerlordGameDir)\Modules\CustomBattle\bin\Win64_Shipping_Client\TaleWorlds.MountAndBlade.CustomBattle.dll">
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
 
   <!--
