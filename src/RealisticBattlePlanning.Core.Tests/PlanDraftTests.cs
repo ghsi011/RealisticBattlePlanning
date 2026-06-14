@@ -131,6 +131,41 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void AbortConditionsAreEditablePerFormation()
+        {
+            var draft = new PlanDraft().AddFormation(PlannedFormationClass.Infantry);
+            draft.SetAbortConditions(PlannedFormationClass.Infantry, casualtiesAbovePercent: 40f, onFormationBroken: false);
+
+            var abort = draft.Build().Formations[0].Abort;
+            Assert.Equal(40f, abort.CasualtiesAbovePercent);
+            Assert.False(abort.OnFormationBroken);
+            Assert.True(abort.OnCommanderIncapacitated); // untouched: only provided values change
+        }
+
+        [Fact]
+        public void AbortCasualtyThresholdClampsToStayValid()
+        {
+            // The UI can't author an invalid plan (A3.9): out-of-range percents
+            // clamp into the validator's (0, 100] band rather than throw.
+            var over = new PlanDraft().AddFormation(PlannedFormationClass.Infantry)
+                .SetAbortConditions(PlannedFormationClass.Infantry, casualtiesAbovePercent: 150f);
+            var under = new PlanDraft().AddFormation(PlannedFormationClass.Ranged)
+                .SetAbortConditions(PlannedFormationClass.Ranged, casualtiesAbovePercent: 0f);
+
+            Assert.Equal(100f, over.Build().Formations[0].Abort.CasualtiesAbovePercent);
+            Assert.True(over.Validate().IsValid);
+            Assert.True(under.Build().Formations[0].Abort.CasualtiesAbovePercent > 0f);
+            Assert.True(under.Validate().IsValid);
+        }
+
+        [Fact]
+        public void SetAbortOnAnUnplannedFormationIsANoOp()
+        {
+            var draft = new PlanDraft().SetAbortConditions(PlannedFormationClass.Cavalry, casualtiesAbovePercent: 20f);
+            Assert.Empty(draft.Formations);
+        }
+
+        [Fact]
         public void WrapsAnExistingPlanForEditing()
         {
             var draft = new PlanDraft(TestPlans.SimpleValid());

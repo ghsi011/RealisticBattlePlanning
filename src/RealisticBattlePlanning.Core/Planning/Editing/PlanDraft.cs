@@ -121,6 +121,31 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
+        /// <summary>
+        /// Sets a formation's abort conditions (A3.7); only the provided values
+        /// change. The casualty threshold is clamped to the valid (0, 100]
+        /// range so the draft stays valid (A3.9). No-ops if the formation has
+        /// no plan. (OnCommanderIncapacitated is reserved — Phase 1 always
+        /// aborts on commander death — but is editable for forward-compat.)
+        /// </summary>
+        public PlanDraft SetAbortConditions(
+            PlannedFormationClass formation,
+            float? casualtiesAbovePercent = null,
+            bool? onFormationBroken = null,
+            bool? onCommanderIncapacitated = null)
+        {
+            var plan = Find(formation);
+            if (plan == null)
+                return this;
+            if (casualtiesAbovePercent is { } pct)
+                plan.Abort.CasualtiesAbovePercent = System.Math.Max(1f, System.Math.Min(100f, pct));
+            if (onFormationBroken is { } broken)
+                plan.Abort.OnFormationBroken = broken;
+            if (onCommanderIncapacitated is { } incapacitated)
+                plan.Abort.OnCommanderIncapacitated = incapacitated;
+            return this;
+        }
+
         /// <summary>Declares a player signal (Signal Palette, B9). Caps at 4 (A3.5/B9); duplicates ignored.</summary>
         public PlanDraft DeclarePlayerSignal(string signal)
         {
