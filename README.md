@@ -8,8 +8,14 @@ your officers carry it out with fidelity earned through training and battle.
 The full design is in [bannerlord-battle-planning-mod-spec.md](bannerlord-battle-planning-mod-spec.md).
 This README covers how to build, deploy, and run the mod skeleton.
 
-Status: **v0.1 scaffold** — the mod loads and toasts "Realistic Battle Planning
-loaded" on the main menu. No gameplay features yet.
+Status: **Phase 1 (Plan & Execute) complete; Phase 2 officer-fidelity
+foundation landed in Core.** The mod loads a battle plan and sub-commanders
+execute it — triggers, per-formation directives, steering, signals, and
+override / resume / abort — with a read-only planning panel during deployment.
+The competence, fidelity, and progression model (Phase 2) is built and
+unit-tested in `RealisticBattlePlanning.Core`, but the engine still runs
+**pass-through** (vanilla-identical execution) until a deliberate, in-game
+switch-on.
 
 ---
 

@@ -558,14 +558,74 @@ still pass-through):**
   everything; absence keeps it). The C5 drill cap is enforced in
   `CompetenceModel.EffectiveScore` (drills lift only to Proficient).
 
-220 unit tests; four review passes, zero bugs found. **Remaining before
-switch-on:** trigger misjudgment / discipline / signal-miss dimensions (the
-subtler D3 ones); barks (B11); AAR (B10); Dossier (D5); drills (C). **The
-switch-on itself** — the engine adapter (read each captain's skills →
+223 unit tests. Four per-iteration review passes, plus a **holistic repo
+audit (2026-06-14)** that found and fixed a critical execution-seam bug and
+several consistency/architecture issues — see the checklist below. **Remaining
+before switch-on:** trigger misjudgment / discipline / signal-miss dimensions
+(the subtler D3 ones); barks (B11); AAR (B10); Dossier (D5); drills (C).
+**The switch-on itself** — the engine adapter (read each captain's skills →
 `CommanderProfile`, award XP on stage completion), a **per-battle seed**,
 the progression on/off config toggle (F), and save persistence (G) — is a
 deliberate, in-game-verified step: flipping the engine off pass-through is
 where a green vs. veteran officer first visibly differ.
+
+### Holistic audit (2026-06-14) — outcomes
+
+Four parallel reviewers swept the whole repo before the next iterations.
+
+**Fixed now (correctness + consistency, engine still pass-through):**
+- **Drift leak (critical).** A pending reaction that skipped forward (its
+  steering reference vanished during the delay) applied the *skipped* stage's
+  positional drift to its replacement. The fidelity reset now lives inside
+  `ActivateChecked` / `FormationExecutionState`, with a regression test.
+- **One capped familiarity path.** `CommanderProfile.FromStats` is now
+  stats-only; the only familiarity-bearing profile path is
+  `ProgressionModel.ProfileFor` → `EffectiveScore`, which honors the C5 drill
+  cap — the switch-on adapter can no longer bypass it.
+- **`FidelityProfile.Perfect`** documented as a no-deviation sentinel (its
+  `Master` tier is not a commander identity); added a `Deviates` predicate.
+- **Live-resolver** for plan logic / view: dropped the cross-mission `Current`
+  statics in favour of `Mission.Current?.GetMissionBehavior<T>()`.
+- **`FormationExecutionState`** extracted out of `PlanMonitor` (the refactor
+  this doc scheduled before the HUD), so the state machine's field invariants
+  are guarded in one type.
+
+**Owed at the switch-on (same iteration that flips the engine off pass-through):**
+- **Per-battle seed** — derive `PlanMonitor`'s seed from a mission-stable
+  value; the constant default would replay identical fidelity every battle.
+- **Engine→profile adapter** — read each captain's Tactics/Leadership, build
+  the profile (stats-only `FromStats`, or `ProfileFor` once a record exists),
+  `SetCommander` per formation, and add the skill-read members
+  (`GetSkillValue`, `DefaultSkills.Tactics/Leadership`) to `EngineContract`.
+- **`StageCompleted` event** — the monitor emits only `StageActivated` (start);
+  `ProgressionModel.OnStageCompleted/Failed` need a "stage finished" signal to
+  award XP on, plus a defined `PlanAborted` → `OnStageFailed` mapping.
+- **`ReactionDelayed` assertion** — the harness records the event but no
+  scenario can assert on it; add a delay-band assertion + a `FixedTier`
+  recorder test so the D3 reaction band is harness-gated.
+
+**Owed in later Phase-2 iterations:**
+- **D3 dimension taxonomy** — classify each remaining dimension on
+  {trait | rolled} × {per-activation | per-tick | per-event} and thread the
+  rng into the per-tick path; discipline-break (per-tick rolled) and
+  signal-miss (per-signal) don't fit the current reaction/composure buckets.
+- **Structured R2 tag** — replace the `[INTENDED_FIDELITY]`/`[FAULT]` log
+  substrings with a `DeviationTag` on `PlanEvent` → `RecordedEvent` so the AAR
+  (B10) and H9 partition mechanically; tag the untagged abort/skip/hold cases.
+- **Area F config seam** — ~40 tuning constants are `public const` across six
+  `*Defaults`/model classes (which inlines them across the assembly boundary);
+  introduce a config object (defaults = today's values) and move the tunables
+  to `static readonly` before MCM binding.
+
+**Smaller hardening (cheap, opportunistic):**
+- Scenario action formation selectors are validated for presence but not
+  validity (a typo'd name no-ops silently) — parse-check at arm time.
+- `MissionSnapshot` enemy id packing assumes ≤16 formations/team — pin with an
+  assert/comment or key by `(team, index)`.
+- `Speed` (walk/run) round-trips and prints but the executor drops it — the
+  validator should warn it is not yet applied.
+- `EngineContract` doesn't cover the Gauntlet/`MissionView` UI surface — add it
+  as the panel becomes player-facing.
 
 Testing: the fidelity error model lives in Core on a **seedable RNG** stream —
 unit tests assert exact outcomes per seed and distributions across many seeds
