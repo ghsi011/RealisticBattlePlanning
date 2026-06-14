@@ -417,13 +417,17 @@ instantaneous and reliable for now.
 ### I9 — Planning Mode UI: core editor
 
 The biggest UI lift; primary authoring path replaces the debug file.
-**In progress (2026-06-13):** the editor's *logic layer* shipped first,
-engine-free and unit-tested — `PlanDraft` (add/remove/reorder stages, set
-triggers/directives, declare signals/anchors, live validation + plain
-summaries; bounds-checked, no-throw) and `EditorDefaults` (the A3.9 opening
-stage + one-click patterns). The Gauntlet view becomes a thin shell over
-`PlanDraft`, so authoring correctness is already proven without the game;
-what remains is the editing widgets. **Deployment-phase view injection
+**In progress:** the editor's *logic layer* is complete, engine-free and
+unit-tested — `PlanDraft` (add/remove/reorder stages, set triggers/
+directives, abort conditions, declare signals/anchors, multi-formation
+stage authoring per A3.6, live validation + plain summaries; bounds-checked,
+no-throw) and `EditorDefaults` (the A3.9 opening stage + one-click
+patterns). **Proven (2026-06-14):** the canonical A6 plan authored through
+`PlanDraft` alone produces a byte-for-byte identical execution timeline to
+the model/file-authored plan (the I9 "Verify" goal, at the logic layer) —
+so the Gauntlet view is a thin shell over already-correct authoring, and
+the only remaining work is the **editing widgets themselves** (a blind UI
+build that needs in-game iteration to verify). **Deployment-phase view injection
 RESOLVED in-game (2026-06-13) — the iteration's open engine risk is closed.**
 `PlanningModeView` (a `MissionView` added via `AddMissionBehavior`) toggles a
 read-only Gauntlet panel that renders the loaded plan's plain-language
@@ -436,13 +440,10 @@ exists as an input-independent path. Every Gauntlet call is guarded — a UI
 fault degrades to a log line, never a mission crash. **Next:** swap the
 read-only summary for editing widgets bound to the tested `PlanDraft`
 (stage list, trigger/directive pickers), then anchors by ground-pick and the
-I7/I8 order-menu entries. Carried from the 2026-06-12 review: standardize plan-logic discovery on
-`Mission.GetMissionBehavior<PlanMissionLogic>()` when the UI lands —
-`PlanCommands` currently reaches it via the `PlanMissionLogic.Current`
-static while `HarnessRecorderLogic` already uses the vanilla pattern; one
-idiom should win before more UI consumers appear, and the I7/I8 deferred
-order-menu entries (Resume plan, the Signal Palette) belong to this
-iteration's scope.
+I7/I8 order-menu entries (Resume plan, the Signal Palette). The
+plan-logic-discovery standardization the 2026-06-12 review asked for is
+**done** (the 2026-06-14 audit dropped the `Current` statics for
+`Mission.Current?.GetMissionBehavior<T>()`).
 
 - Enter/exit Planning Mode during deployment (keybind + button), time frozen
   (A1.1); confirming starts the battle (A1.3). Skipping = pure vanilla (A1.2).
