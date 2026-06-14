@@ -68,20 +68,20 @@
                                                StackLayout.LayoutMethod="HorizontalLeftToRight">
                                       <Children>
                                         <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteRemoveStage" IsDisabled="@IsRemoveDisabled"
-                                                      WidthSizePolicy="Fixed" SuggestedWidth="80" HeightSizePolicy="Fixed" SuggestedHeight="26"
-                                                      Sprite="BlankWhiteSquare_9" Color="#33231AFF">
+                                                      Brush="Rbp.Btn.Danger"
+                                                      WidthSizePolicy="Fixed" SuggestedWidth="80" HeightSizePolicy="Fixed" SuggestedHeight="26">
                                           <Children>
                                             <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Text="- Stage"
-                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#C9BCA0FF"
+                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#E9CFC6FF"
                                                         Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                                           </Children>
                                         </ButtonWidget>
                                         <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteAddStage" MarginLeft="8"
-                                                      WidthSizePolicy="Fixed" SuggestedWidth="80" HeightSizePolicy="Fixed" SuggestedHeight="26"
-                                                      Sprite="BlankWhiteSquare_9" Color="#2A3320FF">
+                                                      Brush="Rbp.Btn.Neutral"
+                                                      WidthSizePolicy="Fixed" SuggestedWidth="80" HeightSizePolicy="Fixed" SuggestedHeight="26">
                                           <Children>
                                             <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Text="+ Stage"
-                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#D8E2C0FF"
+                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#D7E1EDFF"
                                                         Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                                           </Children>
                                         </ButtonWidget>
@@ -155,12 +155,12 @@
                     VerticalAlignment="Bottom" MarginLeft="26" MarginRight="26" MarginBottom="12">
               <Children>
                 <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteAddFormation" IsDisabled="@IsAddFormationDisabled"
+                              Brush="Rbp.Btn.Neutral"
                               HorizontalAlignment="Left" VerticalAlignment="Center"
-                              WidthSizePolicy="Fixed" SuggestedWidth="210" HeightSizePolicy="Fixed" SuggestedHeight="38"
-                              Sprite="BlankWhiteSquare_9" Color="#2E3A4AFF">
+                              WidthSizePolicy="Fixed" SuggestedWidth="210" HeightSizePolicy="Fixed" SuggestedHeight="38">
                   <Children>
                     <TextWidget Text="@AddFormationText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#D6E2EEFF"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#D7E1EDFF"
                                 Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                   </Children>
                 </ButtonWidget>
@@ -175,20 +175,20 @@
                            StackLayout.LayoutMethod="HorizontalLeftToRight">
                   <Children>
                     <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteApply"
-                                  WidthSizePolicy="Fixed" SuggestedWidth="128" HeightSizePolicy="Fixed" SuggestedHeight="38"
-                                  Sprite="BlankWhiteSquare_9" Color="#3E5C36FF">
+                                  Brush="Rbp.Btn.Confirm"
+                                  WidthSizePolicy="Fixed" SuggestedWidth="128" HeightSizePolicy="Fixed" SuggestedHeight="38">
                       <Children>
                         <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Text="Apply Plan"
-                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#ECF2DCFF"
+                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#ECF6DDFF"
                                     Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                       </Children>
                     </ButtonWidget>
                     <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteClose" MarginLeft="10"
-                                  WidthSizePolicy="Fixed" SuggestedWidth="100" HeightSizePolicy="Fixed" SuggestedHeight="38"
-                                  Sprite="BlankWhiteSquare_9" Color="#4A2E2AFF">
+                                  Brush="Rbp.Btn.Danger"
+                                  WidthSizePolicy="Fixed" SuggestedWidth="100" HeightSizePolicy="Fixed" SuggestedHeight="38">
                       <Children>
                         <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Text="Close"
-                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#E6C8C0FF"
+                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#E9CFC6FF"
                                     Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                       </Children>
                     </ButtonWidget>

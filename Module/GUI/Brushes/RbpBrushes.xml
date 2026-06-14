@@ -1,0 +1,51 @@
+<Brushes>
+  <!--
+    Flat, dark-themed button brushes for the Planning Mode editor. Each is a
+    single solid layer (BlankWhiteSquare_9) tinted per state via ColorFactor, so
+    buttons get clear hover/press/disabled feedback while matching the panel's
+    dark palette. The brush also carries the label's font color/size/alignment,
+    so a ButtonWidget can render its text directly (no child label widget).
+  -->
+
+  <!-- Neutral slate: secondary actions (Add Formation, + Stage). -->
+  <Brush Name="Rbp.Btn.Neutral" FontColor="#D7E1EDFF" FontSize="16"
+         TextHorizontalAlignment="Center" TextVerticalAlignment="Center" TransitionDuration="0.1">
+    <Layers>
+      <BrushLayer Name="Default" Sprite="BlankWhiteSquare_9" Color="#2C3543FF" />
+    </Layers>
+    <Styles>
+      <Style Name="Default"><BrushLayer Name="Default" ColorFactor="1.0" /></Style>
+      <Style Name="Hovered"><BrushLayer Name="Default" ColorFactor="1.45" /></Style>
+      <Style Name="Pressed"><BrushLayer Name="Default" ColorFactor="0.7" /></Style>
+      <Style Name="Disabled" FontColor="#74808CAA"><BrushLayer Name="Default" ColorFactor="0.4" /></Style>
+    </Styles>
+  </Brush>
+
+  <!-- Confirm green: the primary commit (Apply Plan). -->
+  <Brush Name="Rbp.Btn.Confirm" FontColor="#EDF6DDFF" FontSize="17"
+         TextHorizontalAlignment="Center" TextVerticalAlignment="Center" TransitionDuration="0.1">
+    <Layers>
+      <BrushLayer Name="Default" Sprite="BlankWhiteSquare_9" Color="#3C5A33FF" />
+    </Layers>
+    <Styles>
+      <Style Name="Default"><BrushLayer Name="Default" ColorFactor="1.0" /></Style>
+      <Style Name="Hovered"><BrushLayer Name="Default" ColorFactor="1.45" /></Style>
+      <Style Name="Pressed"><BrushLayer Name="Default" ColorFactor="0.7" /></Style>
+      <Style Name="Disabled" FontColor="#A8B79EAA"><BrushLayer Name="Default" ColorFactor="0.4" /></Style>
+    </Styles>
+  </Brush>
+
+  <!-- Muted danger: dismissive / removing actions (Close, - Stage). -->
+  <Brush Name="Rbp.Btn.Danger" FontColor="#E9CFC6FF" FontSize="16"
+         TextHorizontalAlignment="Center" TextVerticalAlignment="Center" TransitionDuration="0.1">
+    <Layers>
+      <BrushLayer Name="Default" Sprite="BlankWhiteSquare_9" Color="#4A2F2AFF" />
+    </Layers>
+    <Styles>
+      <Style Name="Default"><BrushLayer Name="Default" ColorFactor="1.0" /></Style>
+      <Style Name="Hovered"><BrushLayer Name="Default" ColorFactor="1.45" /></Style>
+      <Style Name="Pressed"><BrushLayer Name="Default" ColorFactor="0.7" /></Style>
+      <Style Name="Disabled" FontColor="#9A8079AA"><BrushLayer Name="Default" ColorFactor="0.4" /></Style>
+    </Styles>
+  </Brush>
+</Brushes>
