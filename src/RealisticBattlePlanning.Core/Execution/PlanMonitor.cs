@@ -473,6 +473,16 @@ namespace RealisticBattlePlanning.Execution
             if (state.Holding && !AnyStageEvaluableFrom(state, nextIndex, snapshot))
                 return false;
 
+            // Nothing from here is evaluable: there's nothing to react to, so
+            // skip straight to the hold without rolling — no phantom
+            // ReactionDelayed before a PlanHolding (no activation follows it).
+            if (!AnyStageEvaluableFrom(state, nextIndex, snapshot))
+            {
+                state.ActiveFidelity = FidelityProfile.Perfect;
+                ActivateChecked(state, nextIndex, snapshot, events);
+                return true;
+            }
+
             // Reaction delay (D3): a Master commander acts at once; a green one
             // lags. A positive delay parks the stage as pending and keeps the
             // current directive running until it elapses (so this is NOT an
@@ -860,7 +870,11 @@ namespace RealisticBattlePlanning.Execution
 
             if (ComputeSteeringTarget(directive.Spec, state, snapshot) is not { } target)
             {
+                // A steering reference vanished: the plan adapts, it isn't a
+                // rolled reaction — activate the next stage cleanly (Perfect),
+                // never with the previous stage's stale drift.
                 events.Add(new StageSkipped(state.Plan.Formation, state.ActiveStageIndex, SteeringReferenceGone(directive.Spec)));
+                state.ActiveFidelity = FidelityProfile.Perfect;
                 ActivateChecked(state, state.ActiveStageIndex + 1, snapshot, events);
                 return;
             }

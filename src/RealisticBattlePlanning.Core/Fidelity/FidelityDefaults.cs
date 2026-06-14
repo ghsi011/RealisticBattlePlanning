@@ -8,7 +8,7 @@ namespace RealisticBattlePlanning.Fidelity
     /// </summary>
     public static class FidelityDefaults
     {
-        /// <summary>Inclusive [min, max] reaction-delay band, seconds, per tier (D3).</summary>
+        /// <summary>Reaction-delay band [min, max), seconds, per tier (D3); the roll is min + [0,1)·range.</summary>
         public static (float Min, float Max) ReactionDelaySeconds(FidelityTier tier) => tier switch
         {
             FidelityTier.Untrained => (6f, 10f),
@@ -19,7 +19,7 @@ namespace RealisticBattlePlanning.Fidelity
             _ => (0f, 0f),
         };
 
-        /// <summary>Inclusive [min, max] positional-drift band, meters, per tier (D3: 15–25 m Untrained → 2–3 m Master).</summary>
+        /// <summary>Positional-drift band [min, max), meters, per tier (D3: 15–25 m Untrained → 2–3 m Master).</summary>
         public static (float Min, float Max) PositionErrorMeters(FidelityTier tier) => tier switch
         {
             FidelityTier.Untrained => (15f, 25f),
