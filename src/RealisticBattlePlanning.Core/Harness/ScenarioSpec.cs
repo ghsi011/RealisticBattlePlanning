@@ -90,6 +90,9 @@ namespace RealisticBattlePlanning.Harness
 
         /// <summary>A plan event (suspend/resume/abort/skip/hold) for the formation lands inside [MinSeconds, MaxSeconds].</summary>
         PlanEventBetween,
+
+        /// <summary>The commander's reaction delay (D3) before a stage activates is inside [MinSeconds, MaxSeconds] — gates the fidelity bands (run with fidelity on).</summary>
+        ReactionDelayBetween,
     }
 
     /// <summary>
@@ -144,6 +147,8 @@ namespace RealisticBattlePlanning.Harness
                 (BySeconds is { } by ? Invariant($" by {by:0.#}s") : ""),
             AssertionType.PlanEventBetween =>
                 Invariant($"{Formation} {Event} between {MinSeconds:0.#}s and {MaxSeconds:0.#}s"),
+            AssertionType.ReactionDelayBetween =>
+                Invariant($"{Formation} stage {Stage} reaction delay is {MinSeconds:0.#}-{MaxSeconds:0.#}s"),
             _ => Type.ToString(),
         };
     }

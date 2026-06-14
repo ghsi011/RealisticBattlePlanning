@@ -217,6 +217,47 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void ReactionDelayBetweenChecksTheRecordedDelay()
+        {
+            var record = Record(ReactionEvent(PlannedFormationClass.Infantry, stage: 2, delay: 8.3f));
+
+            var assertion = new ScenarioAssertion
+            {
+                Type = AssertionType.ReactionDelayBetween,
+                Formation = PlannedFormationClass.Infantry,
+                Stage = 2,
+                MinSeconds = 6f,   // the Untrained D3 band
+                MaxSeconds = 10f,
+            };
+
+            var inBand = Evaluate(record, assertion);
+            Assert.True(inBand.Pass);
+            Assert.Equal(8.3f, inBand.Assertions[0].Measured.Value, 3);
+            Assert.Contains("reacted after 8.3s", inBand.Assertions[0].Message);
+
+            assertion.MaxSeconds = 5f; // a Master-tight band the Untrained delay blows past
+            Assert.False(Evaluate(record, assertion).Pass);
+        }
+
+        [Fact]
+        public void ReactionDelayBetweenFailsReadablyWhenFidelityWasOff()
+        {
+            // Pass-through records no ReactionDelayed event, so the assertion
+            // can't pass; it names the likely cause rather than "never happened".
+            var result = Evaluate(Record(), new ScenarioAssertion
+            {
+                Type = AssertionType.ReactionDelayBetween,
+                Formation = PlannedFormationClass.Infantry,
+                Stage = 2,
+                MinSeconds = 6f,
+                MaxSeconds = 10f,
+            });
+
+            Assert.False(result.Pass);
+            Assert.Contains("no reaction delay", result.Assertions[0].Message);
+        }
+
+        [Fact]
         public void TimeLimitFailsARunThatOutlastsIt()
         {
             var record = Record();
@@ -264,6 +305,14 @@ namespace RealisticBattlePlanning.Tests
             Formation = PlannedFormationClass.Infantry,
             Kind = RecordedEventKind.SignalEmitted,
             Name = signal,
+        };
+
+        private static RecordedEvent ReactionEvent(PlannedFormationClass formation, int stage, float delay) => new()
+        {
+            Formation = formation,
+            Kind = RecordedEventKind.ReactionDelayed,
+            Stage = stage,
+            DelaySeconds = delay,
         };
 
         private static PositionSample Sample(float time, float x, float y) => new()

@@ -91,6 +91,12 @@ namespace RealisticBattlePlanning.Harness
                         RequireBand();
                         break;
 
+                    case AssertionType.ReactionDelayBetween:
+                        Require(assertion.Formation != null, "formation");
+                        Require(assertion.Stage is >= 1, "stage (1-based)");
+                        RequireBand();
+                        break;
+
                     default:
                         errors.Add($"{who}: unknown assertion type.");
                         break;

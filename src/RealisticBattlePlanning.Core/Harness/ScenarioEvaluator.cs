@@ -174,6 +174,20 @@ namespace RealisticBattlePlanning.Harness
                         Invariant($"{kind} at {time:0.#}s"));
                 }
 
+                case AssertionType.ReactionDelayBetween:
+                {
+                    var delay = record.Events
+                        .FirstOrDefault(e => e.Kind == RecordedEventKind.ReactionDelayed
+                                             && e.Formation == assertion.Formation
+                                             && e.Stage == assertion.Stage)
+                        ?.DelaySeconds;
+                    if (delay == null)
+                        return Fail(result, $"{assertion.Formation} stage {assertion.Stage} had no reaction delay (fidelity off, or it activated immediately)");
+                    result.Measured = delay;
+                    return Verdict(result, delay.Value >= assertion.MinSeconds && delay.Value <= assertion.MaxSeconds,
+                        Invariant($"reacted after {delay:0.#}s"));
+                }
+
                 default:
                     return Fail(result, $"assertion type {assertion.Type} is not implemented");
             }
