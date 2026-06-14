@@ -15,13 +15,18 @@ namespace RealisticBattlePlanning.Harness
     /// </summary>
     internal sealed class HarnessRecorderLogic : MissionLogic
     {
+        /// <summary>Battle-time safety cap: end an armed run even if it never resolves and has no scenario time limit.</summary>
+        private const float HardCapSeconds = 300f;
+
         private PlanMissionLogic _host;
         private RunRecorder _recorder;
         private ScenarioActionScheduler _scheduler;
         private ScenarioSpec _scenario;
         private string _result;
         private float? _battleStartSeconds;
+        private float _battleTimeSeconds;
         private bool _finalized;
+        private bool _ended;
 
         public override void AfterStart()
         {
@@ -95,6 +100,11 @@ namespace RealisticBattlePlanning.Harness
             try
             {
                 _recorder?.Tick(snapshot, events);
+                if (snapshot.BattleStarted)
+                {
+                    _battleStartSeconds ??= snapshot.TimeSeconds;
+                    _battleTimeSeconds = snapshot.TimeSeconds - _battleStartSeconds.Value;
+                }
                 FireScriptedActions(snapshot);
             }
             catch (Exception e)
@@ -116,11 +126,37 @@ namespace RealisticBattlePlanning.Harness
             if (_scheduler == null || _scheduler.Done || !snapshot.BattleStarted)
                 return;
 
-            _battleStartSeconds ??= snapshot.TimeSeconds;
-            var battleTime = snapshot.TimeSeconds - _battleStartSeconds.Value;
-
-            foreach (var fired in _scheduler.Tick(battleTime, _host.Monitor))
+            foreach (var fired in _scheduler.Tick(_battleTimeSeconds, _host.Monitor))
                 RbpLog.Info($"Harness: scripted action — {fired}.");
+        }
+
+        /// <summary>
+        /// Auto-leave (dev-tool, armed runs only — G5): an armed run is meant
+        /// to be hands-off, so end the mission once the battle is decided or
+        /// the scenario's clock runs out, rather than waiting for a manual
+        /// Victory -> Done. FinalizeRun then evaluates and writes results.
+        /// </summary>
+        public override void OnMissionTick(float dt)
+        {
+            base.OnMissionTick(dt);
+            if (_ended || _recorder is not { Started: true } || _scenario == null)
+                return;
+
+            var limit = _scenario.TimeLimitSeconds ?? 0f;
+            var timeUp = (limit > 0f && _battleTimeSeconds >= limit) || _battleTimeSeconds >= HardCapSeconds;
+            if (_result == null && !timeUp)
+                return;
+
+            _ended = true;
+            RbpLog.Info($"Harness: '{_scenario.Name}' finished ({_result ?? $"{_battleTimeSeconds:0}s elapsed"}); ending the mission.");
+            try
+            {
+                Mission.EndMission();
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Harness auto-leave failed; finish the battle manually.", e);
+            }
         }
 
         private void FinalizeRun()
