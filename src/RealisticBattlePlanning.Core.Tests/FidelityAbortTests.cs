@@ -35,8 +35,8 @@ namespace RealisticBattlePlanning.Tests
         [Fact]
         public void MasterFightsToTheConfiguredLetter()
         {
-            // 1.0 composure -> 49% holds, like pass-through.
-            Assert.False(Aborts(new FixedTierFidelityModel(FidelityTier.Master), casualties: 48f));
+            // 1.0 composure -> exact parity with pass-through: 49% holds, 51% aborts.
+            Assert.False(Aborts(new FixedTierFidelityModel(FidelityTier.Master), casualties: 49f));
             Assert.True(Aborts(new FixedTierFidelityModel(FidelityTier.Master), casualties: 51f));
         }
 
