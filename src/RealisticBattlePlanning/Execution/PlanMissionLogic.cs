@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using TaleWorlds.Core;
 using TaleWorlds.InputSystem;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using RealisticBattlePlanning.Diagnostics;
+using RealisticBattlePlanning.Fidelity;
 using RealisticBattlePlanning.Harness;
 using RealisticBattlePlanning.Planning;
 using RealisticBattlePlanning.Planning.Model;
@@ -56,6 +58,7 @@ namespace RealisticBattlePlanning.Execution
         private FormationOrderExecutor _executor;
         private bool _deploymentFinished;
         private bool _isHarnessRun;
+        private bool _fidelityActive;
         private float _sinceLastMonitorTick;
 
         /// <summary>
@@ -117,7 +120,10 @@ namespace RealisticBattlePlanning.Execution
                 }
 
                 RbpLog.Info(PlanFormatter.Describe(_plan));
-                _monitor = new PlanMonitor(_plan);
+                _fidelityActive = FidelityConfig.Enabled;
+                _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), FidelityConfig.NextBattleSeed());
+                if (_fidelityActive)
+                    RbpLog.Info($"Fidelity: {FidelityConfig.Describe()}.");
                 _executor = new FormationOrderExecutor(Mission);
             }
             catch (Exception e)
@@ -152,6 +158,8 @@ namespace RealisticBattlePlanning.Execution
                 }
 
                 AdoptPlannedFormations();
+                if (_fidelityActive)
+                    SetCommanderProfiles();
                 SubscribeToPlayerOrders();
             }
             catch (Exception e)
@@ -525,6 +533,35 @@ namespace RealisticBattlePlanning.Execution
                 {
                     RbpLog.Warn($"[{formationPlan.Formation}] is planned but has no units this battle.");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Fidelity switch-on (D1): derive each governed formation's commander
+        /// competence from its captain's vanilla Tactics/Leadership and hand it
+        /// to the monitor, so the configured fidelity model rolls against the
+        /// real officer. A formation with no captain (e.g. the harness
+        /// auto-split) reads 0/0 -> Untrained. Only called when fidelity is on,
+        /// so normal play stays zero-touch (G3).
+        /// </summary>
+        private void SetCommanderProfiles()
+        {
+            if (_monitor == null || _plan == null)
+                return;
+
+            foreach (var formationPlan in _plan.Formations)
+            {
+                if (formationPlan.Stages.Count == 0)
+                    continue;
+
+                _initialCaptains.TryGetValue(formationPlan.Formation, out var captain);
+                var character = captain?.Character;
+                var tactics = character?.GetSkillValue(DefaultSkills.Tactics) ?? 0;
+                var leadership = character?.GetSkillValue(DefaultSkills.Leadership) ?? 0;
+                var profile = CommanderProfile.FromStats(tactics, leadership);
+                _monitor.SetCommander(formationPlan.Formation, profile);
+                RbpLog.Info($"[{formationPlan.Formation}] commander {character?.Name?.ToString() ?? "(none)"}: " +
+                            $"Tactics {tactics}, Leadership {leadership} -> {profile.Competence}.");
             }
         }
 

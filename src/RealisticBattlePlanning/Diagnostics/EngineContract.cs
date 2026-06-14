@@ -129,6 +129,13 @@ namespace RealisticBattlePlanning.Diagnostics
             StaticMember(typeof(CustomBattleHelper), "DefaultBattleGameTypeStringId");
             StaticMember(typeof(CustomBattleData), "CoreContentDefaultSceneName");
 
+            // Fidelity switch-on: read each captain's competence from vanilla
+            // skills (PlanMissionLogic.SetCommanderProfiles).
+            InstanceMember(typeof(Agent), "Character");
+            Method(typeof(BasicCharacterObject), "GetSkillValue", typeof(SkillObject));
+            StaticMember(typeof(DefaultSkills), "Tactics");
+            StaticMember(typeof(DefaultSkills), "Leadership");
+
             // Order issuance (FormationOrderExecutor).
             Method(typeof(Formation), "SetMovementOrder", typeof(MovementOrder));
             Method(typeof(Formation), "SetArrangementOrder", typeof(ArrangementOrder));
