@@ -32,7 +32,7 @@ namespace RealisticBattlePlanning.Execution
     public sealed class PlanMonitor
     {
         private readonly BattlePlan _plan;
-        private readonly List<FormationState> _states;
+        private readonly List<FormationExecutionState> _states;
         private readonly HashSet<string> _signals = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<string> _pendingSignals = new();
         private readonly Dictionary<(string RefKey, int EnemyId), ApproachState> _approach = new();
@@ -60,7 +60,7 @@ namespace RealisticBattlePlanning.Execution
             _rng = new Random(seed);
             _states = plan.Formations
                 .Where(f => f.Stages.Count > 0)
-                .Select(f => new FormationState(f))
+                .Select(f => new FormationExecutionState(f))
                 .ToList();
         }
 
@@ -178,9 +178,7 @@ namespace RealisticBattlePlanning.Execution
                     activatedThisTick = false;
                     if (snapshot.TimeSeconds >= state.PendingActivateAt)
                     {
-                        var index = state.PendingStageIndex;
-                        state.PendingStageIndex = -1;
-                        ActivateChecked(state, index, snapshot, events);
+                        ActivateChecked(state, state.TakePendingStage(), snapshot, events);
                         activatedThisTick = true;
                     }
                 }
@@ -209,8 +207,7 @@ namespace RealisticBattlePlanning.Execution
                 if (state.Mode != FormationPlanMode.Active)
                     continue;
 
-                state.Mode = FormationPlanMode.Suspended;
-                state.PendingStageIndex = -1; // a queued reaction is the plan's, not the player's
+                state.Suspend(); // also drops any queued reaction — that was the plan's, not the player's
                 events.Add(new PlanSuspended(state.Plan.Formation));
             }
 
@@ -241,8 +238,7 @@ namespace RealisticBattlePlanning.Execution
                 if (EvaluateAborts(state, snapshot, events))
                     continue;
 
-                state.Mode = FormationPlanMode.Active;
-                state.ActiveFidelity = FidelityProfile.Perfect; // resume is the player's clean re-adoption, not a rolled reaction
+                state.Resume(); // clean re-adoption: clears any carried reaction
                 var stageIndex = SelectResumeStage(state, snapshot);
                 events.Add(new PlanResumed(state.Plan.Formation, stageIndex));
                 ActivateChecked(state, stageIndex, snapshot, events);
@@ -258,7 +254,7 @@ namespace RealisticBattlePlanning.Execution
         /// activation before the override — an approximation, stated in the
         /// plan doc.
         /// </summary>
-        private int SelectResumeStage(FormationState state, IBattlefieldSnapshot snapshot)
+        private int SelectResumeStage(FormationExecutionState state, IBattlefieldSnapshot snapshot)
         {
             for (var i = state.Plan.Stages.Count - 1; i >= 0; i--)
             {
@@ -279,7 +275,7 @@ namespace RealisticBattlePlanning.Execution
 
         /// <summary>True when the formation just aborted (B4/A3.7). Only
         /// started plans abort; commander death aborts unconditionally.</summary>
-        private bool EvaluateAborts(FormationState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        private bool EvaluateAborts(FormationExecutionState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
             if (state.ActiveStageIndex < 0)
                 return false;
@@ -316,8 +312,7 @@ namespace RealisticBattlePlanning.Execution
             if (reason == null)
                 return false;
 
-            state.Mode = FormationPlanMode.Aborted;
-            state.PendingStageIndex = -1;
+            state.Abort();
             events.Add(new PlanAborted(state.Plan.Formation, reason));
             return true;
         }
@@ -326,7 +321,7 @@ namespace RealisticBattlePlanning.Execution
         /// Whether a directive can be carried out right now: its anchor
         /// resolves and its live reference (enemy / friendly) exists.
         /// </summary>
-        private bool DirectiveEvaluable(DirectiveSpec spec, FormationState state, IBattlefieldSnapshot snapshot, out string reason)
+        private bool DirectiveEvaluable(DirectiveSpec spec, FormationExecutionState state, IBattlefieldSnapshot snapshot, out string reason)
         {
             reason = null;
             if (spec == null)
@@ -385,7 +380,7 @@ namespace RealisticBattlePlanning.Execution
         /// re-baseline at skip time. Phase 2 reaction delays layer on top of
         /// activation, never on trigger arming.
         /// </summary>
-        private void ActivateChecked(FormationState state, int startIndex, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        private void ActivateChecked(FormationExecutionState state, int startIndex, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
             for (var i = startIndex; i < state.Plan.Stages.Count; i++)
             {
@@ -399,19 +394,17 @@ namespace RealisticBattlePlanning.Execution
                     // pending-activation path, whose caller can't pre-reset
                     // the way the resume/steering-skip paths do.)
                     if (i != startIndex)
-                        state.ActiveFidelity = FidelityProfile.Perfect;
+                        state.CarryFidelity(FidelityProfile.Perfect);
                     Activate(state, i, stage, snapshot, events);
                     return;
                 }
                 events.Add(new StageSkipped(state.Plan.Formation, i, reason));
             }
 
-            // Skipped every remaining stage into a hold: no destination to
-            // drift, and the rolled reaction no longer applies.
-            state.ActiveFidelity = FidelityProfile.Perfect;
-            ResetStageState(state, Math.Min(startIndex, state.Plan.Stages.Count - 1), snapshot);
-            state.ActiveDirective = new ResolvedDirective(new DirectiveSpec { Type = DirectiveType.Hold }, null, null);
-            state.Holding = true;
+            // Skipped every remaining stage into a hold (EnterHold also drops
+            // the now-irrelevant rolled reaction).
+            var holdDirective = new ResolvedDirective(new DirectiveSpec { Type = DirectiveType.Hold }, null, null);
+            state.EnterHold(Math.Min(startIndex, state.Plan.Stages.Count - 1), snapshot.TimeSeconds, holdDirective);
             events.Add(new PlanHolding(state.Plan.Formation, "no evaluable stage remains"));
         }
 
@@ -470,7 +463,7 @@ namespace RealisticBattlePlanning.Execution
             }
         }
 
-        private bool TryAdvance(FormationState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        private bool TryAdvance(FormationExecutionState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
             var nextIndex = state.ActiveStageIndex + 1;
             if (nextIndex >= state.Plan.Stages.Count)
@@ -496,7 +489,7 @@ namespace RealisticBattlePlanning.Execution
             // ReactionDelayed before a PlanHolding (no activation follows it).
             if (!AnyStageEvaluableFrom(state, nextIndex, snapshot))
             {
-                state.ActiveFidelity = FidelityProfile.Perfect;
+                state.CarryFidelity(FidelityProfile.Perfect);
                 ActivateChecked(state, nextIndex, snapshot, events);
                 return true;
             }
@@ -509,14 +502,14 @@ namespace RealisticBattlePlanning.Execution
             // field, so it activates immediately — the lag is for responding
             // to triggers.
             var isOpeningPosture = state.ActiveStageIndex < 0 && stage.When.Count == 0;
-            state.ActiveFidelity = isOpeningPosture ? FidelityProfile.Perfect : RollFidelity(state, nextIndex, events);
-            if (state.ActiveFidelity.ReactionDelaySeconds > 0f)
+            var fidelity = isOpeningPosture ? FidelityProfile.Perfect : RollFidelity(state, nextIndex, events);
+            if (fidelity.ReactionDelaySeconds > 0f)
             {
-                state.PendingStageIndex = nextIndex;
-                state.PendingActivateAt = snapshot.TimeSeconds + state.ActiveFidelity.ReactionDelaySeconds;
+                state.ParkReaction(nextIndex, snapshot.TimeSeconds + fidelity.ReactionDelaySeconds, fidelity);
                 return false;
             }
 
+            state.CarryFidelity(fidelity);
             ActivateChecked(state, nextIndex, snapshot, events);
             return true;
         }
@@ -529,7 +522,7 @@ namespace RealisticBattlePlanning.Execution
         /// (the default) returns Perfect — no delay, no drift, no rng draw —
         /// so the pre-fidelity behaviour is byte-for-byte unchanged.
         /// </summary>
-        private FidelityProfile RollFidelity(FormationState state, int stageIndex, List<PlanEvent> events)
+        private FidelityProfile RollFidelity(FormationExecutionState state, int stageIndex, List<PlanEvent> events)
         {
             var profile = _fidelity.Roll(Commander(state.Plan.Formation), _rng);
             if (profile.ReactionDelaySeconds > 0f)
@@ -537,7 +530,7 @@ namespace RealisticBattlePlanning.Execution
             return profile;
         }
 
-        private bool AnyStageEvaluableFrom(FormationState state, int startIndex, IBattlefieldSnapshot snapshot)
+        private bool AnyStageEvaluableFrom(FormationExecutionState state, int startIndex, IBattlefieldSnapshot snapshot)
         {
             for (var i = startIndex; i < state.Plan.Stages.Count; i++)
             {
@@ -547,20 +540,13 @@ namespace RealisticBattlePlanning.Execution
             return false;
         }
 
-        private static void ResetStageState(FormationState state, int stageIndex, IBattlefieldSnapshot snapshot)
+        private void Activate(FormationExecutionState state, int stageIndex, Stage stage, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
-            state.ActiveStageIndex = stageIndex;
-            state.ActivatedAtSeconds = snapshot.TimeSeconds;
-            state.WaypointIndex = 0;
-            state.LastSteeringTarget = null;
-            state.PendingStageIndex = -1;
-        }
-
-        private void Activate(FormationState state, int stageIndex, Stage stage, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
-        {
-            ResetStageState(state, stageIndex, snapshot);
-            state.Holding = false;
-            state.ActiveDirective = ApplyPositionError(ResolveDirective(state.Plan.Formation, stage.Do), state.ActiveFidelity);
+            // Resolve the directive against the carried fidelity BEFORE adopting
+            // the stage; BeginStage takes the finished directive and clears the
+            // per-stage scratch (waypoint, steering target, pending reaction).
+            var directive = ApplyPositionError(ResolveDirective(state.Plan.Formation, stage.Do), state.ActiveFidelity);
+            state.BeginStage(stageIndex, snapshot.TimeSeconds, directive);
 
             events.Add(new StageActivated(state.Plan.Formation, stageIndex, stage, state.ActiveDirective));
             foreach (var signal in stage.Emit)
@@ -570,7 +556,7 @@ namespace RealisticBattlePlanning.Execution
             }
         }
 
-        private bool TriggerFires(Stage stage, FormationState state, IBattlefieldSnapshot snapshot)
+        private bool TriggerFires(Stage stage, FormationExecutionState state, IBattlefieldSnapshot snapshot)
         {
             // First stage with no trigger defaults to "on battle start" (A3.3).
             if (stage.When.Count == 0)
@@ -587,7 +573,7 @@ namespace RealisticBattlePlanning.Execution
         /// continuous observation lets EnemyCommits fire later without its
         /// sustain window.
         /// </summary>
-        private bool AllConditionsHold(List<TriggerSpec> conditions, FormationState state, IBattlefieldSnapshot snapshot, bool readOnly)
+        private bool AllConditionsHold(List<TriggerSpec> conditions, FormationExecutionState state, IBattlefieldSnapshot snapshot, bool readOnly)
         {
             var allHold = true;
             foreach (var condition in conditions)
@@ -599,7 +585,7 @@ namespace RealisticBattlePlanning.Execution
             return allHold;
         }
 
-        private bool ConditionHolds(TriggerSpec condition, FormationState state, IBattlefieldSnapshot snapshot, bool readOnly = false)
+        private bool ConditionHolds(TriggerSpec condition, FormationExecutionState state, IBattlefieldSnapshot snapshot, bool readOnly = false)
         {
             switch (condition.Type)
             {
@@ -707,7 +693,7 @@ namespace RealisticBattlePlanning.Execution
             }
         }
 
-        private bool EnemyCommits(TriggerSpec condition, FormationState state, IBattlefieldSnapshot snapshot, bool readOnly)
+        private bool EnemyCommits(TriggerSpec condition, FormationExecutionState state, IBattlefieldSnapshot snapshot, bool readOnly)
         {
             var (refKey, refPos) = ResolveReference(condition.Formation, state, snapshot);
             if (refPos == null)
@@ -782,7 +768,7 @@ namespace RealisticBattlePlanning.Execution
             return approach.Closing;
         }
 
-        private (string RefKey, MapVec? Position) ResolveReference(string formationRef, FormationState state, IBattlefieldSnapshot snapshot)
+        private (string RefKey, MapVec? Position) ResolveReference(string formationRef, FormationExecutionState state, IBattlefieldSnapshot snapshot)
         {
             if (FormationSelector.IsPlayer(formationRef))
                 return ("player", snapshot.PlayerPosition);
@@ -876,7 +862,7 @@ namespace RealisticBattlePlanning.Execution
         /// reference is gone (escorted formation wiped, no matching enemy
         /// left), so the stage skips forward.
         /// </summary>
-        private void TickSteering(FormationState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        private void TickSteering(FormationExecutionState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
             var directive = state.ActiveDirective;
             if (state.ActiveStageIndex < 0 || state.Holding || directive == null)
@@ -892,7 +878,7 @@ namespace RealisticBattlePlanning.Execution
                 // rolled reaction — activate the next stage cleanly (Perfect),
                 // never with the previous stage's stale drift.
                 events.Add(new StageSkipped(state.Plan.Formation, state.ActiveStageIndex, SteeringReferenceGone(directive.Spec)));
-                state.ActiveFidelity = FidelityProfile.Perfect;
+                state.CarryFidelity(FidelityProfile.Perfect);
                 ActivateChecked(state, state.ActiveStageIndex + 1, snapshot, events);
                 return;
             }
@@ -914,7 +900,7 @@ namespace RealisticBattlePlanning.Execution
             _ => spec.Target == null ? "no enemies left" : $"no '{spec.Target}' enemies left",
         };
 
-        private MapVec? ComputeSteeringTarget(DirectiveSpec spec, FormationState state, IBattlefieldSnapshot snapshot)
+        private MapVec? ComputeSteeringTarget(DirectiveSpec spec, FormationExecutionState state, IBattlefieldSnapshot snapshot)
         {
             var own = snapshot.GetOwn(state.Plan.Formation);
             if (own is not { Exists: true })
@@ -998,7 +984,7 @@ namespace RealisticBattlePlanning.Execution
             return nearest;
         }
 
-        private void TickWaypointProgression(FormationState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        private void TickWaypointProgression(FormationExecutionState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
             var directive = state.ActiveDirective;
             if (state.ActiveStageIndex < 0 || directive == null)
@@ -1033,27 +1019,5 @@ namespace RealisticBattlePlanning.Execution
             public float? Closing;
         }
 
-        private sealed class FormationState
-        {
-            public FormationState(FormationPlan plan)
-            {
-                Plan = plan;
-            }
-
-            public FormationPlan Plan { get; }
-            public int ActiveStageIndex { get; set; } = -1;
-            public float ActivatedAtSeconds { get; set; }
-            public int WaypointIndex { get; set; }
-            public ResolvedDirective ActiveDirective { get; set; }
-            public MapVec? LastSteeringTarget { get; set; }
-            public FormationPlanMode Mode { get; set; } = FormationPlanMode.Active;
-            /// <summary>Set when no evaluable stage remained (B6 hold).</summary>
-            public bool Holding { get; set; }
-            /// <summary>Stage whose trigger fired but whose reaction delay (D3) hasn't elapsed; -1 when none.</summary>
-            public int PendingStageIndex { get; set; } = -1;
-            public float PendingActivateAt { get; set; }
-            /// <summary>Fidelity rolled for the current/pending activation (reaction delay + drift), carried from trigger to activation.</summary>
-            public FidelityProfile ActiveFidelity { get; set; } = FidelityProfile.Perfect;
-        }
     }
 }
