@@ -29,11 +29,13 @@ refine flows that must exist first.
 ### Phase 1 scope decisions
 
 - **Fidelity is fixed.** An `IFidelityModel` seam with a pass-through
-  implementation (perfect execution, or a single configurable tier) **must
-  exist before Phase 2 starts** so the real model swaps in without
-  rewriting Phase 1 code; it doubles as the spec's "progression off" master
-  toggle (F). *Reality check 2026-06-12: the seam has NOT been built yet —
-  directives execute directly. Building it is now an explicit I12 item.*
+  implementation (perfect execution, or a single configurable tier) so the
+  real model swaps in without rewriting Phase 1 code; it doubles as the
+  spec's "progression off" master toggle (F). *Built 2026-06-13 (Phase-2
+  pull-forward P1-P3): the seam exists (`Core/Fidelity`), the monitor
+  consults it, and the engine stays on pass-through so in-game behaviour is
+  unchanged until the model is deliberately switched on. See the Phase 2
+  summary.*
 - **UI is the fallback presentation** (A2.5): vanilla deployment top-down
   camera + Gauntlet overlay. The stylized battle map is Phase 3.
 - **Friction reducers** (A3.9): only the "suggested opening stage" default
@@ -539,6 +541,20 @@ loss (D4); commander barks for every fidelity event (B11 full); After-Action
 Report (B10); Commander Dossier + tier pips in the planner (D5); Drill
 Sessions with costs, caps, drill cues via the signal palette, and pacing
 controls (C1–C8); save persistence + safe-removal hygiene (G1, G2).
+
+**Foundation pulled forward 2026-06-13 (P1-P3, Core, unit-tested, engine
+still pass-through):** the `IFidelityModel` seam + five tiers + seedable
+rolls (P1); `CompetenceModel` deriving the tier from Tactics 0.7/Leadership
+0.3 + familiarity, with `CompetenceFidelityModel` (P2); and the first two D3
+dimensions applied in the monitor — reaction delay (a fired trigger lags
+before activating) and positional drift (15-25 m off-anchor at Untrained →
+2-3 m at Master), tagged INTENDED_FIDELITY and recorded by the harness (P3).
+**Remaining before switch-on:** trigger misjudgment / discipline / signal-
+miss / abort-composure dimensions; XP gain + tier-up + death loss (D4); the
+engine adapter (read each captain's skills → `CommanderProfile`) with a
+**per-battle seed**; the progression on/off config toggle (F); barks (B11);
+AAR (B10); Dossier (D5); drills (C); persistence (G). Switching the engine
+off pass-through is a deliberate, in-game-verified step.
 
 Testing: the fidelity error model lives in Core on a **seedable RNG** stream —
 unit tests assert exact outcomes per seed and distributions across many seeds
