@@ -23,7 +23,18 @@ namespace RealisticBattlePlanning.Fidelity
             PositionErrorY = positionErrorY;
         }
 
+        /// <summary>
+        /// The tier these deviations were rolled for — reporting only (e.g. the
+        /// ReactionDelayed event). NOT a commander's identity: <see cref="Perfect"/>
+        /// carries Master as a "no-deviation" sentinel even when the commander
+        /// is green (its opening posture, a resume, a clean skip). Read a
+        /// commander's competence from their CommanderProfile / record, never
+        /// off a rolled profile.
+        /// </summary>
         public FidelityTier Tier { get; }
+
+        /// <summary>True when this roll actually imposes a deviation; false for <see cref="Perfect"/>. The honest check for "did fidelity change anything", rather than inspecting <see cref="Tier"/>.</summary>
+        public bool Deviates => ReactionDelaySeconds > 0f || PositionErrorMeters > 0f;
 
         /// <summary>Lag between a stage's trigger firing and the commander acting on it (D3).</summary>
         public float ReactionDelaySeconds { get; }
@@ -35,7 +46,13 @@ namespace RealisticBattlePlanning.Fidelity
         public float PositionErrorX { get; }
         public float PositionErrorY { get; }
 
-        /// <summary>Master-end execution: no deviation. The pass-through model returns this.</summary>
+        /// <summary>
+        /// No deviation — the pass-through model and the monitor's clean
+        /// transitions (opening posture, resume, skip-forward) return this. Its
+        /// Master <see cref="Tier"/> means "flawless execution," a sentinel, not
+        /// that the commander is a Master (see <see cref="Tier"/>); test it with
+        /// <see cref="Deviates"/>.
+        /// </summary>
         public static readonly FidelityProfile Perfect = new(FidelityTier.Master, 0f);
     }
 }

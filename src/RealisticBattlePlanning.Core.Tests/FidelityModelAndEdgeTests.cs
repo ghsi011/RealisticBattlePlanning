@@ -37,6 +37,19 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void PerfectIsANoDeviationSentinelNotAMasterCommander()
+        {
+            // Perfect carries Master as a "flawless" sentinel, but it imposes
+            // nothing — Deviates is the honest check, so a reader never mistakes
+            // a green commander's clean transition for Master execution.
+            Assert.False(FidelityProfile.Perfect.Deviates);
+            Assert.Equal(FidelityTier.Master, FidelityProfile.Perfect.Tier);
+
+            var rolled = new FixedTierFidelityModel(FidelityTier.Untrained).Roll(CommanderProfile.Default, new Random(3));
+            Assert.True(rolled.Deviates);
+        }
+
+        [Fact]
         public void NoPhantomReactionWhenTheTriggeredStagesAllSkipToHold()
         {
             // Stage 2 moves to an unresolvable anchor -> inevaluable, no later
