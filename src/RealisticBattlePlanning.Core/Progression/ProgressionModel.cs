@@ -18,14 +18,19 @@ namespace RealisticBattlePlanning.Progression
         public const float XpPerCompletedStage = 2.5f;  // ~4 stages/battle ≈ 10 XP, so ~3 battles to +30
         public const float XpPerFailedStage = 0.5f;     // lesson-learned trickle (D4)
 
-        /// <summary>Drill familiarity accrues at an accelerated rate vs. battle (C4 default 2×), but is capped at Proficient (C5 — drills teach choreography, battle teaches judgment).</summary>
+        /// <summary>Drill familiarity accrues at an accelerated rate vs. battle (C4 default 2×); the Proficient cap (C5) is enforced in CompetenceModel.EffectiveScore, so drill XP can never reach Veteran/Master.</summary>
         public const float DrillXpMultiplier = 2f;
+
+        /// <summary>An approximate battle's worth of completed stages — the shared assumption behind the D4 pacing targets (used by the pacing tests so a rate change can't drift it silently).</summary>
+        public const int TypicalStagesPerBattle = 4;
 
         public static void OnStageCompleted(CommanderRecord record, bool inDrill = false)
         {
             record.StagesExecuted++;
-            var gain = XpPerCompletedStage * (inDrill ? DrillXpMultiplier : 1f);
-            record.PlanFamiliarityXp = Clamp(record.PlanFamiliarityXp + gain);
+            if (inDrill)
+                record.DrillFamiliarityXp = Clamp(record.DrillFamiliarityXp + XpPerCompletedStage * DrillXpMultiplier);
+            else
+                record.PlanFamiliarityXp = Clamp(record.PlanFamiliarityXp + XpPerCompletedStage);
         }
 
         public static void OnStageFailed(CommanderRecord record)
@@ -37,12 +42,15 @@ namespace RealisticBattlePlanning.Progression
         public static void OnBattleUnderCommand(CommanderRecord record)
             => record.BattlesUnderCommand++;
 
-        /// <summary>The commander's current effective competence tier from vanilla stats + this record's familiarity (D1/D2).</summary>
+        /// <summary>The commander's current effective competence tier from vanilla stats + battle/drill familiarity (D1/D2/C5).</summary>
         public static FidelityTier TierFor(CommanderRecord record, int tactics, int leadership)
-            => CompetenceModel.TierFor(tactics, leadership, (int)record.PlanFamiliarityXp);
+            => CompetenceModel.TierFor(CompetenceModel.EffectiveScore(tactics, leadership, record.PlanFamiliarityXp, record.DrillFamiliarityXp));
 
         public static CommanderProfile ProfileFor(CommanderRecord record, int tactics, int leadership)
-            => CommanderProfile.FromStats(tactics, leadership, (int)record.PlanFamiliarityXp);
+        {
+            var score = CompetenceModel.EffectiveScore(tactics, leadership, record.PlanFamiliarityXp, record.DrillFamiliarityXp);
+            return new CommanderProfile(CompetenceModel.TierFor(score), score);
+        }
 
         private static float Clamp(float xp)
             => Math.Min(MaxFamiliarityXp, Math.Max(0f, xp));

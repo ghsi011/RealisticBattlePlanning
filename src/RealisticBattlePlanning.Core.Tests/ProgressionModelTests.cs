@@ -44,14 +44,41 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
-        public void DrillsAccrueFasterButThatIsTheCallersCapToEnforce()
+        public void DrillsAccrueFasterAndIntoTheirOwnLayer()
         {
-            var battle = new CommanderRecord();
-            var drill = new CommanderRecord();
-            ProgressionModel.OnStageCompleted(battle, inDrill: false);
-            ProgressionModel.OnStageCompleted(drill, inDrill: true);
+            // C4: a drill stage grants the 2× rate, into the drill layer (not
+            // the battle layer, so the C5 cap can apply to it).
+            var record = new CommanderRecord();
+            ProgressionModel.OnStageCompleted(record, inDrill: true);
 
-            Assert.Equal(ProgressionModel.DrillXpMultiplier, drill.PlanFamiliarityXp / battle.PlanFamiliarityXp);
+            Assert.Equal(ProgressionModel.XpPerCompletedStage * ProgressionModel.DrillXpMultiplier, record.DrillFamiliarityXp);
+            Assert.Equal(0f, record.PlanFamiliarityXp);
+        }
+
+        [Fact]
+        public void DrillingAloneCapsAtProficient()
+        {
+            // C5: a green companion can drill the choreography up to Proficient
+            // but no further — Veteran/Master need real battles.
+            var record = new CommanderRecord();
+            for (var i = 0; i < 500; i++)
+                ProgressionModel.OnStageCompleted(record, inDrill: true);
+
+            Assert.Equal(FidelityTier.Proficient, ProgressionModel.TierFor(record, 30, 30));
+        }
+
+        [Fact]
+        public void BattleXpReachesTiersDrillingCannot()
+        {
+            var drilled = new CommanderRecord();
+            for (var i = 0; i < 500; i++)
+                ProgressionModel.OnStageCompleted(drilled, inDrill: true);
+            Assert.Equal(FidelityTier.Proficient, ProgressionModel.TierFor(drilled, 30, 30));
+
+            var battled = new CommanderRecord();
+            for (var i = 0; i < 500; i++)
+                ProgressionModel.OnStageCompleted(battled, inDrill: false);
+            Assert.True(ProgressionModel.TierFor(battled, 30, 30) > FidelityTier.Proficient);
         }
 
         [Fact]
@@ -63,11 +90,10 @@ namespace RealisticBattlePlanning.Tests
             var record = new CommanderRecord();
             Assert.Equal(FidelityTier.Untrained, ProgressionModel.TierFor(record, 30, 30));
 
-            const int stagesPerBattle = 4;
             var battles = 0;
             while (ProgressionModel.TierFor(record, 30, 30) == FidelityTier.Untrained)
             {
-                for (var s = 0; s < stagesPerBattle; s++)
+                for (var s = 0; s < ProgressionModel.TypicalStagesPerBattle; s++)
                     ProgressionModel.OnStageCompleted(record);
                 ProgressionModel.OnBattleUnderCommand(record);
                 battles++;

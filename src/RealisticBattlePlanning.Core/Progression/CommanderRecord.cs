@@ -10,8 +10,11 @@ namespace RealisticBattlePlanning.Progression
     /// </summary>
     public sealed class CommanderRecord
     {
-        /// <summary>Experience following THIS player's plans (0–300, D1). Feeds CompetenceModel.</summary>
+        /// <summary>Battle-earned familiarity with the player's plans (0–300, D1). Counts in full toward competence.</summary>
         public float PlanFamiliarityXp { get; set; }
+
+        /// <summary>Drill-earned familiarity (0–300). Accrues faster (C4) but lifts competence only to Proficient (C5).</summary>
+        public float DrillFamiliarityXp { get; set; }
 
         // Service Record (D1 "for UI flavor and debugging").
         public int BattlesUnderCommand { get; set; }

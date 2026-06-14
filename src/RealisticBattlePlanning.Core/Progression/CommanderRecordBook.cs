@@ -16,7 +16,12 @@ namespace RealisticBattlePlanning.Progression
 
         public int Count => _records.Count;
 
-        /// <summary>The record for a hero, created blank on first sight.</summary>
+        /// <summary>
+        /// The record for a hero, created blank on first sight. A null id
+        /// returns a throwaway, NON-persistent scratch record (a captain with
+        /// no stable hero id, e.g. a basic-troop captain in a custom battle) —
+        /// writes to it are intentionally discarded.
+        /// </summary>
         public CommanderRecord GetOrCreate(string heroId)
         {
             if (heroId == null)
@@ -41,8 +46,9 @@ namespace RealisticBattlePlanning.Progression
                 _records.Remove(heroId);
         }
 
-        /// <summary>For save round-tripping (G1): the engine reads/writes these.</summary>
-        public IReadOnlyDictionary<string, CommanderRecord> All => _records;
+        /// <summary>A snapshot of the records for save round-tripping (G1) — a copy, so the engine's serializer never aliases the live dictionary.</summary>
+        public IReadOnlyDictionary<string, CommanderRecord> Snapshot()
+            => new Dictionary<string, CommanderRecord>(_records, StringComparer.Ordinal);
 
         public void Load(string heroId, CommanderRecord record)
         {
