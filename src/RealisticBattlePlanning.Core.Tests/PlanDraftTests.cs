@@ -131,6 +131,24 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void MultiFormationAuthoringGivesEachAnIndependentStage()
+        {
+            // A3.6: author one stage for several formations at once, but each
+            // gets its OWN copy — editing one afterwards must not touch the
+            // others (the "instruct the two HA commanders together" story).
+            var draft = new PlanDraft();
+            draft.AddStageToEach(
+                new[] { PlannedFormationClass.HorseArcher, PlannedFormationClass.LightCavalry },
+                () => new Stage { Name = "skirmish", Do = new DirectiveSpec { Type = DirectiveType.Skirmish } });
+
+            draft.SetDirective(PlannedFormationClass.HorseArcher, 0, new DirectiveSpec { Type = DirectiveType.Charge });
+
+            var plan = draft.Build();
+            Assert.Equal(DirectiveType.Charge, plan.Formations.First(f => f.Formation == PlannedFormationClass.HorseArcher).Stages[0].Do.Type);
+            Assert.Equal(DirectiveType.Skirmish, plan.Formations.First(f => f.Formation == PlannedFormationClass.LightCavalry).Stages[0].Do.Type);
+        }
+
+        [Fact]
         public void AbortConditionsAreEditablePerFormation()
         {
             var draft = new PlanDraft().AddFormation(PlannedFormationClass.Infantry);

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using RealisticBattlePlanning.Planning.Model;
@@ -62,6 +63,22 @@ namespace RealisticBattlePlanning.Planning.Editing
         {
             var plan = Find(formation) ?? AddAndReturn(formation);
             plan.Stages.Add(stage ?? EditorDefaults.OpeningStage());
+            return this;
+        }
+
+        /// <summary>
+        /// Authors one stage across several formations at once (A3.6: "instruct
+        /// the two horse-archer commanders together"). The factory is invoked
+        /// once per formation, so each gets its own independent stage —
+        /// editing one later never touches the others. Formations that don't
+        /// exist yet are created. Null factory/list is a no-op.
+        /// </summary>
+        public PlanDraft AddStageToEach(IEnumerable<PlannedFormationClass> formations, Func<Stage> stageFactory)
+        {
+            if (formations == null || stageFactory == null)
+                return this;
+            foreach (var formation in formations)
+                AddStage(formation, stageFactory());
             return this;
         }
 
