@@ -41,14 +41,20 @@
                         Brush="AgentHUD.Interaction.Text" Brush.FontSize="18" Brush.FontColor="#A89C80FF"
                         Brush.TextHorizontalAlignment="Center" />
 
-            <!-- Body: one card per formation -->
+            <!-- Body: one card per formation (scrolls when it overflows) -->
             <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                    MarginTop="68" MarginBottom="118" MarginLeft="24" MarginRight="20" ClipContents="true">
+                    MarginTop="68" MarginBottom="118" MarginLeft="24" MarginRight="16">
               <Children>
-                    <ListPanel DataSource="{Formations}"
-                               WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                               VerticalAlignment="Top" MarginRight="6" StackLayout.LayoutMethod="VerticalTopToBottom">
-                      <ItemTemplate>
+                <ScrollablePanel Id="ScrollPanel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                 AutoHideScrollBars="true" ClipRect="ClipRect" InnerPanel="ClipRect\FormList"
+                                 VerticalScrollbar="..\Scrollbar">
+                  <Children>
+                    <Widget Id="ClipRect" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" ClipContents="true">
+                      <Children>
+                        <ListPanel Id="FormList" DataSource="{Formations}"
+                                   WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                   VerticalAlignment="Top" MarginRight="12" StackLayout.LayoutMethod="VerticalTopToBottom">
+                          <ItemTemplate>
                         <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginBottom="14"
                                 Sprite="BlankWhiteSquare_9" Color="#1E180FCC">
                           <Children>
@@ -128,8 +134,20 @@
                             </ListPanel>
                           </Children>
                         </Widget>
-                      </ItemTemplate>
-                    </ListPanel>
+                          </ItemTemplate>
+                        </ListPanel>
+                      </Children>
+                    </Widget>
+                  </Children>
+                </ScrollablePanel>
+                <ScrollbarWidget Id="Scrollbar" WidthSizePolicy="Fixed" SuggestedWidth="5" HeightSizePolicy="StretchToParent"
+                                 HorizontalAlignment="Right" VerticalAlignment="Center"
+                                 AlignmentAxis="Vertical" Handle="ScrollbarHandle" MaxValue="100" MinValue="0">
+                  <Children>
+                    <ImageWidget Id="ScrollbarHandle" WidthSizePolicy="Fixed" SuggestedWidth="5" HeightSizePolicy="Fixed" SuggestedHeight="12"
+                                 HorizontalAlignment="Center" Sprite="BlankWhiteSquare_9" Color="#9A7B33CC" />
+                  </Children>
+                </ScrollbarWidget>
               </Children>
             </Widget>
 
