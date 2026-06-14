@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using RealisticBattlePlanning.Execution;
 using RealisticBattlePlanning.Planning;
+using RealisticBattlePlanning.Planning.Editing;
 using RealisticBattlePlanning.Planning.Model;
 using Xunit;
 
@@ -101,6 +102,39 @@ namespace RealisticBattlePlanning.Tests
             Assert.True(leftArc.Target.X < -25f, $"HA-1 final steering at {leftArc.Target}");
             Assert.True(rightArc.Target.X > 25f, $"HA-2 final steering at {rightArc.Target}");
         }
+
+        [Fact]
+        public void TheDraftAuthoredPlanValidatesClean()
+        {
+            // I9 acceptance, Core form: the editor's logic layer (PlanDraft)
+            // can author the canonical A6 plan, and it is valid.
+            Assert.True(BuildPlanViaDraft().Validate().IsValid);
+        }
+
+        [Fact]
+        public void DraftAuthoredA6ExecutesIdenticallyToTheModelAuthoredOne()
+        {
+            // The I9 "Verify" goal ("author A6 in the UI, run the A6 scenario,
+            // diff clean against the file-authored run") at the logic layer:
+            // the PlanDraft-authored plan produces the exact same execution
+            // timeline as the model-authored one (stage names aside, which
+            // don't affect execution).
+            var fromModel = Signature(RunTimeline(new PlanMonitor(BuildPlan()))).ToList();
+            var fromDraft = Signature(RunTimeline(new PlanMonitor(BuildPlanViaDraft().Build()))).ToList();
+
+            Assert.Equal(fromModel, fromDraft);
+        }
+
+        /// <summary>An execution-only event signature (excludes cosmetic stage names).</summary>
+        private static IEnumerable<string> Signature(IEnumerable<PlanEvent> log) => log.Select(e => e switch
+        {
+            StageActivated s =>
+                $"{s.Formation} stage{s.StageIndex} {s.Directive.Spec.Type} target={s.Directive.Target} " +
+                $"side={s.Directive.Spec.Side} missileOnly={s.Directive.Spec.MissileOnly} fire={s.Directive.Spec.FireWhileWithdrawing}",
+            SignalEmitted s => $"{s.Formation} emit {s.Signal}",
+            SteeringTargetChanged s => $"{s.Formation} steer {s.Target}",
+            _ => e.GetType().Name,
+        });
 
         // ---- the timeline ----
 
@@ -221,5 +255,46 @@ namespace RealisticBattlePlanning.Tests
                 },
             },
         };
+
+        /// <summary>
+        /// The same A6 plan authored through the editor's logic layer
+        /// (PlanDraft) — the operations a Gauntlet view would drive. Built with
+        /// AddStage (not AddFormation) so the horse archers open on skirmish,
+        /// not the seeded hold (A3.9). Same parameters as the model plan, so
+        /// the two execute identically.
+        /// </summary>
+        private static PlanDraft BuildPlanViaDraft()
+        {
+            var draft = new PlanDraft();
+            draft.AddAnchor(new MapAnchor { Id = Trap, Basis = AnchorBasis.TeamCenter, Forward = -30f });
+
+            foreach (var (cls, side) in new[]
+                     {
+                         (PlannedFormationClass.HorseArcher, FlankSide.Left),
+                         (PlannedFormationClass.LightCavalry, FlankSide.Right),
+                     })
+            {
+                draft.AddStage(cls, new Stage { Do = new DirectiveSpec { Type = DirectiveType.Skirmish, StandoffMeters = 60f } });
+                draft.AddStage(cls);
+                draft.SetTrigger(cls, 1, new TriggerSpec { Type = TriggerType.EnemyCommits, SpeedThreshold = 2f, SustainSeconds = 4f });
+                draft.SetDirective(cls, 1, new DirectiveSpec { Type = DirectiveType.FeignRetreat, Anchor = Trap, FireWhileWithdrawing = true });
+                draft.AddStage(cls);
+                draft.SetTrigger(cls, 2, new TriggerSpec { Type = TriggerType.SignalReceived, Signal = SpringTrap });
+                draft.SetDirective(cls, 2, new DirectiveSpec { Type = DirectiveType.FlankArc, Side = side, StandoffMeters = 50f, MissileOnly = true });
+            }
+
+            foreach (var cls in new[] { PlannedFormationClass.Infantry, PlannedFormationClass.HeavyInfantry })
+            {
+                draft.AddStage(cls, new Stage { Do = new DirectiveSpec { Type = DirectiveType.Hold, Arrangement = Arrangement.ShieldWall } });
+                draft.AddStage(cls);
+                draft.SetTrigger(cls, 1, new TriggerSpec { Type = TriggerType.EnemyWithinDistance, Meters = 40f, Anchor = Trap });
+                draft.SetDirective(cls, 1, new DirectiveSpec { Type = DirectiveType.Charge });
+                // Both infantry formations emit the latched spring-trap signal,
+                // matching the model plan (the second emit is deduped on the bus).
+                draft.EmitSignal(cls, 1, SpringTrap);
+            }
+
+            return draft;
+        }
     }
 }
