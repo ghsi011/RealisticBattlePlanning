@@ -23,6 +23,9 @@ namespace RealisticBattlePlanning.Planning
         public const int MaxConditionsPerStage = 3;  // A3.5
         public const int MaxPlayerSignals = 4;       // B9
 
+        /// <summary>Standoff/gap beyond any vanilla weapon range — a missile formation set this far back may never engage (A3.8 warning, not an error).</summary>
+        public const float MaxSensibleStandoffMeters = 150f;
+
         public static PlanValidationResult Validate(BattlePlan plan)
         {
             var result = new PlanValidationResult();
@@ -69,6 +72,24 @@ namespace RealisticBattlePlanning.Planning
                     }
                 }
             }
+
+            // Dead coordination glue (A3.8, non-blocking): a signal emitted by
+            // some stage that no stage reacts to (no SignalReceived/PlayerSignal
+            // trigger anywhere). The inverse — listening for a signal nothing
+            // emits — is warned per-trigger in ValidateTrigger.
+            var consumedSignals = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var f in plan.Formations)
+                foreach (var stage in f.Stages)
+                    foreach (var trigger in stage.When)
+                        if (trigger.Type is TriggerType.SignalReceived or TriggerType.PlayerSignal
+                            && !string.IsNullOrWhiteSpace(trigger.Signal))
+                            consumedSignals.Add(trigger.Signal);
+
+            foreach (var f in plan.Formations)
+                for (var i = 0; i < f.Stages.Count; i++)
+                    foreach (var signal in f.Stages[i].Emit)
+                        if (!string.IsNullOrWhiteSpace(signal) && !consumedSignals.Contains(signal))
+                            result.Warnings.Add($"[{f.Formation}] stage {i + 1} emits '{signal}', but no stage reacts to it.");
 
             foreach (var formation in plan.Formations)
                 ValidateFormationPlan(formation, anchorIds, emittedSignals, declaredPlayerSignals, result);
@@ -211,6 +232,14 @@ namespace RealisticBattlePlanning.Planning
                 result.Errors.Add($"{where}: gapMeters must be > 0 when given.");
             if (directive.WidthMeters is <= 0)
                 result.Errors.Add($"{where}: widthMeters must be > 0 when given.");
+
+            // Contradictory-but-executable parameters (A3.8 warnings): a standoff
+            // beyond any weapon range means the formation holds too far back to
+            // ever engage.
+            if (directive.StandoffMeters is { } standoff && standoff > MaxSensibleStandoffMeters)
+                result.Warnings.Add($"{where}: standoffMeters {standoff:0} m is beyond any weapon range; the formation may never engage.");
+            if (directive.GapMeters is { } gap && gap > MaxSensibleStandoffMeters)
+                result.Warnings.Add($"{where}: gapMeters {gap:0} m is very large; the screen may sit far from what it guards.");
 
             switch (directive.Type)
             {

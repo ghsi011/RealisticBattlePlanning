@@ -289,6 +289,35 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void EmittedSignalNobodyReactsToIsAWarning()
+        {
+            // The inverse of the listen-side warning: a signal broadcast that no
+            // stage gates on is dead coordination glue (A3.8, non-blocking).
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[0].Emit.Add("orphan");
+
+            var result = PlanValidator.Validate(plan);
+            Assert.True(result.IsValid);
+            Assert.Contains(result.Warnings, w => w.Contains("orphan") && w.Contains("no stage reacts"));
+        }
+
+        [Fact]
+        public void StandoffBeyondWeaponRangeIsAWarning()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[0].Do = new DirectiveSpec
+            {
+                Type = DirectiveType.Skirmish,
+                Target = "Nearest",
+                StandoffMeters = 300f,
+            };
+
+            var result = PlanValidator.Validate(plan);
+            Assert.True(result.IsValid); // contradictory but executable -> warning, not error
+            Assert.Contains(result.Warnings, w => w.Contains("standoffMeters") && w.Contains("never engage"));
+        }
+
+        [Fact]
         public void PlayerSignalCountsAsEmitted()
         {
             var plan = TestPlans.SimpleValid();
