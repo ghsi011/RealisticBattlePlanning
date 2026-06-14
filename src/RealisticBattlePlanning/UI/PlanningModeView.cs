@@ -118,7 +118,10 @@ namespace RealisticBattlePlanning.UI
                     return;
                 }
 
-                _dataSource = new PlanningModeVM($"— Battle Plan —   ({ToggleKey} to close)", BuildSummary());
+                var plan = _planLogic?.ActivePlan;
+                // Non-blocking feasibility warnings (A3.8) surface in the footer.
+                var validation = plan != null ? PlanValidator.Validate(plan) : null;
+                _dataSource = new PlanningModeVM("Battle Plan", $"{ToggleKey} to close", plan, validation);
                 _layer = new GauntletLayer("RbpPlanningLayer", ViewOrderPriority);
                 _movie = _layer.LoadMovie(MovieName, _dataSource);
                 _screen.AddLayer(_layer);
@@ -160,25 +163,5 @@ namespace RealisticBattlePlanning.UI
             }
         }
 
-        private string BuildSummary()
-        {
-            var plan = _planLogic?.ActivePlan;
-            if (plan == null)
-                return "No plan is loaded for this battle.\n(Drop an rbp_debug_plan.json in ModuleData; in-panel authoring lands next.)";
-
-            // Surface non-blocking feasibility warnings (A3.8) above the plan.
-            var sb = new System.Text.StringBuilder();
-            var validation = PlanValidator.Validate(plan);
-            if (validation.Warnings.Count > 0)
-            {
-                sb.AppendLine($"! {validation.Warnings.Count} warning(s):");
-                foreach (var warning in validation.Warnings)
-                    sb.AppendLine($"   {warning}");
-                sb.AppendLine();
-            }
-
-            sb.Append(PlanFormatter.Describe(plan));
-            return sb.ToString();
-        }
     }
 }

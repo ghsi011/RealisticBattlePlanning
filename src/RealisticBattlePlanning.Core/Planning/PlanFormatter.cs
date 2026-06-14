@@ -41,7 +41,14 @@ namespace RealisticBattlePlanning.Planning
             return sb.ToString().TrimEnd();
         }
 
-        private static string DescribeWhen(Stage stage, int index)
+        /// <summary>The abort line for a formation, plain language (R4 / the editor panel).</summary>
+        public static string DescribeAbort(AbortConditions abort)
+            => $"Aborts above {abort.CasualtiesAbovePercent:0.#}% casualties"
+               + (abort.OnFormationBroken ? ", or if broken" : "")
+               + (abort.OnCommanderIncapacitated ? ", or commander down" : "");
+
+        /// <summary>The trigger ("When …") for a stage, plain language. Public for the editor panel.</summary>
+        public static string DescribeWhen(Stage stage, int index)
         {
             if (stage.When.Count == 0)
                 return index == 0 ? "On battle start" : "(no trigger!)";
@@ -70,7 +77,8 @@ namespace RealisticBattlePlanning.Planning
             string Selector(TriggerSpec spec) => spec.Formation == null ? "" : $" ({spec.Formation})";
         }
 
-        private static string DescribeDirective(DirectiveSpec d)
+        /// <summary>The directive ("Do …") for a stage, plain language. Public for the editor panel.</summary>
+        public static string DescribeDirective(DirectiveSpec d)
         {
             if (d == null) return "(no directive!)";
 
