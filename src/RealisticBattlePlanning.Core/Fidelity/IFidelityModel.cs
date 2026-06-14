@@ -13,6 +13,15 @@ namespace RealisticBattlePlanning.Fidelity
     public interface IFidelityModel
     {
         FidelityProfile Roll(CommanderProfile commander, Random rng);
+
+        /// <summary>
+        /// The commander's abort composure (D3): the multiplier applied to a
+        /// configured abort threshold. A stable trait, evaluated every tick
+        /// against live casualties, so it is deterministic (no rng) and not
+        /// folded into the per-activation <see cref="Roll"/>. 1.0 = fights to
+        /// the configured letter.
+        /// </summary>
+        float AbortComposure(CommanderProfile commander);
     }
 
     /// <summary>Perfect execution — no deviation, ignores competence (spec "progression off" / Phase-1 default).</summary>
@@ -21,6 +30,8 @@ namespace RealisticBattlePlanning.Fidelity
         // Must not touch rng: pass-through draws nothing, or it would desync
         // seeded replays and break the byte-for-byte backward-compat guarantee.
         public FidelityProfile Roll(CommanderProfile commander, Random rng) => FidelityProfile.Perfect;
+
+        public float AbortComposure(CommanderProfile commander) => 1f;
     }
 
     /// <summary>
@@ -40,6 +51,9 @@ namespace RealisticBattlePlanning.Fidelity
 
         public FidelityProfile Roll(CommanderProfile commander, Random rng)
             => FidelityRolls.ForTier(_tier, rng);
+
+        public float AbortComposure(CommanderProfile commander)
+            => FidelityDefaults.AbortComposureFactor(_tier);
     }
 
     /// <summary>
@@ -52,6 +66,9 @@ namespace RealisticBattlePlanning.Fidelity
     {
         public FidelityProfile Roll(CommanderProfile commander, Random rng)
             => FidelityRolls.ForTier((commander ?? CommanderProfile.Default).Competence, rng);
+
+        public float AbortComposure(CommanderProfile commander)
+            => FidelityDefaults.AbortComposureFactor((commander ?? CommanderProfile.Default).Competence);
     }
 
     /// <summary>Shared rolling so every model draws the same way (one rng draw per dimension, in a fixed order).</summary>

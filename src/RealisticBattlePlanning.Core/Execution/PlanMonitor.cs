@@ -290,14 +290,21 @@ namespace RealisticBattlePlanning.Execution
 
             if (own is { Exists: true })
             {
+                // Abort composure (D3): a green commander pulls out before the
+                // configured casualty limit; pass-through leaves it at 1.0.
+                var composure = _fidelity.AbortComposure(Commander(state.Plan.Formation));
+                var casualtyLimit = abort.CasualtiesAbovePercent * composure;
+
                 // Unconditional on purpose: commander death always aborts in
                 // Phase 1; AbortConditions.OnCommanderIncapacitated is
                 // reserved for Phase 2's incapacitated-but-alive distinction
                 // (the validator warns when it is set to false).
                 if (own.CommanderDown)
                     reason = "commander down";
-                else if (own.CasualtiesPercent >= abort.CasualtiesAbovePercent)
-                    reason = Invariant($"casualties {own.CasualtiesPercent:0.#}% (threshold {abort.CasualtiesAbovePercent:0.#}%)");
+                else if (own.CasualtiesPercent >= casualtyLimit)
+                    reason = composure < 1f
+                        ? Invariant($"[INTENDED_FIDELITY] casualties {own.CasualtiesPercent:0.#}% (early limit {casualtyLimit:0.#}% = {abort.CasualtiesAbovePercent:0.#}% × {composure:0.##} composure)")
+                        : Invariant($"casualties {own.CasualtiesPercent:0.#}% (threshold {abort.CasualtiesAbovePercent:0.#}%)");
                 else if (own.IsBroken && abort.OnFormationBroken)
                     reason = "formation broke";
             }

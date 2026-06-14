@@ -29,5 +29,21 @@ namespace RealisticBattlePlanning.Fidelity
             FidelityTier.Master => (2f, 3f),
             _ => (0f, 0f),
         };
+
+        /// <summary>
+        /// Multiplier on a configured abort threshold (D3 "abort composure"):
+        /// a green commander treats the limit as ~0.7× and pulls out early; a
+        /// Master fights to the letter (1.0×). Deterministic — composure is a
+        /// stable trait, not a per-reaction roll.
+        /// </summary>
+        public static float AbortComposureFactor(FidelityTier tier) => tier switch
+        {
+            FidelityTier.Untrained => 0.7f,
+            FidelityTier.Drilled => 0.8f,
+            FidelityTier.Proficient => 0.9f,
+            FidelityTier.Veteran => 0.95f,
+            FidelityTier.Master => 1f,
+            _ => 1f,
+        };
     }
 }
