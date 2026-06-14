@@ -542,19 +542,30 @@ Report (B10); Commander Dossier + tier pips in the planner (D5); Drill
 Sessions with costs, caps, drill cues via the signal palette, and pacing
 controls (C1–C8); save persistence + safe-removal hygiene (G1, G2).
 
-**Foundation pulled forward 2026-06-13 (P1-P3, Core, unit-tested, engine
-still pass-through):** the `IFidelityModel` seam + five tiers + seedable
-rolls (P1); `CompetenceModel` deriving the tier from Tactics 0.7/Leadership
-0.3 + familiarity, with `CompetenceFidelityModel` (P2); and the first two D3
-dimensions applied in the monitor — reaction delay (a fired trigger lags
-before activating) and positional drift (15-25 m off-anchor at Untrained →
-2-3 m at Master), tagged INTENDED_FIDELITY and recorded by the harness (P3).
-**Remaining before switch-on:** trigger misjudgment / discipline / signal-
-miss / abort-composure dimensions; XP gain + tier-up + death loss (D4); the
-engine adapter (read each captain's skills → `CommanderProfile`) with a
-**per-battle seed**; the progression on/off config toggle (F); barks (B11);
-AAR (B10); Dossier (D5); drills (C); persistence (G). Switching the engine
-off pass-through is a deliberate, in-game-verified step.
+**Foundation pulled forward 2026-06-13 (P1-P5, Core, unit-tested, engine
+still pass-through):**
+- **P1** — the `IFidelityModel` seam, five tiers, seedable rolls, reaction
+  delay applied at activation.
+- **P2** — `CompetenceModel`: tier derived from Tactics 0.7 / Leadership 0.3
+  + Plan Familiarity; `CompetenceFidelityModel`.
+- **P3** — positional drift (15-25 m off-anchor Untrained → 2-3 m Master),
+  recorded by the harness, tagged INTENDED_FIDELITY.
+- **P4** — abort composure: green commanders pull out at ~0.7× the
+  configured casualty limit.
+- **P5** — progression (D4): `CommanderRecord` + `ProgressionModel`
+  (familiarity XP, lesson-learned trickle, no decay, pacing tuned to
+  Drilled-in-a-handful-of-battles) + `CommanderRecordBook` (death loses
+  everything; absence keeps it). The C5 drill cap is enforced in
+  `CompetenceModel.EffectiveScore` (drills lift only to Proficient).
+
+220 unit tests; four review passes, zero bugs found. **Remaining before
+switch-on:** trigger misjudgment / discipline / signal-miss dimensions (the
+subtler D3 ones); barks (B11); AAR (B10); Dossier (D5); drills (C). **The
+switch-on itself** — the engine adapter (read each captain's skills →
+`CommanderProfile`, award XP on stage completion), a **per-battle seed**,
+the progression on/off config toggle (F), and save persistence (G) — is a
+deliberate, in-game-verified step: flipping the engine off pass-through is
+where a green vs. veteran officer first visibly differ.
 
 Testing: the fidelity error model lives in Core on a **seedable RNG** stream —
 unit tests assert exact outcomes per seed and distributions across many seeds
