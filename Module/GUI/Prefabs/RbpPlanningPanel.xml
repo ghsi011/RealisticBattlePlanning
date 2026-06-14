@@ -1,13 +1,15 @@
 <Prefab>
   <!--
-    Planning Mode panel. A dark, framed panel centred at the top (clear of the
+    Planning Mode editor. A dark, framed panel centred at the top (clear of the
     left/right formation cards): an accented header bar, one card per formation
-    (name + abort rule + "When -> Do" stage rows), and a footer with the
-    declared player signals and any feasibility warnings. Read structured from
-    the VM (PlanFormatter wording). Editing controls land next.
+    (name + abort rule + "When -> Do" stage rows, each card with - Stage / +
+    Stage controls), a footer with declared player signals and feasibility
+    warnings, and a bottom action bar (Add Formation, a live status line, Apply,
+    Close). The layer takes input focus while open; buttons drive the VM, which
+    mutates a PlanDraft and re-renders. Wording comes from Core's PlanFormatter.
   -->
   <Window>
-    <Widget DoNotAcceptEvents="true" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent">
+    <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent">
       <Children>
         <Widget WidthSizePolicy="Fixed" SuggestedWidth="980" HeightSizePolicy="Fixed" SuggestedHeight="560"
                 HorizontalAlignment="Center" VerticalAlignment="Top" MarginTop="64"
@@ -32,7 +34,7 @@
             <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="2"
                     VerticalAlignment="Top" MarginTop="56" Sprite="BlankWhiteSquare_9" Color="#9A7B33FF" />
 
-            <!-- Empty state (no plan loaded) -->
+            <!-- Empty state (no formations yet) -->
             <TextWidget Text="@EmptyText" IsHidden="@HasPlan"
                         WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
                         VerticalAlignment="Center" MarginLeft="40" MarginRight="40"
@@ -41,83 +43,157 @@
 
             <!-- Body: one card per formation -->
             <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                    MarginTop="70" MarginBottom="74" MarginLeft="24" MarginRight="24" ClipContents="true">
+                    MarginTop="68" MarginBottom="118" MarginLeft="24" MarginRight="20" ClipContents="true">
               <Children>
-                <ListPanel DataSource="{Formations}" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                           VerticalAlignment="Top" StackLayout.LayoutMethod="VerticalTopToBottom">
-                  <ItemTemplate>
-                    <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginBottom="16">
-                      <Children>
-                        <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                                   StackLayout.LayoutMethod="VerticalTopToBottom">
+                    <ListPanel DataSource="{Formations}"
+                               WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                               VerticalAlignment="Top" MarginRight="6" StackLayout.LayoutMethod="VerticalTopToBottom">
+                      <ItemTemplate>
+                        <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginBottom="14"
+                                Sprite="BlankWhiteSquare_9" Color="#1E180FCC">
                           <Children>
-                            <!-- Formation header row -->
-                            <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="30">
-                              <Children>
-                                <TextWidget Text="@NameText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                            MarginRight="280"
-                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="21" Brush.FontColor="#E0B85EFF"
-                                            Brush.TextHorizontalAlignment="Left" Brush.TextVerticalAlignment="Center" />
-                                <TextWidget Text="@AbortText" WidthSizePolicy="Fixed" SuggestedWidth="280" HeightSizePolicy="StretchToParent"
-                                            HorizontalAlignment="Right"
-                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#8C8470FF"
-                                            Brush.TextHorizontalAlignment="Right" Brush.TextVerticalAlignment="Center" />
-                              </Children>
-                            </Widget>
-                            <!-- Divider -->
-                            <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="1"
-                                    MarginTop="2" MarginBottom="4" Sprite="BlankWhiteSquare_9" Color="#5A4A2A66" />
-                            <!-- Stage rows -->
-                            <ListPanel DataSource="{Stages}" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                            <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                       MarginLeft="14" MarginRight="14" MarginTop="10" MarginBottom="12"
                                        StackLayout.LayoutMethod="VerticalTopToBottom">
-                              <ItemTemplate>
-                                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="7">
+                              <Children>
+                                <!-- Formation header row: name (left) + stage controls (right) -->
+                                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="30">
                                   <Children>
-                                    <TextWidget Text="@NumberText" WidthSizePolicy="Fixed" SuggestedWidth="26" HeightSizePolicy="CoverChildren"
-                                                HorizontalAlignment="Left" VerticalAlignment="Top"
-                                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="18" Brush.FontColor="#D8A84CFF"
-                                                Brush.TextHorizontalAlignment="Left" />
-                                    <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginLeft="34"
-                                               StackLayout.LayoutMethod="VerticalTopToBottom">
+                                    <TextWidget Text="@NameText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                MarginRight="180"
+                                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="21" Brush.FontColor="#E0B85EFF"
+                                                Brush.TextHorizontalAlignment="Left" Brush.TextVerticalAlignment="Center" />
+                                    <ListPanel HorizontalAlignment="Right" VerticalAlignment="Center"
+                                               WidthSizePolicy="CoverChildren" HeightSizePolicy="Fixed" SuggestedHeight="26"
+                                               StackLayout.LayoutMethod="HorizontalLeftToRight">
                                       <Children>
-                                        <TextWidget Text="@TriggerText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#93B0C4FF"
-                                                    Brush.TextHorizontalAlignment="Left" />
-                                        <TextWidget Text="@DirectiveText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
-                                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#E2D2AEFF"
-                                                    Brush.TextHorizontalAlignment="Left" />
-                                        <TextWidget Text="@EmitText" IsVisible="@HasEmit" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
-                                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#7E9A7EFF"
-                                                    Brush.TextHorizontalAlignment="Left" />
+                                        <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteRemoveStage" IsDisabled="@IsRemoveDisabled"
+                                                      WidthSizePolicy="Fixed" SuggestedWidth="80" HeightSizePolicy="Fixed" SuggestedHeight="26"
+                                                      Sprite="BlankWhiteSquare_9" Color="#33231AFF">
+                                          <Children>
+                                            <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Text="- Stage"
+                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#C9BCA0FF"
+                                                        Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                          </Children>
+                                        </ButtonWidget>
+                                        <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteAddStage" MarginLeft="8"
+                                                      WidthSizePolicy="Fixed" SuggestedWidth="80" HeightSizePolicy="Fixed" SuggestedHeight="26"
+                                                      Sprite="BlankWhiteSquare_9" Color="#2A3320FF">
+                                          <Children>
+                                            <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Text="+ Stage"
+                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#D8E2C0FF"
+                                                        Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                          </Children>
+                                        </ButtonWidget>
                                       </Children>
                                     </ListPanel>
                                   </Children>
                                 </Widget>
-                              </ItemTemplate>
+                                <!-- Abort rule -->
+                                <TextWidget Text="@AbortText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
+                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#8C8470FF"
+                                            Brush.TextHorizontalAlignment="Left" />
+                                <!-- Divider -->
+                                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="1"
+                                        MarginTop="6" MarginBottom="2" Sprite="BlankWhiteSquare_9" Color="#5A4A2A66" />
+                                <!-- Stage rows -->
+                                <ListPanel DataSource="{Stages}" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                           StackLayout.LayoutMethod="VerticalTopToBottom">
+                                  <ItemTemplate>
+                                    <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="7">
+                                      <Children>
+                                        <TextWidget Text="@NumberText" WidthSizePolicy="Fixed" SuggestedWidth="26" HeightSizePolicy="CoverChildren"
+                                                    HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="18" Brush.FontColor="#D8A84CFF"
+                                                    Brush.TextHorizontalAlignment="Left" />
+                                        <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginLeft="34"
+                                                   StackLayout.LayoutMethod="VerticalTopToBottom">
+                                          <Children>
+                                            <TextWidget Text="@TriggerText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#93B0C4FF"
+                                                        Brush.TextHorizontalAlignment="Left" />
+                                            <TextWidget Text="@DirectiveText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
+                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#E2D2AEFF"
+                                                        Brush.TextHorizontalAlignment="Left" />
+                                            <TextWidget Text="@EmitText" IsVisible="@HasEmit" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
+                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#7E9A7EFF"
+                                                        Brush.TextHorizontalAlignment="Left" />
+                                          </Children>
+                                        </ListPanel>
+                                      </Children>
+                                    </Widget>
+                                  </ItemTemplate>
+                                </ListPanel>
+                              </Children>
                             </ListPanel>
                           </Children>
-                        </ListPanel>
-                      </Children>
-                    </Widget>
-                  </ItemTemplate>
-                </ListPanel>
+                        </Widget>
+                      </ItemTemplate>
+                    </ListPanel>
               </Children>
             </Widget>
 
             <!-- Footer: signals + warnings -->
-            <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="60"
-                    VerticalAlignment="Bottom" MarginLeft="26" MarginRight="26" MarginBottom="10">
+            <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="44"
+                    VerticalAlignment="Bottom" MarginLeft="26" MarginRight="26" MarginBottom="58">
               <Children>
                 <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="2"
                         VerticalAlignment="Top" Sprite="BlankWhiteSquare_9" Color="#5A4A2A66" />
                 <TextWidget Text="@SignalsText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                            VerticalAlignment="Top" MarginTop="10"
+                            VerticalAlignment="Top" MarginTop="9"
                             Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#B0A684FF"
                             Brush.TextHorizontalAlignment="Left" />
                 <TextWidget Text="@WarningsText" IsVisible="@HasWarnings" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
                             VerticalAlignment="Bottom"
                             Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#D9A441FF"
                             Brush.TextHorizontalAlignment="Left" />
+              </Children>
+            </Widget>
+
+            <!-- Action bar: Add Formation (left) | status (centre) | Apply, Close (right) -->
+            <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="42"
+                    VerticalAlignment="Bottom" MarginLeft="26" MarginRight="26" MarginBottom="12">
+              <Children>
+                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteAddFormation" IsDisabled="@IsAddFormationDisabled"
+                              HorizontalAlignment="Left" VerticalAlignment="Center"
+                              WidthSizePolicy="Fixed" SuggestedWidth="210" HeightSizePolicy="Fixed" SuggestedHeight="38"
+                              Sprite="BlankWhiteSquare_9" Color="#2E3A4AFF">
+                  <Children>
+                    <TextWidget Text="@AddFormationText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#D6E2EEFF"
+                                Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                  </Children>
+                </ButtonWidget>
+
+                <TextWidget Text="@StatusText" IsVisible="@HasStatus" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                            MarginLeft="222" MarginRight="252"
+                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#9FD6A0FF"
+                            Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+
+                <ListPanel HorizontalAlignment="Right" VerticalAlignment="Center"
+                           WidthSizePolicy="CoverChildren" HeightSizePolicy="Fixed" SuggestedHeight="38"
+                           StackLayout.LayoutMethod="HorizontalLeftToRight">
+                  <Children>
+                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteApply"
+                                  WidthSizePolicy="Fixed" SuggestedWidth="128" HeightSizePolicy="Fixed" SuggestedHeight="38"
+                                  Sprite="BlankWhiteSquare_9" Color="#3E5C36FF">
+                      <Children>
+                        <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Text="Apply Plan"
+                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#ECF2DCFF"
+                                    Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                      </Children>
+                    </ButtonWidget>
+                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteClose" MarginLeft="10"
+                                  WidthSizePolicy="Fixed" SuggestedWidth="100" HeightSizePolicy="Fixed" SuggestedHeight="38"
+                                  Sprite="BlankWhiteSquare_9" Color="#4A2E2AFF">
+                      <Children>
+                        <TextWidget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Text="Close"
+                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#E6C8C0FF"
+                                    Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                      </Children>
+                    </ButtonWidget>
+                  </Children>
+                </ListPanel>
               </Children>
             </Widget>
 

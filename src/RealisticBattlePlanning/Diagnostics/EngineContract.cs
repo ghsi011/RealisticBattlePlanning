@@ -47,7 +47,12 @@ namespace RealisticBattlePlanning.Diagnostics
             void StaticMember(Type type, string name)
             {
                 const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
-                if (type.GetField(name, flags) == null && type.GetMethod(name, flags) == null)
+                // Field, method, OR property: accessors like DefaultSkills.Tactics
+                // are static properties, whose getter is "get_Tactics" — a plain
+                // GetMethod(name) misses them and reports a false failure.
+                if (type.GetField(name, flags) == null
+                    && type.GetMethod(name, flags) == null
+                    && type.GetProperty(name, flags) == null)
                     failures.Add($"{type.Name}.{name} (static)");
             }
 
@@ -56,7 +61,9 @@ namespace RealisticBattlePlanning.Diagnostics
             void StaticByName(Type type, string name)
             {
                 const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
-                if (type.GetField(name, flags) == null && !Array.Exists(type.GetMethods(flags), m => m.Name == name))
+                if (type.GetField(name, flags) == null
+                    && type.GetProperty(name, flags) == null
+                    && !Array.Exists(type.GetMethods(flags), m => m.Name == name))
                     failures.Add($"{type.Name}.{name} (static)");
             }
 

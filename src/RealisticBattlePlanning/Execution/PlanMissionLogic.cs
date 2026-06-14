@@ -498,6 +498,34 @@ namespace RealisticBattlePlanning.Execution
         }
 
         /// <summary>
+        /// Replaces the active plan from the editor (Planning Mode "Apply").
+        /// Rebuilds the monitor so the edited plan governs this battle; if
+        /// deployment already finished, re-adopts the planned formations now.
+        /// </summary>
+        internal void ApplyPlan(BattlePlan newPlan)
+        {
+            if (newPlan == null)
+                return;
+            try
+            {
+                _plan = newPlan;
+                _fidelityActive = FidelityConfig.Enabled;
+                _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), FidelityConfig.NextBattleSeed());
+                RbpLog.Info("Plan applied from the editor:\n" + PlanFormatter.Describe(_plan));
+                if (_deploymentFinished)
+                {
+                    AdoptPlannedFormations();
+                    if (_fidelityActive)
+                        SetCommanderProfiles();
+                }
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Applying the edited plan failed.", e);
+            }
+        }
+
+        /// <summary>
         /// Only formations that actually have a plan are touched — zero-touch
         /// guarantee (G3) for everything else.
         /// </summary>

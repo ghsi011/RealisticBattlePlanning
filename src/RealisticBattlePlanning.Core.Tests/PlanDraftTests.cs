@@ -47,6 +47,39 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void EditingCopyOfDoesNotMutateTheOriginalUntilCommitted()
+        {
+            // The editor edits a deep copy; the live plan must be untouched
+            // until the player applies the built result (PlanningModeView).
+            var original = new PlanDraft()
+                .AddFormation(PlannedFormationClass.Infantry)
+                .Build();
+
+            var draft = PlanDraft.EditingCopyOf(original);
+            draft.AddFormation(PlannedFormationClass.Ranged);
+            draft.AddStage(PlannedFormationClass.Infantry);
+
+            // Original is unchanged: still one formation with its single opening stage.
+            var formation = Assert.Single(original.Formations);
+            Assert.Single(formation.Stages);
+
+            // The committed copy carries the edits.
+            var edited = draft.Build();
+            Assert.Equal(2, edited.Formations.Count);
+            Assert.Equal(2, edited.Formations.Single(f => f.Formation == PlannedFormationClass.Infantry).Stages.Count);
+        }
+
+        [Fact]
+        public void EditingCopyOfNullYieldsAnEmptyEditableDraft()
+        {
+            var draft = PlanDraft.EditingCopyOf(null);
+
+            Assert.Empty(draft.Build().Formations);
+            draft.AddFormation(PlannedFormationClass.Cavalry);
+            Assert.Single(draft.Build().Formations);
+        }
+
+        [Fact]
         public void StagesAddRemoveAndReorder()
         {
             var draft = new PlanDraft();

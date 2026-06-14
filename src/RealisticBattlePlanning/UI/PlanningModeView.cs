@@ -1,10 +1,12 @@
 using System;
 using RealisticBattlePlanning.Diagnostics;
 using RealisticBattlePlanning.Execution;
-using RealisticBattlePlanning.Planning;
+using RealisticBattlePlanning.Planning.Editing;
+using RealisticBattlePlanning.Planning.Model;
 using TaleWorlds.Engine.GauntletUI;
 using TaleWorlds.GauntletUI.Data;
 using TaleWorlds.InputSystem;
+using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.MountAndBlade.View.MissionViews;
 using TaleWorlds.MountAndBlade.View.Screens;
@@ -13,12 +15,14 @@ using TaleWorlds.ScreenSystem;
 namespace RealisticBattlePlanning.UI
 {
     /// <summary>
-    /// Planning Mode panel (spec A1/A3): during the deployment phase of a
-    /// plannable battle, the toggle key shows a read-only view of the loaded
-    /// plan. First slice of the editor UI — it proves deployment-phase
-    /// Gauntlet injection works; the PlanDraft-backed editing widgets build on
-    /// it. Deployment is already paused, so no time control is needed yet
-    /// (A1.1). Every Gauntlet call is guarded — a UI fault must never take the
+    /// Planning Mode editor (spec A1/A3): during the deployment phase of a
+    /// plannable battle, the toggle key opens an interactive panel over a deep
+    /// copy of the loaded plan (PlanDraft). The player adds/removes formations
+    /// and stages and clicks Apply to commit — at which point the edited plan
+    /// governs this battle. Edits never touch the live plan until Apply, so
+    /// closing without applying discards them. The layer takes input focus
+    /// while open (deployment is already paused, A1.1) and releases it on
+    /// close. Every Gauntlet call is guarded — a UI fault must never take the
     /// mission down.
     /// </summary>
     public sealed class PlanningModeView : MissionView
@@ -27,6 +31,9 @@ namespace RealisticBattlePlanning.UI
 
         /// <summary>Toggle key. Numpad0 to avoid the deployment hotkeys; MCM rebinding arrives with Area F.</summary>
         private static readonly InputKey ToggleKey = InputKey.Numpad0;
+
+        /// <summary>Gauntlet layer local order — high so the editor sits above the deployment HUD for input and rendering.</summary>
+        private const int PlanningLayerOrder = 1000;
 
         /// <summary>
         /// The active mission's planning view, for the rbp.plan console command
@@ -118,13 +125,27 @@ namespace RealisticBattlePlanning.UI
                     return;
                 }
 
-                var plan = _planLogic?.ActivePlan;
-                // Non-blocking feasibility warnings (A3.8) surface in the footer.
-                var validation = plan != null ? PlanValidator.Validate(plan) : null;
-                _dataSource = new PlanningModeVM("Battle Plan", $"{ToggleKey} to close", plan, validation);
-                _layer = new GauntletLayer("RbpPlanningLayer", ViewOrderPriority);
+                // Edit a deep copy: in-progress edits are discarded unless the
+                // player clicks Apply, which commits the built plan back to the
+                // mission (rebuilding the monitor) via ApplyPlan.
+                var draft = PlanDraft.EditingCopyOf(_planLogic?.ActivePlan);
+                _dataSource = new PlanningModeVM("Battle Plan", $"{ToggleKey} to close", draft, ApplyEditedPlan, Hide);
+                // High local order so the layer sits above the deployment UI for
+                // both rendering and input (the deployment HUD/order layers are
+                // low-order; a focus layer underneath them never gets clicks).
+                _layer = new GauntletLayer("RbpPlanningLayer", PlanningLayerOrder, false);
+
+                // Make the panel interactive — this is the exact setup the game's
+                // own MissionGauntletEscapeMenuBase uses for an in-mission overlay:
+                // focus the layer, claim mouse + keyboard (InputUsageMask.All), then
+                // attach and take focus. (For buttons to actually fire, the widgets
+                // themselves must also set DoNotPassEventsToChildren — see the prefab.)
+                _layer.IsFocusLayer = true;
+                _layer.InputRestrictions.SetInputRestrictions(true, InputUsageMask.All);
                 _movie = _layer.LoadMovie(MovieName, _dataSource);
                 _screen.AddLayer(_layer);
+                ScreenManager.TrySetFocus(_layer);
+
                 _shown = true;
                 RbpLog.Info("Planning Mode opened.");
             }
@@ -132,6 +153,21 @@ namespace RealisticBattlePlanning.UI
             {
                 RbpLog.Error("[FAULT] Opening Planning Mode failed.", e);
                 Hide();
+            }
+        }
+
+        // Apply callback handed to the VM: commit the edited plan to the
+        // mission so it governs this battle. Guarded — an apply fault must not
+        // crash the panel or the mission.
+        private void ApplyEditedPlan(BattlePlan plan)
+        {
+            try
+            {
+                _planLogic?.ApplyPlan(plan);
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Applying the edited plan failed.", e);
             }
         }
 
@@ -143,6 +179,11 @@ namespace RealisticBattlePlanning.UI
             {
                 if (_layer != null)
                 {
+                    // Release input focus before tearing the layer down, so the
+                    // deployment screen regains control of the mouse/keyboard.
+                    _layer.InputRestrictions.ResetInputRestrictions();
+                    _layer.IsFocusLayer = false;
+                    ScreenManager.TryLoseFocus(_layer);
                     if (_movie != null)
                         _layer.ReleaseMovie(_movie);
                     _screen?.RemoveLayer(_layer);

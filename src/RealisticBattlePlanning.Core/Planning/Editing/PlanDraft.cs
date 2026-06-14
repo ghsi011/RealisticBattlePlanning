@@ -23,6 +23,22 @@ namespace RealisticBattlePlanning.Planning.Editing
             _plan = plan ?? new BattlePlan();
         }
 
+        /// <summary>
+        /// A draft over a deep copy of <paramref name="plan"/>, so the editor's
+        /// in-progress edits never touch the live plan until the caller commits
+        /// the built result. Round-trips through <see cref="PlanSerializer"/>;
+        /// falls back to an empty draft if the plan can't be cloned.
+        /// </summary>
+        public static PlanDraft EditingCopyOf(BattlePlan plan)
+        {
+            if (plan == null)
+                return new PlanDraft();
+            var json = PlanSerializer.Serialize(plan);
+            return PlanSerializer.TryDeserialize(json, out var copy, out _)
+                ? new PlanDraft(copy)
+                : new PlanDraft();
+        }
+
         /// <summary>The formation classes that already have a plan.</summary>
         public IReadOnlyList<PlannedFormationClass> Formations
             => _plan.Formations.Select(f => f.Formation).ToList();
