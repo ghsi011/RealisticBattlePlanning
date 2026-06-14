@@ -131,6 +131,26 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void TheOnlyFamiliarityBearingProfilePathHonorsTheDrillCap()
+        {
+            // CommanderProfile is what the monitor consumes. There must be a
+            // single way to fold familiarity into it — ProfileFor, which caps
+            // drill at Proficient (C5). FromStats is stats-only and cannot be
+            // the uncapped back door, so a heavily-drilled green companion is
+            // Proficient through the profile, never Veteran/Master.
+            var record = new CommanderRecord();
+            for (var i = 0; i < 500; i++)
+                ProgressionModel.OnStageCompleted(record, inDrill: true);
+
+            var drilled = ProgressionModel.ProfileFor(record, tactics: 30, leadership: 30);
+            Assert.Equal(FidelityTier.Proficient, drilled.Competence);
+
+            var statsOnly = CommanderProfile.FromStats(30, 30);
+            Assert.Equal(FidelityTier.Untrained, statsOnly.Competence);
+            Assert.Equal(CompetenceModel.Score(30, 30, 0), statsOnly.CompetenceScore);
+        }
+
+        [Fact]
         public void DeathLosesEverything()
         {
             var book = new CommanderRecordBook();
