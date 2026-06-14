@@ -392,12 +392,23 @@ namespace RealisticBattlePlanning.Execution
                 var stage = state.Plan.Stages[i];
                 if (DirectiveEvaluable(stage.Do, state, snapshot, out var reason))
                 {
+                    // Skipping past the requested stage means the plan is
+                    // adapting (B6), not carrying out the reaction that was
+                    // rolled for the now-gone stage — so that stage's drift
+                    // must not leak onto its replacement. (Closes the
+                    // pending-activation path, whose caller can't pre-reset
+                    // the way the resume/steering-skip paths do.)
+                    if (i != startIndex)
+                        state.ActiveFidelity = FidelityProfile.Perfect;
                     Activate(state, i, stage, snapshot, events);
                     return;
                 }
                 events.Add(new StageSkipped(state.Plan.Formation, i, reason));
             }
 
+            // Skipped every remaining stage into a hold: no destination to
+            // drift, and the rolled reaction no longer applies.
+            state.ActiveFidelity = FidelityProfile.Perfect;
             ResetStageState(state, Math.Min(startIndex, state.Plan.Stages.Count - 1), snapshot);
             state.ActiveDirective = new ResolvedDirective(new DirectiveSpec { Type = DirectiveType.Hold }, null, null);
             state.Holding = true;

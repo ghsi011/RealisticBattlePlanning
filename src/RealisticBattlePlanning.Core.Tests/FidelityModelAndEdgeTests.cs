@@ -108,6 +108,52 @@ namespace RealisticBattlePlanning.Tests
             Assert.Equal(new MapVec(0f, 50f), move.Directive.FirstMoveTarget.Value);
         }
 
+        [Fact]
+        public void PendingReactionSkipForwardDropsTheStaleDrift()
+        {
+            // Sibling of the steering-skip case above, on the pending-reaction
+            // path: a triggered Skirmish parks for its reaction delay, and the
+            // enemy vanishes *during* that window. When the delay elapses the
+            // stage is no longer evaluable, so the plan skips to the MoveTo —
+            // which must land exactly on its anchor, never offset by the
+            // skirmish's rolled drift.
+            var plan = new BattlePlan
+            {
+                Anchors = { new MapAnchor { Id = "rally", Basis = AnchorBasis.OwnStart, Forward = 30f } },
+                Formations =
+                {
+                    new FormationPlan
+                    {
+                        Formation = PlannedFormationClass.Infantry,
+                        Stages =
+                        {
+                            new Stage { Do = new DirectiveSpec { Type = DirectiveType.Hold } },
+                            new Stage { When = { Timer(1f) }, Do = new DirectiveSpec { Type = DirectiveType.Skirmish, Target = "Nearest" } },
+                            new Stage { When = { Timer(999f) }, Do = new DirectiveSpec { Type = DirectiveType.MoveTo, Anchor = "rally" } },
+                        },
+                    },
+                },
+            };
+            var monitor = new PlanMonitor(plan, new FixedTierFidelityModel(FidelityTier.Untrained), seed: 3);
+
+            // t=0 opening hold; t=1.1 the timer fires and the skirmish parks
+            // pending (Untrained delay 6-10s) with the enemy still present.
+            monitor.Tick(WithEnemy(0f));
+            var parked = monitor.Tick(WithEnemy(1.1f));
+            Assert.Single(parked.OfType<ReactionDelayed>());
+            Assert.DoesNotContain(parked.OfType<StageActivated>(), e => e.Directive.Spec.Type == DirectiveType.Skirmish);
+
+            // Enemy gone from here: past the delay the pending stage finds
+            // itself inevaluable and skips forward to the MoveTo.
+            StageActivated move = null;
+            for (var t = 1.6f; t <= 15f && move == null; t += 0.5f)
+                move = monitor.Tick(Field(t)).OfType<StageActivated>().FirstOrDefault(e => e.Directive.Spec.Type == DirectiveType.MoveTo);
+            Assert.NotNull(move);
+
+            // No stale drift across the pending skip: exactly on the anchor.
+            Assert.Equal(new MapVec(0f, 30f), move.Directive.FirstMoveTarget.Value);
+        }
+
         private static TriggerSpec Timer(float s) => new() { Type = TriggerType.TimerElapsed, Seconds = s };
 
         private static FakeBattlefield Field(float time)
