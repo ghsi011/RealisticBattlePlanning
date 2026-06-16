@@ -73,8 +73,9 @@ public class DevWin {
 }
 "@
 
-# 1. Kill any running instance (unlocks the DLL for redeploy).
-Get-Process -Name 'Bannerlord*','TaleWorlds*' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+# 1. Kill any running instance (unlocks the DLL for redeploy). Also kill the
+#    text-input host, which otherwise steals foreground from computer-use.
+Get-Process -Name 'Bannerlord*','TaleWorlds*','TextInputHost' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep 2
 
 # 2. Build + deploy (unless skipped).
@@ -102,11 +103,12 @@ while ((Get-Date) -lt $deadline) {
     $p = Get-Process -Name 'Bannerlord.BLSE.Standalone' -ErrorAction SilentlyContinue
     if (-not $p) { continue }
     if ($p.MainWindowTitle -match 'Singleplayer') {
+        Get-Process -Name 'TextInputHost' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
         $h = $p.MainWindowHandle
         [DevWin]::ShowWindow($h, 9) | Out-Null            # SW_RESTORE
         [DevWin]::MoveWindow($h, 0, 0, $WidthPx, $HeightPx, $true) | Out-Null
         [DevWin]::SetForegroundWindow($h) | Out-Null
-        Write-Output "READY: menu up, window pinned at (0,0) ${WidthPx}x${HeightPx}."
+        Write-Output "READY: menu up, window pinned at (0,0) ${WidthPx}x${HeightPx} (run tools\focus-game.ps1 before driving if needed)."
         exit 0
     }
 }
