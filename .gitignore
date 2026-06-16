@@ -65,3 +65,4 @@ nunit-*.xml
 # Per-machine build config (copied from local.props.example)
 local.props
 
+COMMIT_MSG.tmp
