@@ -89,7 +89,7 @@ namespace RealisticBattlePlanning.UI
                 var formationPlan = plan.Formations.FirstOrDefault(f => f.Formation == cls)
                                     ?? new FormationPlan { Formation = cls };
                 _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage,
-                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenAbortPicker));
+                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenAbortPicker, ClearFormation));
             }
 
             HasPlan = _formations.Count > 0;
@@ -129,7 +129,16 @@ namespace RealisticBattlePlanning.UI
             if (formation == null || formation.Stages.Count == 0)
                 return;
             _draft.RemoveStage(cls, formation.Stages.Count - 1);
-            StatusText = $"Removed a stage from {cls}.";
+            StatusText = $"Removed a stage from Formation {SlotNumber(cls)}.";
+            Refresh();
+        }
+
+        // Drops a formation's whole plan; the card stays (it has troops) but
+        // reverts to uncommanded — holds by default.
+        private void ClearFormation(PlannedFormationClass cls)
+        {
+            _draft.RemoveFormation(cls);
+            StatusText = $"Formation {SlotNumber(cls)} cleared — now uncommanded.";
             Refresh();
         }
 
@@ -480,6 +489,7 @@ namespace RealisticBattlePlanning.UI
         private readonly Action<PlannedFormationClass> _addStage;
         private readonly Action<PlannedFormationClass> _removeStage;
         private readonly Action<PlannedFormationClass> _editAbort;
+        private readonly Action<PlannedFormationClass> _clearFormation;
 
         public FormationPlanItemVM(
             FormationPlan formation,
@@ -490,12 +500,14 @@ namespace RealisticBattlePlanning.UI
             Action<PlannedFormationClass, int> editDirective,
             Action<PlannedFormationClass, int> editTriggerParam,
             Action<PlannedFormationClass, int> editDirectiveParam,
-            Action<PlannedFormationClass> editAbort)
+            Action<PlannedFormationClass> editAbort,
+            Action<PlannedFormationClass> clearFormation)
         {
             _formation = formation.Formation;
             _addStage = addStage;
             _removeStage = removeStage;
             _editAbort = editAbort;
+            _clearFormation = clearFormation;
             NameText = headerText;
             // A formation with stages is commanded (show its abort rule + stages);
             // one without is uncommanded — it holds by default until given orders.
@@ -522,6 +534,7 @@ namespace RealisticBattlePlanning.UI
         public void ExecuteAddStage() => _addStage?.Invoke(_formation);
         public void ExecuteRemoveStage() => _removeStage?.Invoke(_formation);
         public void ExecuteEditAbort() => _editAbort?.Invoke(_formation);
+        public void ExecuteClearFormation() => _clearFormation?.Invoke(_formation);
 
         [DataSourceProperty] public string NameText { get; }
         [DataSourceProperty] public string AbortText { get; }
