@@ -35,13 +35,11 @@ namespace RealisticBattlePlanning.UI
         private string _statusText;
         private string _warningsText;
         private string _errorsText;
-        private string _addFormationText;
         private string _emptyText;
         private bool _hasWarnings;
         private bool _hasErrors;
         private bool _hasStatus;
         private bool _hasPlan;
-        private bool _isAddFormationDisabled;
         private MBBindingList<FormationPlanItemVM> _formations;
 
         public PlanningModeVM(string title, string hint, PlanDraft draft, Action<BattlePlan> onApply, Action onClose,
@@ -72,12 +70,25 @@ namespace RealisticBattlePlanning.UI
         {
             var plan = _draft.Build();
             _formations.Clear();
-            foreach (var formation in plan.Formations)
-                _formations.Add(new FormationPlanItemVM(formation, HeaderFor(formation.Formation), AddStage, RemoveStage, CycleTrigger, CycleDirective));
 
-            HasPlan = plan.Formations.Count > 0;
-            EmptyText = HasPlan ? "" :
-                "No formations planned yet.\nAdd a formation, give it stages (click When / Do to change them), then Apply.";
+            // One card per REAL formation, ordered by number: every deployment slot
+            // that has troops (from live composition) plus any slot that already has
+            // a plan. A slot with stages is commanded; a slot without is shown as
+            // "uncommanded" (holds by default) with a + Stage to start giving orders.
+            // When there is no live composition data (engine read failed / not in a
+            // mission) we fall back to whatever the plan already contains.
+            var slots = new SortedSet<PlannedFormationClass>();
+            foreach (var k in _compositionLabels.Keys) slots.Add(k);
+            foreach (var f in plan.Formations) slots.Add(f.Formation);
+            foreach (var cls in slots)
+            {
+                var formationPlan = plan.Formations.FirstOrDefault(f => f.Formation == cls)
+                                    ?? new FormationPlan { Formation = cls };
+                _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage, CycleTrigger, CycleDirective));
+            }
+
+            HasPlan = _formations.Count > 0;
+            EmptyText = HasPlan ? "" : "No formations with troops to command.";
 
             SignalsText = plan.PlayerSignals.Count > 0
                 ? "SIGNALS    " + string.Join("     ", plan.PlayerSignals.Select(s => $"[ {s} ]"))
@@ -92,26 +103,6 @@ namespace RealisticBattlePlanning.UI
             ErrorsText = HasErrors ? $"{validation.Errors.Count} error(s):   " + string.Join("      ", validation.Errors) : "";
             HasWarnings = validation.Warnings.Count > 0;
             WarningsText = HasWarnings ? $"{validation.Warnings.Count} warning(s):   " + string.Join("      ", validation.Warnings) : "";
-
-            var next = NextUnplannedClass(plan);
-            IsAddFormationDisabled = next == null;
-            AddFormationText = next is { } n ? $"+  Add Formation {SlotNumber(n)}" : "All formations planned";
-        }
-
-        // The next slot to offer "Add Formation" for: the lowest-numbered slot
-        // that has troops but no plan yet. Falls back to every slot when there is
-        // no live composition data (engine read failed / not in a mission), so the
-        // editor never locks out adding.
-        private PlannedFormationClass? NextUnplannedClass(BattlePlan plan)
-        {
-            var planned = new HashSet<PlannedFormationClass>(plan.Formations.Select(f => f.Formation));
-            var candidates = _compositionLabels.Count > 0
-                ? _compositionLabels.Keys.AsEnumerable()
-                : Enum.GetValues(typeof(PlannedFormationClass)).Cast<PlannedFormationClass>();
-            foreach (var c in candidates.OrderBy(c => (int)c))
-                if (!planned.Contains(c))
-                    return c;
-            return null;
         }
 
         private void AddStage(PlannedFormationClass cls)
@@ -228,16 +219,6 @@ namespace RealisticBattlePlanning.UI
         private static string Spaced(string pascal)
             => string.Concat(pascal.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + c : c.ToString()));
 
-        public void ExecuteAddFormation()
-        {
-            if (NextUnplannedClass(_draft.Build()) is { } next)
-            {
-                _draft.AddFormation(next);
-                StatusText = $"Added Formation {SlotNumber(next)} (with a default opening stage).";
-                Refresh();
-            }
-        }
-
         public void ExecuteApply()
         {
             var plan = _draft.Build();
@@ -260,14 +241,12 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public bool HasWarnings { get => _hasWarnings; set { if (value != _hasWarnings) { _hasWarnings = value; OnPropertyChangedWithValue(value, "HasWarnings"); } } }
         [DataSourceProperty] public bool HasErrors { get => _hasErrors; set { if (value != _hasErrors) { _hasErrors = value; OnPropertyChangedWithValue(value, "HasErrors"); } } }
         [DataSourceProperty] public bool HasStatus { get => _hasStatus; set { if (value != _hasStatus) { _hasStatus = value; OnPropertyChangedWithValue(value, "HasStatus"); } } }
-        [DataSourceProperty] public bool IsAddFormationDisabled { get => _isAddFormationDisabled; set { if (value != _isAddFormationDisabled) { _isAddFormationDisabled = value; OnPropertyChangedWithValue(value, "IsAddFormationDisabled"); } } }
         [DataSourceProperty] public string TitleText { get => _titleText; set { if (value != _titleText) { _titleText = value; OnPropertyChangedWithValue(value, "TitleText"); } } }
         [DataSourceProperty] public string HintText { get => _hintText; set { if (value != _hintText) { _hintText = value; OnPropertyChangedWithValue(value, "HintText"); } } }
         [DataSourceProperty] public string SignalsText { get => _signalsText; set { if (value != _signalsText) { _signalsText = value; OnPropertyChangedWithValue(value, "SignalsText"); } } }
         [DataSourceProperty] public string WarningsText { get => _warningsText; set { if (value != _warningsText) { _warningsText = value; OnPropertyChangedWithValue(value, "WarningsText"); } } }
         [DataSourceProperty] public string ErrorsText { get => _errorsText; set { if (value != _errorsText) { _errorsText = value; OnPropertyChangedWithValue(value, "ErrorsText"); } } }
         [DataSourceProperty] public string EmptyText { get => _emptyText; set { if (value != _emptyText) { _emptyText = value; OnPropertyChangedWithValue(value, "EmptyText"); } } }
-        [DataSourceProperty] public string AddFormationText { get => _addFormationText; set { if (value != _addFormationText) { _addFormationText = value; OnPropertyChangedWithValue(value, "AddFormationText"); } } }
         [DataSourceProperty] public string StatusText { get => _statusText; set { if (value != _statusText) { _statusText = value; OnPropertyChangedWithValue(value, "StatusText"); HasStatus = !string.IsNullOrEmpty(value); } } }
         [DataSourceProperty] public MBBindingList<FormationPlanItemVM> Formations { get => _formations; set { if (value != _formations) { _formations = value; OnPropertyChangedWithValue(value, "Formations"); } } }
     }
@@ -291,7 +270,12 @@ namespace RealisticBattlePlanning.UI
             _addStage = addStage;
             _removeStage = removeStage;
             NameText = headerText;
+            // A formation with stages is commanded (show its abort rule + stages);
+            // one without is uncommanded — it holds by default until given orders.
+            HasStages = formation.Stages.Count > 0;
+            IsUncommanded = !HasStages;
             AbortText = PlanFormatter.DescribeAbort(formation.Abort);
+            UncommandedText = "Uncommanded — holds position. Add a stage to give it orders.";
             CanRemove = formation.Stages.Count > 0;
             IsRemoveDisabled = !CanRemove;
             Stages = new MBBindingList<StageItemVM>();
@@ -311,6 +295,9 @@ namespace RealisticBattlePlanning.UI
 
         [DataSourceProperty] public string NameText { get; }
         [DataSourceProperty] public string AbortText { get; }
+        [DataSourceProperty] public string UncommandedText { get; }
+        [DataSourceProperty] public bool HasStages { get; }
+        [DataSourceProperty] public bool IsUncommanded { get; }
         [DataSourceProperty] public bool CanRemove { get; }
         [DataSourceProperty] public bool IsRemoveDisabled { get; }
         [DataSourceProperty] public MBBindingList<StageItemVM> Stages { get; }

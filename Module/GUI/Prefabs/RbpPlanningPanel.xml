@@ -1,12 +1,13 @@
 <Prefab>
   <!--
     Planning Mode editor. A dark, framed panel centred at the top (clear of the
-    left/right formation cards): an accented header bar, one card per formation
-    (name + abort rule + "When -> Do" stage rows, each card with - Stage / +
-    Stage controls), a footer with declared player signals and feasibility
-    warnings, and a bottom action bar (Add Formation, a live status line, Apply,
-    Close). The layer takes input focus while open; buttons drive the VM, which
-    mutates a PlanDraft and re-renders. Wording comes from Core's PlanFormatter.
+    left/right formation cards): an accented header bar, one card per live
+    formation 1-8 ("N - composition" header; commanded cards show abort rule +
+    "When -> Do" stage rows with - Stage / + Stage, uncommanded ones show a hint),
+    a footer with player signals + live validation (errors red, warnings amber),
+    and a bottom action bar (status line, Apply, Close). The layer takes input
+    focus while open; buttons drive the VM, which mutates a PlanDraft and
+    re-renders. Wording comes from Core's PlanFormatter.
   -->
   <Window>
     <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent">
@@ -95,9 +96,12 @@
                                     </ListPanel>
                                   </Children>
                                 </Widget>
-                                <!-- Abort rule -->
-                                <TextWidget Text="@AbortText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
+                                <!-- Abort rule (commanded) or an "uncommanded" hint (no stages) -->
+                                <TextWidget Text="@AbortText" IsVisible="@HasStages" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
                                             Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#8C8470FF"
+                                            Brush.TextHorizontalAlignment="Left" />
+                                <TextWidget Text="@UncommandedText" IsVisible="@IsUncommanded" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
+                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#79767FCC"
                                             Brush.TextHorizontalAlignment="Left" />
                                 <!-- Divider -->
                                 <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="1"
@@ -188,25 +192,14 @@
               </Children>
             </Widget>
 
-            <!-- Action bar: Add Formation (left) | status (centre) | Apply, Close (right) -->
+            <!-- Action bar: status (left) | Apply, Close (right) -->
             <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="42"
                     VerticalAlignment="Bottom" MarginLeft="26" MarginRight="26" MarginBottom="12">
               <Children>
-                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteAddFormation" IsDisabled="@IsAddFormationDisabled"
-                              Brush="Rbp.Btn.Neutral"
-                              HorizontalAlignment="Left" VerticalAlignment="Center"
-                              WidthSizePolicy="Fixed" SuggestedWidth="210" HeightSizePolicy="Fixed" SuggestedHeight="38">
-                  <Children>
-                    <TextWidget Text="@AddFormationText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#D7E1EDFF"
-                                Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
-                  </Children>
-                </ButtonWidget>
-
                 <TextWidget Text="@StatusText" IsVisible="@HasStatus" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                            MarginLeft="222" MarginRight="252"
+                            MarginLeft="4" MarginRight="252"
                             Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#9FD6A0FF"
-                            Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                            Brush.TextHorizontalAlignment="Left" Brush.TextVerticalAlignment="Center" />
 
                 <ListPanel HorizontalAlignment="Right" VerticalAlignment="Center"
                            WidthSizePolicy="CoverChildren" HeightSizePolicy="Fixed" SuggestedHeight="38"
