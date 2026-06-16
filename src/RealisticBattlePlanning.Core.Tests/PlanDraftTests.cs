@@ -182,6 +182,20 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void EmitSignalCanBeRemovedCaseInsensitively()
+        {
+            var draft = new PlanDraft();
+            draft.AddStage(PlannedFormationClass.Infantry, Named("go"));
+            draft.EmitSignal(PlannedFormationClass.Infantry, 0, "flank");
+            draft.EmitSignal(PlannedFormationClass.Infantry, 0, "charge");
+
+            draft.RemoveEmitSignal(PlannedFormationClass.Infantry, 0, "FLANK"); // case-insensitive
+            draft.RemoveEmitSignal(PlannedFormationClass.Infantry, 0, "absent"); // harmless no-op
+
+            Assert.Equal(new[] { "charge" }, draft.Build().Formations[0].Stages[0].Emit);
+        }
+
+        [Fact]
         public void PatternInsertBuildsAValidConductedPlan()
         {
             var draft = new PlanDraft().DeclarePlayerSignal("charge");

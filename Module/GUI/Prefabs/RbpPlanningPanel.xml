@@ -196,9 +196,17 @@
                                                             Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                                               </Children>
                                             </ButtonWidget>
-                                            <TextWidget Text="@EmitText" IsVisible="@HasEmit" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="2"
-                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#7E9A7EFF"
-                                                        Brush.TextHorizontalAlignment="Left" />
+                                            <!-- Emit chip: click to manage the signals this stage broadcasts when it activates -->
+                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditEmit" Brush="Rbp.Field"
+                                                          HorizontalAlignment="Left" MarginTop="3"
+                                                          WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren">
+                                              <Children>
+                                                <TextWidget Text="@EmitText" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
+                                                            MarginLeft="6" MarginRight="6" MarginTop="1" MarginBottom="1"
+                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#7E9A7EFF"
+                                                            Brush.TextHorizontalAlignment="Left" />
+                                              </Children>
+                                            </ButtonWidget>
                                           </Children>
                                         </ListPanel>
                                       </Children>

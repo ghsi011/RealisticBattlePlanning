@@ -154,6 +154,14 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
+        /// <summary>Stops a stage from broadcasting <paramref name="signal"/> (case-insensitive). No-ops if absent.</summary>
+        public PlanDraft RemoveEmitSignal(PlannedFormationClass formation, int stageIndex, string signal)
+        {
+            var stage = StageAt(formation, stageIndex);
+            stage?.Emit.RemoveAll(s => string.Equals(s, signal, System.StringComparison.OrdinalIgnoreCase));
+            return this;
+        }
+
         /// <summary>
         /// Sets a formation's abort conditions (A3.7); only the provided values
         /// change. The casualty threshold is clamped to the valid (0, 100]

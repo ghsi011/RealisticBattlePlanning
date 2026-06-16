@@ -89,7 +89,7 @@ namespace RealisticBattlePlanning.UI
                 var formationPlan = plan.Formations.FirstOrDefault(f => f.Formation == cls)
                                     ?? new FormationPlan { Formation = cls };
                 _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage,
-                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenAbortPicker, ClearFormation,
+                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenEmitPicker, OpenAbortPicker, ClearFormation,
                     MoveStageUp, MoveStageDown));
             }
 
@@ -350,6 +350,45 @@ namespace RealisticBattlePlanning.UI
             Refresh();
         }
 
+        // Clicking a stage's "emit" chip manages the signals it broadcasts when it
+        // activates (A3.4): other formations' "Signal Received" triggers react to
+        // them. Emit and receive share one vocabulary — the declared signals in the
+        // SIGNALS footer — so a stage can only emit a signal that's been declared.
+        private void OpenEmitPicker(PlannedFormationClass cls, int stageIndex)
+        {
+            var plan = _draft.Build();
+            var stage = StageAt(plan, cls, stageIndex);
+            if (stage == null)
+                return;
+            _pickerOptions.Clear();
+            foreach (var s in stage.Emit.ToList())
+            {
+                var sig = s;
+                AddPickerOption($"Stop emitting  '{sig}'", true, () =>
+                { _draft.RemoveEmitSignal(cls, stageIndex, sig); EmitPicked(cls, stageIndex, $"stopped emitting '{sig}'"); });
+            }
+            foreach (var sig in plan.PlayerSignals)
+            {
+                if (stage.Emit.Any(e => string.Equals(e, sig, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+                var s = sig;
+                AddPickerOption($"Emit  '{s}'", false, () =>
+                { _draft.EmitSignal(cls, stageIndex, s); EmitPicked(cls, stageIndex, $"emits '{s}'"); });
+            }
+            if (_pickerOptions.Count == 0)
+                // No declared signals to emit — point the player at the footer manager.
+                AddPickerOption("(no signals declared — add them in the SIGNALS footer first)", false, ClosePicker);
+            PickerTitle = $"Formation {SlotNumber(cls)}  ·  Stage {stageIndex + 1}  ·  Emit on activate";
+            PickerOpen = true;
+        }
+
+        private void EmitPicked(PlannedFormationClass cls, int stageIndex, string what)
+        {
+            StatusText = $"Formation {SlotNumber(cls)} stage {stageIndex + 1}: {what}.";
+            ClosePicker();
+            Refresh();
+        }
+
         // Clicking a formation's abort line opens a picker to set the casualty
         // threshold and toggle the broken / commander-down clauses (A3.7).
         private void OpenAbortPicker(PlannedFormationClass cls)
@@ -548,6 +587,7 @@ namespace RealisticBattlePlanning.UI
             Action<PlannedFormationClass, int> editDirective,
             Action<PlannedFormationClass, int> editTriggerParam,
             Action<PlannedFormationClass, int> editDirectiveParam,
+            Action<PlannedFormationClass, int> editEmit,
             Action<PlannedFormationClass> editAbort,
             Action<PlannedFormationClass> clearFormation,
             Action<PlannedFormationClass, int> moveStageUp,
@@ -579,6 +619,7 @@ namespace RealisticBattlePlanning.UI
                     () => editDirective?.Invoke(cls, index),
                     () => editTriggerParam?.Invoke(cls, index),
                     () => editDirectiveParam?.Invoke(cls, index),
+                    () => editEmit?.Invoke(cls, index),
                     () => moveStageUp?.Invoke(cls, index),
                     () => moveStageDown?.Invoke(cls, index)));
             }
@@ -607,16 +648,18 @@ namespace RealisticBattlePlanning.UI
         private readonly Action _editDirective;
         private readonly Action _editTriggerParam;
         private readonly Action _editDirectiveParam;
+        private readonly Action _editEmit;
         private readonly Action _moveUp;
         private readonly Action _moveDown;
 
         public StageItemVM(int index, int stageCount, Stage stage, Action editTrigger, Action editDirective,
-            Action editTriggerParam, Action editDirectiveParam, Action moveUp, Action moveDown)
+            Action editTriggerParam, Action editDirectiveParam, Action editEmit, Action moveUp, Action moveDown)
         {
             _editTrigger = editTrigger;
             _editDirective = editDirective;
             _editTriggerParam = editTriggerParam;
             _editDirectiveParam = editDirectiveParam;
+            _editEmit = editEmit;
             _moveUp = moveUp;
             _moveDown = moveDown;
             IsMoveUpDisabled = index <= 0;
@@ -624,8 +667,10 @@ namespace RealisticBattlePlanning.UI
             NumberText = (index + 1).ToString();
             TriggerText = "When:  " + PlanFormatter.DescribeWhen(stage, index);
             DirectiveText = "Do:  " + PlanFormatter.DescribeDirective(stage.Do);
-            EmitText = stage.Emit.Count > 0 ? "→ signals  " + string.Join(", ", stage.Emit) : "";
+            // The emit chip is always present (click to manage); its label shows the
+            // broadcast signals, or a "+ emit signal" affordance when there are none.
             HasEmit = stage.Emit.Count > 0;
+            EmitText = HasEmit ? "→ emits  " + string.Join(", ", stage.Emit) : "+ emit signal";
 
             var trig = stage.When.Count > 0 ? stage.When[0] : null;
             (HasTriggerParam, TriggerParamLabel) = TriggerParam(trig);
@@ -636,6 +681,7 @@ namespace RealisticBattlePlanning.UI
         public void ExecuteEditDirective() => _editDirective?.Invoke();
         public void ExecuteEditTriggerParam() => _editTriggerParam?.Invoke();
         public void ExecuteEditDirectiveParam() => _editDirectiveParam?.Invoke();
+        public void ExecuteEditEmit() => _editEmit?.Invoke();
         public void ExecuteMoveUp() => _moveUp?.Invoke();
         public void ExecuteMoveDown() => _moveDown?.Invoke();
 
