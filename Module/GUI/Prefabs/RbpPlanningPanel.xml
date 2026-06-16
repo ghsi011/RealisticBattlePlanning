@@ -97,9 +97,15 @@
                                   </Children>
                                 </Widget>
                                 <!-- Abort rule (commanded) or an "uncommanded" hint (no stages) -->
-                                <TextWidget Text="@AbortText" IsVisible="@HasStages" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
-                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#8C8470FF"
-                                            Brush.TextHorizontalAlignment="Left" />
+                                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditAbort" IsVisible="@HasStages" Brush="Rbp.Field"
+                                              WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1">
+                                  <Children>
+                                    <TextWidget Text="@AbortText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                                MarginLeft="6" MarginRight="6" MarginTop="1" MarginBottom="1"
+                                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#9C9480FF"
+                                                Brush.TextHorizontalAlignment="Left" />
+                                  </Children>
+                                </ButtonWidget>
                                 <TextWidget Text="@UncommandedText" IsVisible="@IsUncommanded" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
                                             Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#79767FCC"
                                             Brush.TextHorizontalAlignment="Left" />

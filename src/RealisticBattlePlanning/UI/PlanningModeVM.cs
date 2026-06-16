@@ -89,7 +89,7 @@ namespace RealisticBattlePlanning.UI
                 var formationPlan = plan.Formations.FirstOrDefault(f => f.Formation == cls)
                                     ?? new FormationPlan { Formation = cls };
                 _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage,
-                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker));
+                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenAbortPicker));
             }
 
             HasPlan = _formations.Count > 0;
@@ -324,6 +324,36 @@ namespace RealisticBattlePlanning.UI
             Refresh();
         }
 
+        // Clicking a formation's abort line opens a picker to set the casualty
+        // threshold and toggle the broken / commander-down clauses (A3.7).
+        private void OpenAbortPicker(PlannedFormationClass cls)
+        {
+            var formation = _draft.Build().Formations.FirstOrDefault(f => f.Formation == cls);
+            if (formation == null)
+                return; // only commanded formations have an abort rule to edit
+            var abort = formation.Abort;
+            _pickerOptions.Clear();
+            foreach (var pct in new[] { 30f, 40f, 50f, 60f, 70f, 80f, 90f })
+            {
+                var p = pct;
+                AddPickerOption($"Abort above {p:0}% casualties", System.Math.Abs(abort.CasualtiesAbovePercent - p) < 0.5f, () =>
+                { _draft.SetAbortConditions(cls, casualtiesAbovePercent: p); AbortPicked(cls, $"abort above {p:0}% casualties"); });
+            }
+            AddPickerOption(abort.OnFormationBroken ? "Abort if broken:  ON  →  turn off" : "Abort if broken:  off  →  turn on", abort.OnFormationBroken, () =>
+            { _draft.SetAbortConditions(cls, onFormationBroken: !abort.OnFormationBroken); AbortPicked(cls, $"abort-if-broken {(!abort.OnFormationBroken ? "on" : "off")}"); });
+            AddPickerOption(abort.OnCommanderIncapacitated ? "Abort if commander down:  ON  →  turn off" : "Abort if commander down:  off  →  turn on", abort.OnCommanderIncapacitated, () =>
+            { _draft.SetAbortConditions(cls, onCommanderIncapacitated: !abort.OnCommanderIncapacitated); AbortPicked(cls, $"abort-if-commander-down {(!abort.OnCommanderIncapacitated ? "on" : "off")}"); });
+            PickerTitle = $"Formation {SlotNumber(cls)}  ·  Abort conditions";
+            PickerOpen = true;
+        }
+
+        private void AbortPicked(PlannedFormationClass cls, string what)
+        {
+            StatusText = $"Formation {SlotNumber(cls)}: {what}.";
+            ClosePicker();
+            Refresh();
+        }
+
         private static IEnumerable<string> EnemyTargets()
         {
             yield return "Nearest";
@@ -449,6 +479,7 @@ namespace RealisticBattlePlanning.UI
         private readonly PlannedFormationClass _formation;
         private readonly Action<PlannedFormationClass> _addStage;
         private readonly Action<PlannedFormationClass> _removeStage;
+        private readonly Action<PlannedFormationClass> _editAbort;
 
         public FormationPlanItemVM(
             FormationPlan formation,
@@ -458,11 +489,13 @@ namespace RealisticBattlePlanning.UI
             Action<PlannedFormationClass, int> editTrigger,
             Action<PlannedFormationClass, int> editDirective,
             Action<PlannedFormationClass, int> editTriggerParam,
-            Action<PlannedFormationClass, int> editDirectiveParam)
+            Action<PlannedFormationClass, int> editDirectiveParam,
+            Action<PlannedFormationClass> editAbort)
         {
             _formation = formation.Formation;
             _addStage = addStage;
             _removeStage = removeStage;
+            _editAbort = editAbort;
             NameText = headerText;
             // A formation with stages is commanded (show its abort rule + stages);
             // one without is uncommanded — it holds by default until given orders.
@@ -488,6 +521,7 @@ namespace RealisticBattlePlanning.UI
 
         public void ExecuteAddStage() => _addStage?.Invoke(_formation);
         public void ExecuteRemoveStage() => _removeStage?.Invoke(_formation);
+        public void ExecuteEditAbort() => _editAbort?.Invoke(_formation);
 
         [DataSourceProperty] public string NameText { get; }
         [DataSourceProperty] public string AbortText { get; }
