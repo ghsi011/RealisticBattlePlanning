@@ -88,7 +88,8 @@ namespace RealisticBattlePlanning.UI
             {
                 var formationPlan = plan.Formations.FirstOrDefault(f => f.Formation == cls)
                                     ?? new FormationPlan { Formation = cls };
-                _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage, OpenTriggerPicker, OpenDirectivePicker));
+                _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage,
+                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker));
             }
 
             HasPlan = _formations.Count > 0;
@@ -189,6 +190,153 @@ namespace RealisticBattlePlanning.UI
         }
 
         public void ExecuteClosePicker() => ClosePicker();
+
+        // Clicking a When line's value chip opens a picker for the current
+        // trigger type's editable parameter (distance / %, / time / anchor /
+        // signal). Selecting a value mutates the draft's trigger in place and
+        // re-renders. Types without an editable parameter have no chip.
+        private void OpenTriggerParamPicker(PlannedFormationClass cls, int stageIndex)
+        {
+            var plan = _draft.Build();
+            var stage = StageAt(plan, cls, stageIndex);
+            if (stage == null || stage.When.Count == 0)
+                return;
+            var t = stage.When[0];
+            var name = "";
+
+            void Numeric(string param, string unit, float? current, float[] presets, Action<float> set)
+            {
+                name = param;
+                foreach (var v in presets)
+                {
+                    var val = v;
+                    AddPickerOption($"{val:0.#} {unit}", current is { } c && System.Math.Abs(c - val) < 0.01f, () =>
+                    { set(val); ParamPicked(cls, stageIndex, param, $"{val:0.#} {unit}"); });
+                }
+            }
+            void Choices(string param, IEnumerable<string> choices, string current, Action<string> set)
+            {
+                name = param;
+                foreach (var c in choices)
+                {
+                    var ch = c;
+                    AddPickerOption(ch, string.Equals(ch, current, StringComparison.OrdinalIgnoreCase), () =>
+                    { set(ch); ParamPicked(cls, stageIndex, param, ch); });
+                }
+            }
+
+            _pickerOptions.Clear();
+            switch (t.Type)
+            {
+                case TriggerType.EnemyWithinDistance:
+                case TriggerType.FriendlyWithinDistance:
+                case TriggerType.EnemyCommits:
+                    Numeric("Distance", "m", t.Meters, new[] { 20f, 40f, 60f, 80f, 100f, 120f, 150f }, v => t.Meters = v); break;
+                case TriggerType.CasualtiesAbove:
+                    Numeric("Casualties", "%", t.Percent, new[] { 10f, 20f, 30f, 40f, 50f, 60f, 70f, 80f }, v => t.Percent = v); break;
+                case TriggerType.TimerElapsed:
+                    Numeric("Time", "s", t.Seconds, new[] { 5f, 10f, 15f, 30f, 45f, 60f, 90f, 120f }, v => t.Seconds = v); break;
+                case TriggerType.PositionReached:
+                    Choices("Anchor", plan.Anchors.Select(a => a.Id), t.Anchor, a => t.Anchor = a); break;
+                case TriggerType.SignalReceived:
+                case TriggerType.PlayerSignal:
+                    Choices("Signal", plan.PlayerSignals, t.Signal, s => t.Signal = s); break;
+                default:
+                    return;
+            }
+            ShowParamPicker(cls, stageIndex, "When", name);
+        }
+
+        // Clicking a Do line's value chip opens a picker for the current
+        // directive type's editable parameter.
+        private void OpenDirectiveParamPicker(PlannedFormationClass cls, int stageIndex)
+        {
+            var plan = _draft.Build();
+            var stage = StageAt(plan, cls, stageIndex);
+            if (stage?.Do == null)
+                return;
+            var d = stage.Do;
+            var name = "";
+
+            void Numeric(string param, string unit, float? current, float[] presets, Action<float> set)
+            {
+                name = param;
+                foreach (var v in presets)
+                {
+                    var val = v;
+                    AddPickerOption($"{val:0.#} {unit}", current is { } c && System.Math.Abs(c - val) < 0.01f, () =>
+                    { set(val); ParamPicked(cls, stageIndex, param, $"{val:0.#} {unit}"); });
+                }
+            }
+            void Choices(string param, IEnumerable<string> choices, string current, Action<string> set)
+            {
+                name = param;
+                foreach (var c in choices)
+                {
+                    var ch = c;
+                    AddPickerOption(ch, string.Equals(ch, current, StringComparison.OrdinalIgnoreCase), () =>
+                    { set(ch); ParamPicked(cls, stageIndex, param, ch); });
+                }
+            }
+
+            _pickerOptions.Clear();
+            switch (d.Type)
+            {
+                case DirectiveType.MoveTo:
+                case DirectiveType.FeignRetreat:
+                case DirectiveType.PullBack:
+                    Choices("Anchor", plan.Anchors.Select(a => a.Id), d.Anchor, a => d.Anchor = a); break;
+                case DirectiveType.Skirmish:
+                    Numeric("Standoff", "m", d.StandoffMeters ?? 60f, new[] { 20f, 40f, 60f, 80f, 100f }, v => d.StandoffMeters = v); break;
+                case DirectiveType.Screen:
+                    Numeric("Gap", "m", d.GapMeters ?? 30f, new[] { 10f, 20f, 30f, 40f, 60f }, v => d.GapMeters = v); break;
+                case DirectiveType.FlankArc:
+                    Choices("Side", new[] { "Left", "Right" }, d.Side?.ToString(), s => d.Side = (FlankSide)Enum.Parse(typeof(FlankSide), s)); break;
+                case DirectiveType.FireControl:
+                    Choices("Fire", new[] { "Hold", "Free" }, d.Fire?.ToString(), s => d.Fire = (FireMode)Enum.Parse(typeof(FireMode), s)); break;
+                case DirectiveType.Hold:
+                    Choices("Arrangement", Enum.GetNames(typeof(Arrangement)), (d.Arrangement ?? Arrangement.Line).ToString(),
+                        s => d.Arrangement = (Arrangement)Enum.Parse(typeof(Arrangement), s)); break;
+                case DirectiveType.Charge:
+                    Choices("Target", EnemyTargets(), d.Target, x => d.Target = x); break;
+                case DirectiveType.Follow:
+                    Choices("Follow", FriendlyTargets(), d.Target, x => d.Target = x); break;
+                default:
+                    return;
+            }
+            ShowParamPicker(cls, stageIndex, "Do", name);
+        }
+
+        private void AddPickerOption(string label, bool isCurrent, Action set) =>
+            _pickerOptions.Add(new PickerOptionVM(label, isCurrent, set));
+
+        private void ShowParamPicker(PlannedFormationClass cls, int stageIndex, string line, string param)
+        {
+            if (_pickerOptions.Count == 0) { ClosePicker(); return; }
+            PickerTitle = $"Formation {SlotNumber(cls)}  ·  Stage {stageIndex + 1}  ·  {line} {param}";
+            PickerOpen = true;
+        }
+
+        private void ParamPicked(PlannedFormationClass cls, int stageIndex, string param, string value)
+        {
+            StatusText = $"Formation {SlotNumber(cls)} stage {stageIndex + 1}: {param} → {value}.";
+            ClosePicker();
+            Refresh();
+        }
+
+        private static IEnumerable<string> EnemyTargets()
+        {
+            yield return "Nearest";
+            foreach (PlannedFormationClass c in Enum.GetValues(typeof(PlannedFormationClass)))
+                yield return c.ToString();
+        }
+
+        private static IEnumerable<string> FriendlyTargets()
+        {
+            yield return "Player";
+            foreach (PlannedFormationClass c in Enum.GetValues(typeof(PlannedFormationClass)))
+                yield return c.ToString();
+        }
 
         private static Stage StageAt(BattlePlan plan, PlannedFormationClass cls, int stageIndex)
         {
@@ -308,7 +456,9 @@ namespace RealisticBattlePlanning.UI
             Action<PlannedFormationClass> addStage,
             Action<PlannedFormationClass> removeStage,
             Action<PlannedFormationClass, int> editTrigger,
-            Action<PlannedFormationClass, int> editDirective)
+            Action<PlannedFormationClass, int> editDirective,
+            Action<PlannedFormationClass, int> editTriggerParam,
+            Action<PlannedFormationClass, int> editDirectiveParam)
         {
             _formation = formation.Formation;
             _addStage = addStage;
@@ -330,7 +480,9 @@ namespace RealisticBattlePlanning.UI
                 Stages.Add(new StageItemVM(
                     i, formation.Stages[i],
                     () => editTrigger?.Invoke(cls, index),
-                    () => editDirective?.Invoke(cls, index)));
+                    () => editDirective?.Invoke(cls, index),
+                    () => editTriggerParam?.Invoke(cls, index),
+                    () => editDirectiveParam?.Invoke(cls, index)));
             }
         }
 
@@ -353,25 +505,77 @@ namespace RealisticBattlePlanning.UI
     {
         private readonly Action _editTrigger;
         private readonly Action _editDirective;
+        private readonly Action _editTriggerParam;
+        private readonly Action _editDirectiveParam;
 
-        public StageItemVM(int index, Stage stage, Action editTrigger, Action editDirective)
+        public StageItemVM(int index, Stage stage, Action editTrigger, Action editDirective,
+            Action editTriggerParam, Action editDirectiveParam)
         {
             _editTrigger = editTrigger;
             _editDirective = editDirective;
+            _editTriggerParam = editTriggerParam;
+            _editDirectiveParam = editDirectiveParam;
             NumberText = (index + 1).ToString();
             TriggerText = "When:  " + PlanFormatter.DescribeWhen(stage, index);
             DirectiveText = "Do:  " + PlanFormatter.DescribeDirective(stage.Do);
             EmitText = stage.Emit.Count > 0 ? "→ signals  " + string.Join(", ", stage.Emit) : "";
             HasEmit = stage.Emit.Count > 0;
+
+            var trig = stage.When.Count > 0 ? stage.When[0] : null;
+            (HasTriggerParam, TriggerParamLabel) = TriggerParam(trig);
+            (HasDirectiveParam, DirectiveParamLabel) = DirectiveParam(stage.Do);
         }
 
         public void ExecuteEditTrigger() => _editTrigger?.Invoke();
         public void ExecuteEditDirective() => _editDirective?.Invoke();
+        public void ExecuteEditTriggerParam() => _editTriggerParam?.Invoke();
+        public void ExecuteEditDirectiveParam() => _editDirectiveParam?.Invoke();
+
+        /// <summary>Whether a trigger type has an editable parameter, and the chip text for it.</summary>
+        private static (bool has, string label) TriggerParam(TriggerSpec t)
+        {
+            if (t == null) return (false, "");
+            switch (t.Type)
+            {
+                case TriggerType.EnemyWithinDistance:
+                case TriggerType.FriendlyWithinDistance:
+                case TriggerType.EnemyCommits: return (true, t.Meters is { } m ? $"{m:0.#} m" : "range");
+                case TriggerType.CasualtiesAbove: return (true, t.Percent is { } p ? $"{p:0.#}%" : "%");
+                case TriggerType.TimerElapsed: return (true, t.Seconds is { } s ? $"{s:0.#} s" : "time");
+                case TriggerType.PositionReached: return (true, string.IsNullOrEmpty(t.Anchor) ? "pick anchor" : t.Anchor);
+                case TriggerType.SignalReceived:
+                case TriggerType.PlayerSignal: return (true, string.IsNullOrEmpty(t.Signal) ? "pick signal" : t.Signal);
+                default: return (false, "");
+            }
+        }
+
+        private static (bool has, string label) DirectiveParam(DirectiveSpec d)
+        {
+            if (d == null) return (false, "");
+            switch (d.Type)
+            {
+                case DirectiveType.MoveTo:
+                case DirectiveType.FeignRetreat:
+                case DirectiveType.PullBack: return (true, string.IsNullOrEmpty(d.Anchor) ? "pick anchor" : d.Anchor);
+                case DirectiveType.Skirmish: return (true, $"standoff {d.StandoffMeters ?? 60:0.#} m");
+                case DirectiveType.Screen: return (true, $"gap {d.GapMeters ?? 30:0.#} m");
+                case DirectiveType.FlankArc: return (true, (d.Side ?? FlankSide.Left).ToString());
+                case DirectiveType.FireControl: return (true, (d.Fire ?? FireMode.Free).ToString());
+                case DirectiveType.Hold: return (true, (d.Arrangement ?? Arrangement.Line).ToString());
+                case DirectiveType.Charge: return (true, d.Target ?? "Nearest");
+                case DirectiveType.Follow: return (true, d.Target ?? "Player");
+                default: return (false, "");
+            }
+        }
 
         [DataSourceProperty] public string NumberText { get; }
         [DataSourceProperty] public string TriggerText { get; }
         [DataSourceProperty] public string DirectiveText { get; }
         [DataSourceProperty] public string EmitText { get; }
         [DataSourceProperty] public bool HasEmit { get; }
+        [DataSourceProperty] public bool HasTriggerParam { get; }
+        [DataSourceProperty] public string TriggerParamLabel { get; }
+        [DataSourceProperty] public bool HasDirectiveParam { get; }
+        [DataSourceProperty] public string DirectiveParamLabel { get; }
     }
 }

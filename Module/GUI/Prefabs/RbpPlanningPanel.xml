@@ -119,7 +119,7 @@
                                         <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginLeft="34"
                                                    StackLayout.LayoutMethod="VerticalTopToBottom">
                                           <Children>
-                                            <!-- When: click to cycle the trigger type -->
+                                            <!-- When: click to pick the trigger type -->
                                             <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditTrigger" Brush="Rbp.Field"
                                                           WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren">
                                               <Children>
@@ -129,14 +129,34 @@
                                                             Brush.TextHorizontalAlignment="Left" />
                                               </Children>
                                             </ButtonWidget>
-                                            <!-- Do: click to cycle the directive type -->
+                                            <!-- When value chip: click to pick the trigger's parameter -->
+                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditTriggerParam" IsVisible="@HasTriggerParam" Brush="Rbp.Btn.Neutral"
+                                                          HorizontalAlignment="Left" MarginLeft="14" MarginTop="2"
+                                                          WidthSizePolicy="Fixed" SuggestedWidth="150" HeightSizePolicy="Fixed" SuggestedHeight="22">
+                                              <Children>
+                                                <TextWidget Text="@TriggerParamLabel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#C5D2DEFF"
+                                                            Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                              </Children>
+                                            </ButtonWidget>
+                                            <!-- Do: click to pick the directive type -->
                                             <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditDirective" Brush="Rbp.Field"
-                                                          WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="3">
+                                                          WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="4">
                                               <Children>
                                                 <TextWidget Text="@DirectiveText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
                                                             MarginLeft="6" MarginRight="6" MarginTop="2" MarginBottom="2"
                                                             Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#E2D2AEFF"
                                                             Brush.TextHorizontalAlignment="Left" />
+                                              </Children>
+                                            </ButtonWidget>
+                                            <!-- Do value chip: click to pick the directive's parameter -->
+                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditDirectiveParam" IsVisible="@HasDirectiveParam" Brush="Rbp.Btn.Neutral"
+                                                          HorizontalAlignment="Left" MarginLeft="14" MarginTop="2"
+                                                          WidthSizePolicy="Fixed" SuggestedWidth="150" HeightSizePolicy="Fixed" SuggestedHeight="22">
+                                              <Children>
+                                                <TextWidget Text="@DirectiveParamLabel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#E2D2AEFF"
+                                                            Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                                               </Children>
                                             </ButtonWidget>
                                             <TextWidget Text="@EmitText" IsVisible="@HasEmit" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="2"
