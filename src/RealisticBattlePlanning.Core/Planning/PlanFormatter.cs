@@ -55,7 +55,9 @@ namespace RealisticBattlePlanning.Planning
             return string.Join(" AND ", stage.When.Select(DescribeTrigger));
         }
 
-        private static string DescribeTrigger(TriggerSpec t)
+        /// <summary>One trigger condition in plain language (public for the editor's
+        /// per-condition rows; <see cref="DescribeWhen"/> ANDs them for a whole stage).</summary>
+        public static string DescribeTrigger(TriggerSpec t)
         {
             switch (t.Type)
             {

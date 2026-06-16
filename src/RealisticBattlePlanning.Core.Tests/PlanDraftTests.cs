@@ -140,6 +140,42 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void TriggerConditionsAndToThreeThenAddIsCapped()
+        {
+            // A stage's When is an AND of up to 3 atomic conditions (A3.5). The UI
+            // appends/edits/removes them one at a time via these per-condition ops.
+            var draft = new PlanDraft().AddFormation(PlannedFormationClass.Infantry);
+            draft.AddStage(PlannedFormationClass.Infantry); // stage 1
+            draft.SetTrigger(PlannedFormationClass.Infantry, 1, new TriggerSpec { Type = TriggerType.TimerElapsed, Seconds = 30f });
+
+            draft.AddTriggerCondition(PlannedFormationClass.Infantry, 1, new TriggerSpec { Type = TriggerType.EnemyWithinDistance, Meters = 40f });
+            draft.AddTriggerCondition(PlannedFormationClass.Infantry, 1, new TriggerSpec { Type = TriggerType.CasualtiesAbove, Percent = 20f });
+            draft.AddTriggerCondition(PlannedFormationClass.Infantry, 1, new TriggerSpec { Type = TriggerType.EnemyBroken }); // over the cap of 3
+
+            var when = draft.Build().Formations[0].Stages[1].When;
+            Assert.Equal(3, when.Count);
+            Assert.Equal(new[] { TriggerType.TimerElapsed, TriggerType.EnemyWithinDistance, TriggerType.CasualtiesAbove },
+                when.Select(c => c.Type));
+
+            draft.SetTriggerCondition(PlannedFormationClass.Infantry, 1, 1, new TriggerSpec { Type = TriggerType.EnemyCommits });
+            draft.RemoveTriggerCondition(PlannedFormationClass.Infantry, 1, 0);
+            when = draft.Build().Formations[0].Stages[1].When;
+            Assert.Equal(new[] { TriggerType.EnemyCommits, TriggerType.CasualtiesAbove }, when.Select(c => c.Type));
+        }
+
+        [Fact]
+        public void TriggerConditionOpsOnBadIndexAreHarmless()
+        {
+            var draft = new PlanDraft().AddFormation(PlannedFormationClass.Infantry); // one opening stage, empty When
+            draft.SetTriggerCondition(PlannedFormationClass.Infantry, 0, 9, new TriggerSpec { Type = TriggerType.EnemyCommits });
+            draft.RemoveTriggerCondition(PlannedFormationClass.Infantry, 0, 5);
+            draft.AddTriggerCondition(PlannedFormationClass.Cavalry, 0, new TriggerSpec { Type = TriggerType.EnemyCommits }); // absent formation
+
+            Assert.Empty(draft.Build().Formations[0].Stages[0].When);
+            Assert.True(draft.Validate().IsValid);
+        }
+
+        [Fact]
         public void SetTriggerAndDirectiveAuthorAStage()
         {
             var draft = new PlanDraft().AddFormation(PlannedFormationClass.Infantry);

@@ -156,23 +156,63 @@
                                         <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginLeft="34" MarginRight="30"
                                                    StackLayout.LayoutMethod="VerticalTopToBottom">
                                           <Children>
-                                            <!-- When: click to pick the trigger type -->
-                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditTrigger" Brush="Rbp.Field"
-                                                          WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren">
+                                            <!-- When: one row per ANDed trigger condition (A3.5). Each row is a
+                                                 click-to-edit type field, an optional value chip, and a remove (x). -->
+                                            <ListPanel DataSource="{Conditions}" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                                       StackLayout.LayoutMethod="VerticalTopToBottom">
+                                              <ItemTemplate>
+                                                <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="2"
+                                                           StackLayout.LayoutMethod="VerticalTopToBottom">
+                                                  <Children>
+                                                    <!-- type-field row: the field fills the width (leaving a right gutter), the x is pinned right -->
+                                                    <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren">
+                                                      <Children>
+                                                        <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditType" Brush="Rbp.Field"
+                                                                      WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginRight="26">
+                                                          <Children>
+                                                            <TextWidget Text="@RowText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                                                        MarginLeft="6" MarginRight="6" MarginTop="2" MarginBottom="2"
+                                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#93B0C4FF"
+                                                                        Brush.TextHorizontalAlignment="Left" />
+                                                          </Children>
+                                                        </ButtonWidget>
+                                                        <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteRemove" Brush="Rbp.Btn.Danger"
+                                                                      HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                                      WidthSizePolicy="Fixed" SuggestedWidth="22" HeightSizePolicy="Fixed" SuggestedHeight="22">
+                                                          <Children>
+                                                            <TextWidget Text="x" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#E9CFC6FF"
+                                                                        Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                                          </Children>
+                                                        </ButtonWidget>
+                                                      </Children>
+                                                    </Widget>
+                                                    <!-- value chip for this condition (distance / % / time / anchor / signal) -->
+                                                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditParam" IsVisible="@HasParam" Brush="Rbp.Btn.Neutral"
+                                                                  HorizontalAlignment="Left" MarginLeft="14" MarginTop="2"
+                                                                  WidthSizePolicy="Fixed" SuggestedWidth="150" HeightSizePolicy="Fixed" SuggestedHeight="22">
+                                                      <Children>
+                                                        <TextWidget Text="@ParamLabel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#C5D2DEFF"
+                                                                    Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                                      </Children>
+                                                    </ButtonWidget>
+                                                  </Children>
+                                                </ListPanel>
+                                              </ItemTemplate>
+                                            </ListPanel>
+                                            <!-- Empty When: battle-start (stage 1) or needs-a-trigger note -->
+                                            <TextWidget Text="@WhenEmptyText" IsVisible="@ShowWhenEmpty" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                                        MarginLeft="6" MarginTop="2" MarginBottom="2"
+                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#93B0C4FF"
+                                                        Brush.TextHorizontalAlignment="Left" />
+                                            <!-- Add an ANDed condition (up to 3) -->
+                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteAddCondition" IsVisible="@CanAddCondition" Brush="Rbp.Btn.Neutral"
+                                                          HorizontalAlignment="Left" MarginLeft="14" MarginTop="3"
+                                                          WidthSizePolicy="Fixed" SuggestedWidth="160" HeightSizePolicy="Fixed" SuggestedHeight="22">
                                               <Children>
-                                                <TextWidget Text="@TriggerText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                                                            MarginLeft="6" MarginRight="6" MarginTop="2" MarginBottom="2"
-                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#93B0C4FF"
-                                                            Brush.TextHorizontalAlignment="Left" />
-                                              </Children>
-                                            </ButtonWidget>
-                                            <!-- When value chip: click to pick the trigger's parameter -->
-                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditTriggerParam" IsVisible="@HasTriggerParam" Brush="Rbp.Btn.Neutral"
-                                                          HorizontalAlignment="Left" MarginLeft="14" MarginTop="2"
-                                                          WidthSizePolicy="Fixed" SuggestedWidth="150" HeightSizePolicy="Fixed" SuggestedHeight="22">
-                                              <Children>
-                                                <TextWidget Text="@TriggerParamLabel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#C5D2DEFF"
+                                                <TextWidget Text="@AddConditionText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#9DB6C8FF"
                                                             Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                                               </Children>
                                             </ButtonWidget>

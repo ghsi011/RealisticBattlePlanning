@@ -140,6 +140,38 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
+        /// <summary>Max atomic conditions ANDed in one stage's trigger (A3.5).</summary>
+        public const int MaxTriggerConditions = 3;
+
+        /// <summary>Appends one ANDed condition to a stage's trigger (A3.5). No-ops if
+        /// the stage is missing, the condition is null, or it's already at the cap.</summary>
+        public PlanDraft AddTriggerCondition(PlannedFormationClass formation, int stageIndex, TriggerSpec condition)
+        {
+            var stage = StageAt(formation, stageIndex);
+            if (stage != null && condition != null && stage.When.Count < MaxTriggerConditions)
+                stage.When.Add(condition);
+            return this;
+        }
+
+        /// <summary>Replaces one of a stage's ANDed conditions. Bounds-checked; null/out-of-range no-op.</summary>
+        public PlanDraft SetTriggerCondition(PlannedFormationClass formation, int stageIndex, int conditionIndex, TriggerSpec condition)
+        {
+            var stage = StageAt(formation, stageIndex);
+            if (stage != null && condition != null && conditionIndex >= 0 && conditionIndex < stage.When.Count)
+                stage.When[conditionIndex] = condition;
+            return this;
+        }
+
+        /// <summary>Removes one of a stage's ANDed conditions. Bounds-checked; out-of-range no-op.
+        /// Leaving a non-opening stage with no condition is invalid — PlanValidator flags it.</summary>
+        public PlanDraft RemoveTriggerCondition(PlannedFormationClass formation, int stageIndex, int conditionIndex)
+        {
+            var stage = StageAt(formation, stageIndex);
+            if (stage != null && conditionIndex >= 0 && conditionIndex < stage.When.Count)
+                stage.When.RemoveAt(conditionIndex);
+            return this;
+        }
+
         public PlanDraft SetDirective(PlannedFormationClass formation, int stageIndex, DirectiveSpec directive)
         {
             var stage = StageAt(formation, stageIndex);

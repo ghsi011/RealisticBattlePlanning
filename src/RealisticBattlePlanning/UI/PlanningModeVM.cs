@@ -90,7 +90,8 @@ namespace RealisticBattlePlanning.UI
                 var formationPlan = plan.Formations.FirstOrDefault(f => f.Formation == cls)
                                     ?? new FormationPlan { Formation = cls };
                 _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage,
-                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenEmitPicker, OpenAbortPicker, ClearFormation,
+                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenEmitPicker,
+                    AddCondition, RemoveCondition, OpenAbortPicker, ClearFormation,
                     MoveStageUp, MoveStageDown));
             }
 
@@ -164,29 +165,49 @@ namespace RealisticBattlePlanning.UI
             Refresh();
         }
 
-        // Clicking a stage's "When" field opens the picker: a modal list of every
-        // TriggerType. Selecting one sets a valid default spec for it (using the
-        // plan's anchors/signals where the type needs them) and closes the picker.
-        private void OpenTriggerPicker(PlannedFormationClass cls, int stageIndex)
+        // A stage's "When" is an AND of up to 3 conditions (A3.5). These edit one
+        // condition at a time by its index; the stage row renders one row each.
+
+        // Appends a default AND condition to a stage (the "+ condition" / "+ AND"
+        // affordance). The first condition makes a battle-start stage conditional.
+        private void AddCondition(PlannedFormationClass cls, int stageIndex)
+        {
+            _draft.AddTriggerCondition(cls, stageIndex, DefaultTrigger(TriggerType.EnemyWithinDistance, _draft.Build()));
+            StatusText = $"Formation {SlotNumber(cls)} stage {stageIndex + 1}: added a trigger condition.";
+            Refresh();
+        }
+
+        private void RemoveCondition(PlannedFormationClass cls, int stageIndex, int condIndex)
+        {
+            _draft.RemoveTriggerCondition(cls, stageIndex, condIndex);
+            StatusText = $"Formation {SlotNumber(cls)} stage {stageIndex + 1}: removed a trigger condition.";
+            Refresh();
+        }
+
+        // Clicking a condition's type field opens the picker: a modal list of every
+        // TriggerType. Selecting one replaces THAT condition with a valid default
+        // spec for it (using the plan's anchors/signals where the type needs them).
+        private void OpenTriggerPicker(PlannedFormationClass cls, int stageIndex, int condIndex)
         {
             var plan = _draft.Build();
             var stage = StageAt(plan, cls, stageIndex);
-            if (stage == null)
+            if (stage == null || condIndex < 0 || condIndex >= stage.When.Count)
                 return;
-            var current = stage.When.Count > 0 ? stage.When[0].Type : TriggerType.BattleStart;
+            var current = stage.When[condIndex].Type;
             _pickerOptions.Clear();
             foreach (TriggerType t in Enum.GetValues(typeof(TriggerType)))
             {
                 var type = t; // capture per option
                 _pickerOptions.Add(new PickerOptionVM(Spaced(type.ToString()), type == current, () =>
                 {
-                    _draft.SetTrigger(cls, stageIndex, DefaultTrigger(type, _draft.Build()));
+                    _draft.SetTriggerCondition(cls, stageIndex, condIndex, DefaultTrigger(type, _draft.Build()));
                     StatusText = $"Formation {SlotNumber(cls)} stage {stageIndex + 1}: When → {Spaced(type.ToString())}.";
                     ClosePicker();
                     Refresh();
                 }));
             }
-            PickerTitle = $"Formation {SlotNumber(cls)}  ·  Stage {stageIndex + 1}  ·  When";
+            PickerTitle = $"Formation {SlotNumber(cls)}  ·  Stage {stageIndex + 1}  ·  When"
+                          + (stage.When.Count > 1 ? $" (condition {condIndex + 1})" : "");
             PickerOpen = true;
         }
 
@@ -222,17 +243,17 @@ namespace RealisticBattlePlanning.UI
 
         public void ExecuteClosePicker() => ClosePicker();
 
-        // Clicking a When line's value chip opens a picker for the current
-        // trigger type's editable parameter (distance / %, / time / anchor /
-        // signal). Selecting a value mutates the draft's trigger in place and
-        // re-renders. Types without an editable parameter have no chip.
-        private void OpenTriggerParamPicker(PlannedFormationClass cls, int stageIndex)
+        // Clicking a condition's value chip opens a picker for that condition's
+        // editable parameter (distance / %, / time / anchor / signal). Selecting a
+        // value mutates the draft's condition in place and re-renders. Types without
+        // an editable parameter have no chip.
+        private void OpenTriggerParamPicker(PlannedFormationClass cls, int stageIndex, int condIndex)
         {
             var plan = _draft.Build();
             var stage = StageAt(plan, cls, stageIndex);
-            if (stage == null || stage.When.Count == 0)
+            if (stage == null || condIndex < 0 || condIndex >= stage.When.Count)
                 return;
-            var t = stage.When[0];
+            var t = stage.When[condIndex];
             var name = "";
 
             void Numeric(string param, string unit, float? current, float[] presets, Action<float> set)
@@ -653,11 +674,13 @@ namespace RealisticBattlePlanning.UI
             string headerText,
             Action<PlannedFormationClass> addStage,
             Action<PlannedFormationClass> removeStage,
-            Action<PlannedFormationClass, int> editTrigger,
+            Action<PlannedFormationClass, int, int> editConditionType,
             Action<PlannedFormationClass, int> editDirective,
-            Action<PlannedFormationClass, int> editTriggerParam,
+            Action<PlannedFormationClass, int, int> editConditionParam,
             Action<PlannedFormationClass, int> editDirectiveParam,
             Action<PlannedFormationClass, int> editEmit,
+            Action<PlannedFormationClass, int> addCondition,
+            Action<PlannedFormationClass, int, int> removeCondition,
             Action<PlannedFormationClass> editAbort,
             Action<PlannedFormationClass> clearFormation,
             Action<PlannedFormationClass, int> moveStageUp,
@@ -685,9 +708,11 @@ namespace RealisticBattlePlanning.UI
                 var cls = _formation;
                 Stages.Add(new StageItemVM(
                     i, count, formation.Stages[i],
-                    () => editTrigger?.Invoke(cls, index),
+                    condIdx => editConditionType?.Invoke(cls, index, condIdx),
+                    condIdx => editConditionParam?.Invoke(cls, index, condIdx),
+                    condIdx => removeCondition?.Invoke(cls, index, condIdx),
+                    () => addCondition?.Invoke(cls, index),
                     () => editDirective?.Invoke(cls, index),
-                    () => editTriggerParam?.Invoke(cls, index),
                     () => editDirectiveParam?.Invoke(cls, index),
                     () => editEmit?.Invoke(cls, index),
                     () => moveStageUp?.Invoke(cls, index),
@@ -710,68 +735,62 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public MBBindingList<StageItemVM> Stages { get; }
     }
 
-    /// <summary>One stage row: number, the trigger ("When") and directive ("Do") as
-    /// click-to-edit fields (open a picker menu), and any emitted signals.</summary>
+    /// <summary>One stage row: number, the trigger as a list of ANDed "When"
+    /// condition rows (each click-to-edit), the directive ("Do"), and emitted
+    /// signals. The condition list lets a stage AND up to 3 atomic triggers (A3.5).</summary>
     public sealed class StageItemVM : ViewModel
     {
-        private readonly Action _editTrigger;
         private readonly Action _editDirective;
-        private readonly Action _editTriggerParam;
         private readonly Action _editDirectiveParam;
         private readonly Action _editEmit;
+        private readonly Action _addCondition;
         private readonly Action _moveUp;
         private readonly Action _moveDown;
 
-        public StageItemVM(int index, int stageCount, Stage stage, Action editTrigger, Action editDirective,
-            Action editTriggerParam, Action editDirectiveParam, Action editEmit, Action moveUp, Action moveDown)
+        public StageItemVM(int index, int stageCount, Stage stage,
+            Action<int> editConditionType, Action<int> editConditionParam, Action<int> removeCondition, Action addCondition,
+            Action editDirective, Action editDirectiveParam, Action editEmit, Action moveUp, Action moveDown)
         {
-            _editTrigger = editTrigger;
             _editDirective = editDirective;
-            _editTriggerParam = editTriggerParam;
             _editDirectiveParam = editDirectiveParam;
             _editEmit = editEmit;
+            _addCondition = addCondition;
             _moveUp = moveUp;
             _moveDown = moveDown;
             IsMoveUpDisabled = index <= 0;
             IsMoveDownDisabled = index >= stageCount - 1;
             NumberText = (index + 1).ToString();
-            TriggerText = "When:  " + PlanFormatter.DescribeWhen(stage, index);
             DirectiveText = "Do:  " + PlanFormatter.DescribeDirective(stage.Do);
             // The emit chip is always present (click to manage); its label shows the
             // broadcast signals, or a "+ emit signal" affordance when there are none.
             HasEmit = stage.Emit.Count > 0;
             EmitText = HasEmit ? "→ emits  " + string.Join(", ", stage.Emit) : "+ emit signal";
 
-            var trig = stage.When.Count > 0 ? stage.When[0] : null;
-            (HasTriggerParam, TriggerParamLabel) = TriggerParam(trig);
+            // One row per ANDed trigger condition; an empty When shows a placeholder
+            // ("On battle start" for the opening stage, else a needs-a-trigger note).
+            Conditions = new MBBindingList<ConditionItemVM>();
+            for (var c = 0; c < stage.When.Count; c++)
+            {
+                var ci = c;
+                Conditions.Add(new ConditionItemVM(ci, stage.When[ci],
+                    () => editConditionType?.Invoke(ci),
+                    () => editConditionParam?.Invoke(ci),
+                    () => removeCondition?.Invoke(ci)));
+            }
+            ShowWhenEmpty = stage.When.Count == 0;
+            WhenEmptyText = index == 0 ? "When:  On battle start" : "When:  (no trigger — add a condition)";
+            CanAddCondition = stage.When.Count < PlanDraft.MaxTriggerConditions;
+            AddConditionText = stage.When.Count == 0 ? "+ trigger condition" : "+ AND condition";
+
             (HasDirectiveParam, DirectiveParamLabel) = DirectiveParam(stage.Do);
         }
 
-        public void ExecuteEditTrigger() => _editTrigger?.Invoke();
         public void ExecuteEditDirective() => _editDirective?.Invoke();
-        public void ExecuteEditTriggerParam() => _editTriggerParam?.Invoke();
         public void ExecuteEditDirectiveParam() => _editDirectiveParam?.Invoke();
         public void ExecuteEditEmit() => _editEmit?.Invoke();
+        public void ExecuteAddCondition() => _addCondition?.Invoke();
         public void ExecuteMoveUp() => _moveUp?.Invoke();
         public void ExecuteMoveDown() => _moveDown?.Invoke();
-
-        /// <summary>Whether a trigger type has an editable parameter, and the chip text for it.</summary>
-        private static (bool has, string label) TriggerParam(TriggerSpec t)
-        {
-            if (t == null) return (false, "");
-            switch (t.Type)
-            {
-                case TriggerType.EnemyWithinDistance:
-                case TriggerType.FriendlyWithinDistance:
-                case TriggerType.EnemyCommits: return (true, t.Meters is { } m ? $"{m:0.#} m" : "range");
-                case TriggerType.CasualtiesAbove: return (true, t.Percent is { } p ? $"{p:0.#}%" : "%");
-                case TriggerType.TimerElapsed: return (true, t.Seconds is { } s ? $"{s:0.#} s" : "time");
-                case TriggerType.PositionReached: return (true, string.IsNullOrEmpty(t.Anchor) ? "pick anchor" : t.Anchor);
-                case TriggerType.SignalReceived:
-                case TriggerType.PlayerSignal: return (true, string.IsNullOrEmpty(t.Signal) ? "pick signal" : t.Signal);
-                default: return (false, "");
-            }
-        }
 
         private static (bool has, string label) DirectiveParam(DirectiveSpec d)
         {
@@ -793,15 +812,62 @@ namespace RealisticBattlePlanning.UI
         }
 
         [DataSourceProperty] public string NumberText { get; }
-        [DataSourceProperty] public string TriggerText { get; }
+        [DataSourceProperty] public MBBindingList<ConditionItemVM> Conditions { get; }
+        [DataSourceProperty] public bool ShowWhenEmpty { get; }
+        [DataSourceProperty] public string WhenEmptyText { get; }
+        [DataSourceProperty] public bool CanAddCondition { get; }
+        [DataSourceProperty] public string AddConditionText { get; }
         [DataSourceProperty] public string DirectiveText { get; }
         [DataSourceProperty] public string EmitText { get; }
         [DataSourceProperty] public bool HasEmit { get; }
-        [DataSourceProperty] public bool HasTriggerParam { get; }
-        [DataSourceProperty] public string TriggerParamLabel { get; }
         [DataSourceProperty] public bool HasDirectiveParam { get; }
         [DataSourceProperty] public string DirectiveParamLabel { get; }
         [DataSourceProperty] public bool IsMoveUpDisabled { get; }
         [DataSourceProperty] public bool IsMoveDownDisabled { get; }
+    }
+
+    /// <summary>One ANDed trigger condition in a stage's "When": its plain-language
+    /// description as a click-to-edit type field, an optional value chip, and a
+    /// remove (×) control. The first reads "When: …", the rest "AND …".</summary>
+    public sealed class ConditionItemVM : ViewModel
+    {
+        private readonly Action _editType;
+        private readonly Action _editParam;
+        private readonly Action _remove;
+
+        public ConditionItemVM(int index, TriggerSpec condition, Action editType, Action editParam, Action remove)
+        {
+            _editType = editType;
+            _editParam = editParam;
+            _remove = remove;
+            RowText = (index == 0 ? "When:  " : "AND  ") + PlanFormatter.DescribeTrigger(condition);
+            (HasParam, ParamLabel) = TriggerParam(condition);
+        }
+
+        public void ExecuteEditType() => _editType?.Invoke();
+        public void ExecuteEditParam() => _editParam?.Invoke();
+        public void ExecuteRemove() => _remove?.Invoke();
+
+        /// <summary>Whether a trigger type has an editable parameter, and the chip text for it.</summary>
+        private static (bool has, string label) TriggerParam(TriggerSpec t)
+        {
+            if (t == null) return (false, "");
+            switch (t.Type)
+            {
+                case TriggerType.EnemyWithinDistance:
+                case TriggerType.FriendlyWithinDistance:
+                case TriggerType.EnemyCommits: return (true, t.Meters is { } m ? $"{m:0.#} m" : "range");
+                case TriggerType.CasualtiesAbove: return (true, t.Percent is { } p ? $"{p:0.#}%" : "%");
+                case TriggerType.TimerElapsed: return (true, t.Seconds is { } s ? $"{s:0.#} s" : "time");
+                case TriggerType.PositionReached: return (true, string.IsNullOrEmpty(t.Anchor) ? "pick anchor" : t.Anchor);
+                case TriggerType.SignalReceived:
+                case TriggerType.PlayerSignal: return (true, string.IsNullOrEmpty(t.Signal) ? "pick signal" : t.Signal);
+                default: return (false, "");
+            }
+        }
+
+        [DataSourceProperty] public string RowText { get; }
+        [DataSourceProperty] public bool HasParam { get; }
+        [DataSourceProperty] public string ParamLabel { get; }
     }
 }
