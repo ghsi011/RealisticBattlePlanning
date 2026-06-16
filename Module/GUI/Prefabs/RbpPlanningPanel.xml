@@ -165,20 +165,26 @@
               </Children>
             </Widget>
 
-            <!-- Footer: signals + warnings -->
-            <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="44"
+            <!-- Footer: signals + live validation (errors red, warnings amber) -->
+            <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="56"
                     VerticalAlignment="Bottom" MarginLeft="26" MarginRight="26" MarginBottom="58">
               <Children>
                 <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="2"
                         VerticalAlignment="Top" Sprite="BlankWhiteSquare_9" Color="#5A4A2A66" />
-                <TextWidget Text="@SignalsText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                            VerticalAlignment="Top" MarginTop="9"
-                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#B0A684FF"
-                            Brush.TextHorizontalAlignment="Left" />
-                <TextWidget Text="@WarningsText" IsVisible="@HasWarnings" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                            VerticalAlignment="Bottom"
-                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#D9A441FF"
-                            Brush.TextHorizontalAlignment="Left" />
+                <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                           VerticalAlignment="Top" MarginTop="8" StackLayout.LayoutMethod="VerticalTopToBottom">
+                  <Children>
+                    <TextWidget Text="@SignalsText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#B0A684FF"
+                                Brush.TextHorizontalAlignment="Left" />
+                    <TextWidget Text="@ErrorsText" IsVisible="@HasErrors" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="3"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#E2603CFF"
+                                Brush.TextHorizontalAlignment="Left" />
+                    <TextWidget Text="@WarningsText" IsVisible="@HasWarnings" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="3"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#D9A441FF"
+                                Brush.TextHorizontalAlignment="Left" />
+                  </Children>
+                </ListPanel>
               </Children>
             </Widget>
 

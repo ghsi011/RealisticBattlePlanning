@@ -59,6 +59,31 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void TiesAreOrderedDeterministicallyDominantFirstByDeclarationOrder()
+        {
+            // A 50/50 split must produce a stable, dominant-first order (the sort
+            // is stable, so the earlier-declared type wins the tie).
+            Assert.Equal("Infantry-Ranged", FormationComposition.Label(infantry: 50, ranged: 50, cavalry: 0, horseArcher: 0));
+            Assert.Equal("Cavalry-Horse Archer", FormationComposition.Label(infantry: 0, ranged: 0, cavalry: 50, horseArcher: 50));
+        }
+
+        [Fact]
+        public void DominantTypeDropsAnOtherwiseSignificantTail()
+        {
+            // 80% infantry names it alone even though the 20% ranged tail is itself
+            // above the 15% threshold — the >70% rule wins.
+            Assert.Equal("Infantry", FormationComposition.Label(infantry: 80, ranged: 20, cavalry: 0, horseArcher: 0));
+        }
+
+        [Fact]
+        public void OneSignificantTypeBelowSeventyNamesItAlone()
+        {
+            // 60% infantry, the rest split into sub-15% slivers -> only infantry is
+            // significant -> "Infantry" (not "Mixed", not a hyphenated pair).
+            Assert.Equal("Infantry", FormationComposition.Label(infantry: 60, ranged: 14, cavalry: 13, horseArcher: 13));
+        }
+
+        [Fact]
         public void EmptyFormationIsLabelledEmpty()
         {
             Assert.Equal("Empty", FormationComposition.Label(0, 0, 0, 0));

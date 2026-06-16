@@ -59,6 +59,7 @@ namespace RealisticBattlePlanning.Execution
         private bool _deploymentFinished;
         private bool _isHarnessRun;
         private bool _fidelityActive;
+        private bool _ordersSubscribed;
         private float _sinceLastMonitorTick;
 
         /// <summary>
@@ -175,6 +176,7 @@ namespace RealisticBattlePlanning.Execution
                 var controller = Mission.PlayerTeam?.PlayerOrderController;
                 if (controller != null)
                     controller.OnOrderIssued -= OnPlayerOrderIssued;
+                _ordersSubscribed = false;
             }
             catch (Exception e)
             {
@@ -191,7 +193,10 @@ namespace RealisticBattlePlanning.Execution
         /// </summary>
         private void SubscribeToPlayerOrders()
         {
-            if (_monitor == null)
+            // Idempotent: ApplyPlan can call this post-deployment when the first
+            // monitor is created from an edited plan, and the deployment path may
+            // have already subscribed — a second '+=' would double-fire overrides.
+            if (_monitor == null || _ordersSubscribed)
                 return;
 
             var controller = Mission.PlayerTeam?.PlayerOrderController;
@@ -202,6 +207,7 @@ namespace RealisticBattlePlanning.Execution
             }
 
             controller.OnOrderIssued += OnPlayerOrderIssued;
+            _ordersSubscribed = true;
         }
 
         private void OnPlayerOrderIssued(OrderType orderType, MBReadOnlyList<Formation> appliedFormations, OrderController orderController, params object[] delegateParams)
@@ -517,6 +523,10 @@ namespace RealisticBattlePlanning.Execution
                     AdoptPlannedFormations();
                     if (_fidelityActive)
                         SetCommanderProfiles();
+                    // If no plan existed at deployment, the order-override
+                    // subscription was skipped (monitor was null then); now that
+                    // the editor has created one, subscribe (idempotent).
+                    SubscribeToPlayerOrders();
                 }
             }
             catch (Exception e)

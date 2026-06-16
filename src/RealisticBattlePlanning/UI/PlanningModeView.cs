@@ -178,34 +178,33 @@ namespace RealisticBattlePlanning.UI
         {
             if (!_shown && _layer == null)
                 return;
-            try
+            if (_layer != null)
             {
-                if (_layer != null)
-                {
-                    // Release input focus before tearing the layer down, so the
-                    // deployment screen regains control of the mouse/keyboard.
-                    _layer.InputRestrictions.ResetInputRestrictions();
-                    _layer.IsFocusLayer = false;
-                    ScreenManager.TryLoseFocus(_layer);
-                    if (_movie != null)
-                        _layer.ReleaseMovie(_movie);
-                    _screen?.RemoveLayer(_layer);
-                }
+                // Each release step is guarded on its own: if one throws (e.g.
+                // ResetInputRestrictions), the others must still run — above all
+                // RemoveLayer, or the layer stays attached and keeps input focus,
+                // soft-locking the deployment screen. Release focus before removing.
+                Guard(() => _layer.InputRestrictions.ResetInputRestrictions());
+                Guard(() => _layer.IsFocusLayer = false);
+                Guard(() => ScreenManager.TryLoseFocus(_layer));
+                if (_movie != null)
+                    Guard(() => _layer.ReleaseMovie(_movie));
+                Guard(() => _screen?.RemoveLayer(_layer));
             }
-            catch (Exception e)
-            {
-                RbpLog.Error("[FAULT] Closing Planning Mode failed.", e);
-            }
-            finally
-            {
-                _dataSource?.OnFinalize();
-                _movie = null;
-                _layer = null;
-                _screen = null;
-                _dataSource = null;
-                _shown = false;
-            }
+            Guard(() => _dataSource?.OnFinalize());
+            _movie = null;
+            _layer = null;
+            _screen = null;
+            _dataSource = null;
+            _shown = false;
         }
 
+        // Runs a teardown step in isolation: a throw in one release call must not
+        // skip the others (especially RemoveLayer) or null-out the state below.
+        private static void Guard(Action step)
+        {
+            try { step(); }
+            catch (Exception e) { RbpLog.Error("[FAULT] Planning Mode teardown step failed.", e); }
+        }
     }
 }

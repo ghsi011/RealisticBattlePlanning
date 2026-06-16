@@ -34,12 +34,13 @@ namespace RealisticBattlePlanning.UI
         private string _signalsText;
         private string _statusText;
         private string _warningsText;
+        private string _errorsText;
         private string _addFormationText;
         private string _emptyText;
         private bool _hasWarnings;
+        private bool _hasErrors;
         private bool _hasStatus;
         private bool _hasPlan;
-        private bool _canAddFormation;
         private bool _isAddFormationDisabled;
         private MBBindingList<FormationPlanItemVM> _formations;
 
@@ -82,12 +83,17 @@ namespace RealisticBattlePlanning.UI
                 ? "SIGNALS    " + string.Join("     ", plan.PlayerSignals.Select(s => $"[ {s} ]"))
                 : "";
 
-            var warnings = PlanValidator.Validate(plan).Warnings;
-            HasWarnings = warnings.Count > 0;
-            WarningsText = HasWarnings ? $"{warnings.Count} warning(s):   " + string.Join("      ", warnings) : "";
+            // Surface BOTH errors (red, blocks Apply) and warnings (amber, informational)
+            // live as the player edits, so cycling into an un-appliable type (e.g. a
+            // Position Reached trigger with no anchor defined) is visibly flagged
+            // instead of silently failing at Apply.
+            var validation = PlanValidator.Validate(plan);
+            HasErrors = validation.Errors.Count > 0;
+            ErrorsText = HasErrors ? $"{validation.Errors.Count} error(s):   " + string.Join("      ", validation.Errors) : "";
+            HasWarnings = validation.Warnings.Count > 0;
+            WarningsText = HasWarnings ? $"{validation.Warnings.Count} warning(s):   " + string.Join("      ", validation.Warnings) : "";
 
             var next = NextUnplannedClass(plan);
-            CanAddFormation = next != null;
             IsAddFormationDisabled = next == null;
             AddFormationText = next is { } n ? $"+  Add Formation {SlotNumber(n)}" : "All formations planned";
         }
@@ -114,11 +120,10 @@ namespace RealisticBattlePlanning.UI
             // A non-first stage with no trigger is invalid (only stage 1 may omit
             // it). Seed a valid default so the plan stays applyable; the player
             // cycles When/Do from there.
-            var formation = _draft.Build().Formations.First(f => f.Formation == cls);
-            var newIndex = formation.Stages.Count - 1;
-            if (newIndex > 0)
-                _draft.SetTrigger(cls, newIndex, new TriggerSpec { Type = TriggerType.EnemyCommits });
-            StatusText = $"Added a stage to {cls}.";
+            var formation = _draft.Build().Formations.FirstOrDefault(f => f.Formation == cls);
+            if (formation != null && formation.Stages.Count > 1)
+                _draft.SetTrigger(cls, formation.Stages.Count - 1, new TriggerSpec { Type = TriggerType.EnemyCommits });
+            StatusText = $"Added a stage to Formation {SlotNumber(cls)}.";
             Refresh();
         }
 
@@ -239,27 +244,31 @@ namespace RealisticBattlePlanning.UI
             var validation = PlanValidator.Validate(plan);
             if (!validation.IsValid)
             {
-                StatusText = "Plan has errors — fix them before applying.";
+                // Name the actual blocker (the footer also lists them all in red).
+                StatusText = "Can't apply — " + validation.Errors[0];
                 return;
             }
             _onApply?.Invoke(plan);
-            StatusText = "Plan applied — it governs your formations when the battle begins.";
+            // Close on success: re-Applying would rebuild the monitor and reset
+            // live formation state. The player reopens to edit further.
+            _onClose?.Invoke();
         }
 
         public void ExecuteClose() => _onClose?.Invoke();
 
         [DataSourceProperty] public bool HasPlan { get => _hasPlan; set { if (value != _hasPlan) { _hasPlan = value; OnPropertyChangedWithValue(value, "HasPlan"); } } }
         [DataSourceProperty] public bool HasWarnings { get => _hasWarnings; set { if (value != _hasWarnings) { _hasWarnings = value; OnPropertyChangedWithValue(value, "HasWarnings"); } } }
+        [DataSourceProperty] public bool HasErrors { get => _hasErrors; set { if (value != _hasErrors) { _hasErrors = value; OnPropertyChangedWithValue(value, "HasErrors"); } } }
         [DataSourceProperty] public bool HasStatus { get => _hasStatus; set { if (value != _hasStatus) { _hasStatus = value; OnPropertyChangedWithValue(value, "HasStatus"); } } }
-        [DataSourceProperty] public bool CanAddFormation { get => _canAddFormation; set { if (value != _canAddFormation) { _canAddFormation = value; OnPropertyChangedWithValue(value, "CanAddFormation"); } } }
         [DataSourceProperty] public bool IsAddFormationDisabled { get => _isAddFormationDisabled; set { if (value != _isAddFormationDisabled) { _isAddFormationDisabled = value; OnPropertyChangedWithValue(value, "IsAddFormationDisabled"); } } }
         [DataSourceProperty] public string TitleText { get => _titleText; set { if (value != _titleText) { _titleText = value; OnPropertyChangedWithValue(value, "TitleText"); } } }
         [DataSourceProperty] public string HintText { get => _hintText; set { if (value != _hintText) { _hintText = value; OnPropertyChangedWithValue(value, "HintText"); } } }
         [DataSourceProperty] public string SignalsText { get => _signalsText; set { if (value != _signalsText) { _signalsText = value; OnPropertyChangedWithValue(value, "SignalsText"); } } }
         [DataSourceProperty] public string WarningsText { get => _warningsText; set { if (value != _warningsText) { _warningsText = value; OnPropertyChangedWithValue(value, "WarningsText"); } } }
+        [DataSourceProperty] public string ErrorsText { get => _errorsText; set { if (value != _errorsText) { _errorsText = value; OnPropertyChangedWithValue(value, "ErrorsText"); } } }
         [DataSourceProperty] public string EmptyText { get => _emptyText; set { if (value != _emptyText) { _emptyText = value; OnPropertyChangedWithValue(value, "EmptyText"); } } }
         [DataSourceProperty] public string AddFormationText { get => _addFormationText; set { if (value != _addFormationText) { _addFormationText = value; OnPropertyChangedWithValue(value, "AddFormationText"); } } }
-        [DataSourceProperty] public string StatusText { get => _statusText; set { if (value != _statusText) { _statusText = value; _hasStatus = !string.IsNullOrEmpty(value); OnPropertyChangedWithValue(value, "StatusText"); OnPropertyChangedWithValue(_hasStatus, "HasStatus"); } } }
+        [DataSourceProperty] public string StatusText { get => _statusText; set { if (value != _statusText) { _statusText = value; OnPropertyChangedWithValue(value, "StatusText"); HasStatus = !string.IsNullOrEmpty(value); } } }
         [DataSourceProperty] public MBBindingList<FormationPlanItemVM> Formations { get => _formations; set { if (value != _formations) { _formations = value; OnPropertyChangedWithValue(value, "Formations"); } } }
     }
 

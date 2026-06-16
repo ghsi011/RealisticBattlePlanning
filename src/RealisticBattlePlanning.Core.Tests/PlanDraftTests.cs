@@ -70,6 +70,24 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void EditingCopyOfDeepCopiesNestedStageState()
+        {
+            // Edits to a pre-existing NESTED spec on the copy must not leak into the
+            // original — this is what distinguishes a deep copy from a shallow one.
+            var original = new PlanDraft();
+            original.AddStage(PlannedFormationClass.Infantry); // opening hold stage
+            original.SetDirective(PlannedFormationClass.Infantry, 0, new DirectiveSpec { Type = DirectiveType.Charge });
+            var originalPlan = original.Build();
+
+            var draft = PlanDraft.EditingCopyOf(originalPlan);
+            draft.SetDirective(PlannedFormationClass.Infantry, 0,
+                new DirectiveSpec { Type = DirectiveType.Hold, Arrangement = Arrangement.ShieldWall });
+
+            Assert.Equal(DirectiveType.Charge, originalPlan.Formations.Single().Stages[0].Do.Type);
+            Assert.Equal(DirectiveType.Hold, draft.Build().Formations.Single().Stages[0].Do.Type);
+        }
+
+        [Fact]
         public void EditingCopyOfNullYieldsAnEmptyEditableDraft()
         {
             var draft = PlanDraft.EditingCopyOf(null);
