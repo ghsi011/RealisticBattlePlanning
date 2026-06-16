@@ -115,13 +115,27 @@
                                         <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginLeft="34"
                                                    StackLayout.LayoutMethod="VerticalTopToBottom">
                                           <Children>
-                                            <TextWidget Text="@TriggerText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#93B0C4FF"
-                                                        Brush.TextHorizontalAlignment="Left" />
-                                            <TextWidget Text="@DirectiveText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
-                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#E2D2AEFF"
-                                                        Brush.TextHorizontalAlignment="Left" />
-                                            <TextWidget Text="@EmitText" IsVisible="@HasEmit" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="1"
+                                            <!-- When: click to cycle the trigger type -->
+                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteCycleTrigger" Brush="Rbp.Field"
+                                                          WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren">
+                                              <Children>
+                                                <TextWidget Text="@TriggerText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                                            MarginLeft="6" MarginRight="6" MarginTop="2" MarginBottom="2"
+                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#93B0C4FF"
+                                                            Brush.TextHorizontalAlignment="Left" />
+                                              </Children>
+                                            </ButtonWidget>
+                                            <!-- Do: click to cycle the directive type -->
+                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteCycleDirective" Brush="Rbp.Field"
+                                                          WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="3">
+                                              <Children>
+                                                <TextWidget Text="@DirectiveText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                                            MarginLeft="6" MarginRight="6" MarginTop="2" MarginBottom="2"
+                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#E2D2AEFF"
+                                                            Brush.TextHorizontalAlignment="Left" />
+                                              </Children>
+                                            </ButtonWidget>
+                                            <TextWidget Text="@EmitText" IsVisible="@HasEmit" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="2"
                                                         Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#7E9A7EFF"
                                                         Brush.TextHorizontalAlignment="Left" />
                                           </Children>

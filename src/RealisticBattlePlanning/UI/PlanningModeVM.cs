@@ -12,11 +12,13 @@ namespace RealisticBattlePlanning.UI
     /// Gauntlet datasource for the Planning Mode editor. Wraps Core's PlanDraft
     /// (the tested mutation layer) and exposes it as a structured, styled,
     /// editable view: a header, one card per formation (its abort rule + its
-    /// stages as "When → Do" rows, with add/remove-stage controls), and a
-    /// footer with signals, live validation, and Apply/Close. Every edit
-    /// mutates the draft and re-renders; Apply hands the built plan back to the
-    /// mission so this battle runs it. Per-element wording comes from Core's
-    /// PlanFormatter (the single tested source of truth).
+    /// stages as "When → Do" rows whose trigger/directive cycle on click), plus
+    /// add/remove-stage controls, and a footer with signals, live validation,
+    /// and Apply/Close. Every edit mutates the draft and re-renders; Apply hands
+    /// the built plan back to the mission so this battle runs it. Per-element
+    /// wording comes from Core's PlanFormatter (the single tested source of
+    /// truth); cycling sets a valid default spec for the next type so the plan
+    /// stays applyable mid-edit.
     /// </summary>
     public sealed class PlanningModeVM : ViewModel
     {
@@ -54,11 +56,11 @@ namespace RealisticBattlePlanning.UI
             var plan = _draft.Build();
             _formations.Clear();
             foreach (var formation in plan.Formations)
-                _formations.Add(new FormationPlanItemVM(formation, AddStage, RemoveStage));
+                _formations.Add(new FormationPlanItemVM(formation, AddStage, RemoveStage, CycleTrigger, CycleDirective));
 
             HasPlan = plan.Formations.Count > 0;
             EmptyText = HasPlan ? "" :
-                "No formations planned yet.\nAdd a formation, give it stages (When → Do), then Apply.";
+                "No formations planned yet.\nAdd a formation, give it stages (click When / Do to change them), then Apply.";
 
             SignalsText = plan.PlayerSignals.Count > 0
                 ? "SIGNALS    " + string.Join("     ", plan.PlayerSignals.Select(s => $"[ {s} ]"))
@@ -86,6 +88,13 @@ namespace RealisticBattlePlanning.UI
         private void AddStage(PlannedFormationClass cls)
         {
             _draft.AddStage(cls);
+            // A non-first stage with no trigger is invalid (only stage 1 may omit
+            // it). Seed a valid default so the plan stays applyable; the player
+            // cycles When/Do from there.
+            var formation = _draft.Build().Formations.First(f => f.Formation == cls);
+            var newIndex = formation.Stages.Count - 1;
+            if (newIndex > 0)
+                _draft.SetTrigger(cls, newIndex, new TriggerSpec { Type = TriggerType.EnemyCommits });
             StatusText = $"Added a stage to {cls}.";
             Refresh();
         }
@@ -99,6 +108,97 @@ namespace RealisticBattlePlanning.UI
             StatusText = $"Removed a stage from {cls}.";
             Refresh();
         }
+
+        // Cycle a stage's trigger ("When") to the next TriggerType, applying a
+        // valid default spec for it (using the plan's anchors/signals where the
+        // type needs them). Replaces the stage's conditions with the single new
+        // one — single-condition editing for v1.
+        private void CycleTrigger(PlannedFormationClass cls, int stageIndex)
+        {
+            var plan = _draft.Build();
+            var stage = StageAt(plan, cls, stageIndex);
+            if (stage == null)
+                return;
+            var current = stage.When.Count > 0 ? stage.When[0].Type : TriggerType.BattleStart;
+            var next = (TriggerType)NextEnumValue(typeof(TriggerType), current);
+            _draft.SetTrigger(cls, stageIndex, DefaultTrigger(next, plan));
+            StatusText = $"{cls} stage {stageIndex + 1}: When → {Spaced(next.ToString())}.";
+            Refresh();
+        }
+
+        // Cycle a stage's directive ("Do") to the next DirectiveType, applying a
+        // valid default spec for it.
+        private void CycleDirective(PlannedFormationClass cls, int stageIndex)
+        {
+            var plan = _draft.Build();
+            var stage = StageAt(plan, cls, stageIndex);
+            if (stage == null)
+                return;
+            var current = stage.Do?.Type ?? DirectiveType.Hold;
+            var next = (DirectiveType)NextEnumValue(typeof(DirectiveType), current);
+            _draft.SetDirective(cls, stageIndex, DefaultDirective(next, plan));
+            StatusText = $"{cls} stage {stageIndex + 1}: Do → {Spaced(next.ToString())}.";
+            Refresh();
+        }
+
+        private static Stage StageAt(BattlePlan plan, PlannedFormationClass cls, int stageIndex)
+        {
+            var formation = plan.Formations.FirstOrDefault(f => f.Formation == cls);
+            return formation != null && stageIndex >= 0 && stageIndex < formation.Stages.Count
+                ? formation.Stages[stageIndex]
+                : null;
+        }
+
+        private static object NextEnumValue(Type enumType, object current)
+        {
+            var values = Enum.GetValues(enumType);
+            var idx = Array.IndexOf(values, current);
+            return values.GetValue((idx + 1) % values.Length);
+        }
+
+        /// <summary>A valid default trigger for <paramref name="type"/>, filling in
+        /// the parameters PlanValidator requires (anchors/signals taken from the
+        /// plan when the type needs them; if none exist the field is left blank
+        /// and the footer flags it).</summary>
+        private static TriggerSpec DefaultTrigger(TriggerType type, BattlePlan plan)
+        {
+            var anchor = plan.Anchors.FirstOrDefault()?.Id;
+            var signal = plan.PlayerSignals.FirstOrDefault();
+            switch (type)
+            {
+                case TriggerType.EnemyWithinDistance: return new TriggerSpec { Type = type, Meters = 40f };
+                case TriggerType.FriendlyWithinDistance: return new TriggerSpec { Type = type, Meters = 40f, Formation = "Player" };
+                case TriggerType.PositionReached: return new TriggerSpec { Type = type, Anchor = anchor };
+                case TriggerType.CasualtiesAbove: return new TriggerSpec { Type = type, Percent = 30f };
+                case TriggerType.TimerElapsed: return new TriggerSpec { Type = type, Seconds = 30f };
+                case TriggerType.SignalReceived: return new TriggerSpec { Type = type, Signal = signal ?? "advance" };
+                case TriggerType.PlayerSignal: return new TriggerSpec { Type = type, Signal = signal };
+                default: return new TriggerSpec { Type = type }; // BattleStart, EnemyCommits, EnemyBroken
+            }
+        }
+
+        /// <summary>A valid default directive for <paramref name="type"/>.</summary>
+        private static DirectiveSpec DefaultDirective(DirectiveType type, BattlePlan plan)
+        {
+            var anchor = plan.Anchors.FirstOrDefault()?.Id;
+            switch (type)
+            {
+                case DirectiveType.MoveTo: return new DirectiveSpec { Type = type, Anchor = anchor };
+                case DirectiveType.Skirmish: return new DirectiveSpec { Type = type, Target = "Nearest" };
+                case DirectiveType.FeignRetreat: return new DirectiveSpec { Type = type, Anchor = anchor };
+                case DirectiveType.FlankArc: return new DirectiveSpec { Type = type, Side = FlankSide.Left };
+                case DirectiveType.PullBack: return new DirectiveSpec { Type = type, Anchor = anchor };
+                case DirectiveType.Screen: return new DirectiveSpec { Type = type, Target = "Player" };
+                case DirectiveType.Follow: return new DirectiveSpec { Type = type, Target = "Player" };
+                case DirectiveType.FireControl: return new DirectiveSpec { Type = type, Fire = FireMode.Free };
+                case DirectiveType.Hold: return new DirectiveSpec { Type = type, Arrangement = Arrangement.Line };
+                default: return new DirectiveSpec { Type = type }; // Charge
+            }
+        }
+
+        /// <summary>"EnemyWithinDistance" → "Enemy Within Distance" for status text.</summary>
+        private static string Spaced(string pascal)
+            => string.Concat(pascal.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + c : c.ToString()));
 
         public void ExecuteAddFormation()
         {
@@ -125,11 +225,6 @@ namespace RealisticBattlePlanning.UI
 
         public void ExecuteClose() => _onClose?.Invoke();
 
-        private void SetStatus(string value)
-        {
-            StatusText = value;
-        }
-
         [DataSourceProperty] public bool HasPlan { get => _hasPlan; set { if (value != _hasPlan) { _hasPlan = value; OnPropertyChangedWithValue(value, "HasPlan"); } } }
         [DataSourceProperty] public bool HasWarnings { get => _hasWarnings; set { if (value != _hasWarnings) { _hasWarnings = value; OnPropertyChangedWithValue(value, "HasWarnings"); } } }
         [DataSourceProperty] public bool HasStatus { get => _hasStatus; set { if (value != _hasStatus) { _hasStatus = value; OnPropertyChangedWithValue(value, "HasStatus"); } } }
@@ -152,7 +247,12 @@ namespace RealisticBattlePlanning.UI
         private readonly Action<PlannedFormationClass> _addStage;
         private readonly Action<PlannedFormationClass> _removeStage;
 
-        public FormationPlanItemVM(FormationPlan formation, Action<PlannedFormationClass> addStage, Action<PlannedFormationClass> removeStage)
+        public FormationPlanItemVM(
+            FormationPlan formation,
+            Action<PlannedFormationClass> addStage,
+            Action<PlannedFormationClass> removeStage,
+            Action<PlannedFormationClass, int> cycleTrigger,
+            Action<PlannedFormationClass, int> cycleDirective)
         {
             _formation = formation.Formation;
             _addStage = addStage;
@@ -163,7 +263,14 @@ namespace RealisticBattlePlanning.UI
             IsRemoveDisabled = !CanRemove;
             Stages = new MBBindingList<StageItemVM>();
             for (var i = 0; i < formation.Stages.Count; i++)
-                Stages.Add(new StageItemVM(i, formation.Stages[i]));
+            {
+                var index = i; // capture for the per-stage cycle closures
+                var cls = _formation;
+                Stages.Add(new StageItemVM(
+                    i, formation.Stages[i],
+                    () => cycleTrigger?.Invoke(cls, index),
+                    () => cycleDirective?.Invoke(cls, index)));
+            }
         }
 
         public void ExecuteAddStage() => _addStage?.Invoke(_formation);
@@ -176,17 +283,26 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public MBBindingList<StageItemVM> Stages { get; }
     }
 
-    /// <summary>One stage row: number, the trigger ("When"), the directive ("Do"), and any emitted signals.</summary>
+    /// <summary>One stage row: number, the trigger ("When") and directive ("Do") as
+    /// click-to-cycle fields, and any emitted signals.</summary>
     public sealed class StageItemVM : ViewModel
     {
-        public StageItemVM(int index, Stage stage)
+        private readonly Action _cycleTrigger;
+        private readonly Action _cycleDirective;
+
+        public StageItemVM(int index, Stage stage, Action cycleTrigger, Action cycleDirective)
         {
+            _cycleTrigger = cycleTrigger;
+            _cycleDirective = cycleDirective;
             NumberText = (index + 1).ToString();
-            TriggerText = PlanFormatter.DescribeWhen(stage, index);
-            DirectiveText = PlanFormatter.DescribeDirective(stage.Do);
+            TriggerText = "When:  " + PlanFormatter.DescribeWhen(stage, index);
+            DirectiveText = "Do:  " + PlanFormatter.DescribeDirective(stage.Do);
             EmitText = stage.Emit.Count > 0 ? "→ signals  " + string.Join(", ", stage.Emit) : "";
             HasEmit = stage.Emit.Count > 0;
         }
+
+        public void ExecuteCycleTrigger() => _cycleTrigger?.Invoke();
+        public void ExecuteCycleDirective() => _cycleDirective?.Invoke();
 
         [DataSourceProperty] public string NumberText { get; }
         [DataSourceProperty] public string TriggerText { get; }

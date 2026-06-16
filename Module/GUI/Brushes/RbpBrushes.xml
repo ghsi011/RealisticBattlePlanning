@@ -35,6 +35,20 @@
     </Styles>
   </Brush>
 
+  <!-- Inline click-to-cycle field (a stage's When / Do line). A faint chip that
+       brightens on hover so the player sees the line is editable; the label text
+       color comes from the child TextWidget. -->
+  <Brush Name="Rbp.Field" TransitionDuration="0.1">
+    <Layers>
+      <BrushLayer Name="Default" Sprite="BlankWhiteSquare_9" Color="#FFFFFF14" />
+    </Layers>
+    <Styles>
+      <Style Name="Default"><BrushLayer Name="Default" ColorFactor="1.0" /></Style>
+      <Style Name="Hovered"><BrushLayer Name="Default" ColorFactor="2.6" /></Style>
+      <Style Name="Pressed"><BrushLayer Name="Default" ColorFactor="0.6" /></Style>
+    </Styles>
+  </Brush>
+
   <!-- Muted danger: dismissive / removing actions (Close, - Stage). -->
   <Brush Name="Rbp.Btn.Danger" FontColor="#E9CFC6FF" FontSize="16"
          TextHorizontalAlignment="Center" TextVerticalAlignment="Center" TransitionDuration="0.1">
