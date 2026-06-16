@@ -43,7 +43,9 @@ namespace RealisticBattlePlanning.Planning.Editing
         public IReadOnlyList<PlannedFormationClass> Formations
             => _plan.Formations.Select(f => f.Formation).ToList();
 
-        public IReadOnlyList<string> PlayerSignals => _plan.PlayerSignals;
+        // Snapshots, not the live backing lists (matches Formations): callers can't
+        // cast back to List and bypass the dedup/cap/blank-id invariants.
+        public IReadOnlyList<string> PlayerSignals => _plan.PlayerSignals.ToList();
 
         /// <summary>
         /// Adds a plan for a formation, seeded with the default opening stage
@@ -149,7 +151,8 @@ namespace RealisticBattlePlanning.Planning.Editing
         public PlanDraft EmitSignal(PlannedFormationClass formation, int stageIndex, string signal)
         {
             var stage = StageAt(formation, stageIndex);
-            if (stage != null && !string.IsNullOrWhiteSpace(signal) && !stage.Emit.Contains(signal))
+            if (stage != null && !string.IsNullOrWhiteSpace(signal)
+                && !stage.Emit.Any(s => string.Equals(s, signal, System.StringComparison.OrdinalIgnoreCase)))
                 stage.Emit.Add(signal);
             return this;
         }
@@ -192,7 +195,7 @@ namespace RealisticBattlePlanning.Planning.Editing
         {
             if (!string.IsNullOrWhiteSpace(signal)
                 && _plan.PlayerSignals.Count < 4
-                && !_plan.PlayerSignals.Contains(signal))
+                && !_plan.PlayerSignals.Any(s => string.Equals(s, signal, System.StringComparison.OrdinalIgnoreCase)))
                 _plan.PlayerSignals.Add(signal);
             return this;
         }
@@ -213,8 +216,8 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
-        /// <summary>The map anchors referenced by triggers/directives.</summary>
-        public IReadOnlyList<MapAnchor> Anchors => _plan.Anchors;
+        /// <summary>The map anchors referenced by triggers/directives (a snapshot).</summary>
+        public IReadOnlyList<MapAnchor> Anchors => _plan.Anchors.ToList();
 
         /// <summary>Removes a map anchor by id (case-insensitive). No-ops if absent.
         /// Stages still referencing it are left dangling — PlanValidator flags those.</summary>

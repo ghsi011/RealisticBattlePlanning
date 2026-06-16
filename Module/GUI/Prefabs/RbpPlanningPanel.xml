@@ -234,8 +234,11 @@
               </Children>
             </Widget>
 
-            <!-- Footer: signals + anchors + live validation (errors red, warnings amber) -->
-            <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="84"
+            <!-- Footer: signals + anchors + live validation (errors red, warnings amber).
+                 CoverChildren so it self-sizes from its fixed bottom anchor (MarginBottom=58)
+                 upward as the conditional error/warning lines appear, instead of overflowing a
+                 fixed box down into the action bar below it. -->
+            <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
                     VerticalAlignment="Bottom" MarginLeft="26" MarginRight="26" MarginBottom="58">
               <Children>
                 <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="2"

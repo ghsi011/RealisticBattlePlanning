@@ -409,10 +409,15 @@ namespace RealisticBattlePlanning.UI
                 AddPickerOption($"Abort above {p:0}% casualties", System.Math.Abs(abort.CasualtiesAbovePercent - p) < 0.5f, () =>
                 { _draft.SetAbortConditions(cls, casualtiesAbovePercent: p); AbortPicked(cls, $"abort above {p:0}% casualties"); });
             }
+            // Capture the intended new value before the call: SetAbortConditions
+            // mutates abort.* in place (abort IS the live plan.Abort), so reading
+            // the field again afterwards for the status text would report it flipped.
+            var nextBroken = !abort.OnFormationBroken;
             AddPickerOption(abort.OnFormationBroken ? "Abort if broken:  ON  →  turn off" : "Abort if broken:  off  →  turn on", abort.OnFormationBroken, () =>
-            { _draft.SetAbortConditions(cls, onFormationBroken: !abort.OnFormationBroken); AbortPicked(cls, $"abort-if-broken {(!abort.OnFormationBroken ? "on" : "off")}"); });
+            { _draft.SetAbortConditions(cls, onFormationBroken: nextBroken); AbortPicked(cls, $"abort-if-broken {(nextBroken ? "on" : "off")}"); });
+            var nextCmdr = !abort.OnCommanderIncapacitated;
             AddPickerOption(abort.OnCommanderIncapacitated ? "Abort if commander down:  ON  →  turn off" : "Abort if commander down:  off  →  turn on", abort.OnCommanderIncapacitated, () =>
-            { _draft.SetAbortConditions(cls, onCommanderIncapacitated: !abort.OnCommanderIncapacitated); AbortPicked(cls, $"abort-if-commander-down {(!abort.OnCommanderIncapacitated ? "on" : "off")}"); });
+            { _draft.SetAbortConditions(cls, onCommanderIncapacitated: nextCmdr); AbortPicked(cls, $"abort-if-commander-down {(nextCmdr ? "on" : "off")}"); });
             PickerTitle = $"Formation {SlotNumber(cls)}  ·  Abort conditions";
             PickerOpen = true;
         }

@@ -200,12 +200,52 @@ namespace RealisticBattlePlanning.Tests
             var draft = new PlanDraft();
             draft.AddStage(PlannedFormationClass.Infantry, Named("go"));
             draft.EmitSignal(PlannedFormationClass.Infantry, 0, "flank");
+            draft.EmitSignal(PlannedFormationClass.Infantry, 0, "FLANK"); // case-variant dup ignored
             draft.EmitSignal(PlannedFormationClass.Infantry, 0, "charge");
 
             draft.RemoveEmitSignal(PlannedFormationClass.Infantry, 0, "FLANK"); // case-insensitive
             draft.RemoveEmitSignal(PlannedFormationClass.Infantry, 0, "absent"); // harmless no-op
 
             Assert.Equal(new[] { "charge" }, draft.Build().Formations[0].Stages[0].Emit);
+        }
+
+        [Fact]
+        public void EmitAndRemoveOnOutOfRangeOrAbsentFormationAreHarmless()
+        {
+            // The no-throw contract (a UI misclick can't crash the mission) on the
+            // stage-emit paths: bad index / missing formation just no-op.
+            var draft = new PlanDraft();
+            draft.AddStage(PlannedFormationClass.Infantry, Named("only"));
+            draft.EmitSignal(PlannedFormationClass.Infantry, 0, "flank");
+
+            draft.EmitSignal(PlannedFormationClass.Infantry, 9, "x");        // out-of-range stage
+            draft.RemoveEmitSignal(PlannedFormationClass.Infantry, 9, "flank"); // out-of-range stage
+            draft.RemoveEmitSignal(PlannedFormationClass.Cavalry, 0, "flank");  // absent formation
+
+            Assert.Equal(new[] { "flank" }, draft.Build().Formations[0].Stages[0].Emit);
+        }
+
+        [Fact]
+        public void RemovingAnAnchorStillReferencedByAStageInvalidatesThePlan()
+        {
+            // RemoveAnchor's doc promises dangling references are left for the
+            // validator to flag — pin that contract (the editor surfaces the error).
+            var draft = new PlanDraft();
+            draft.AddAnchor(new MapAnchor { Id = "rally", Forward = 40f });
+            draft.AddStage(PlannedFormationClass.Infantry, Named("open"));
+            draft.AddStage(PlannedFormationClass.Infantry, new Stage
+            {
+                Name = "advance",
+                When = { new TriggerSpec { Type = TriggerType.PositionReached, Anchor = "rally" } },
+                Do = new DirectiveSpec { Type = DirectiveType.Hold },
+            });
+            Assert.True(draft.Validate().IsValid, string.Join("; ", draft.Validate().Errors));
+
+            draft.RemoveAnchor("rally"); // the PositionReached trigger now dangles
+
+            var result = draft.Validate();
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.IndexOf("rally", System.StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         [Fact]
