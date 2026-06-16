@@ -25,6 +25,9 @@ namespace RealisticBattlePlanning.UI
         private readonly PlanDraft _draft;
         private readonly Action<BattlePlan> _onApply;
         private readonly Action _onClose;
+        // Composition label per slot for the formations that actually have troops
+        // (e.g. {Infantry: "Ranged-Infantry"}). Empty/absent slots are not keys.
+        private readonly Dictionary<PlannedFormationClass, string> _compositionLabels;
 
         private string _titleText;
         private string _hintText;
@@ -40,15 +43,28 @@ namespace RealisticBattlePlanning.UI
         private bool _isAddFormationDisabled;
         private MBBindingList<FormationPlanItemVM> _formations;
 
-        public PlanningModeVM(string title, string hint, PlanDraft draft, Action<BattlePlan> onApply, Action onClose)
+        public PlanningModeVM(string title, string hint, PlanDraft draft, Action<BattlePlan> onApply, Action onClose,
+            Dictionary<PlannedFormationClass, string> compositionLabels = null)
         {
             _titleText = title;
             _hintText = hint;
             _draft = draft;
             _onApply = onApply;
             _onClose = onClose;
+            _compositionLabels = compositionLabels ?? new Dictionary<PlannedFormationClass, string>();
             _formations = new MBBindingList<FormationPlanItemVM>();
             Refresh();
+        }
+
+        /// <summary>Formation slot number (1-8) — the deployment formation index + 1.</summary>
+        private static int SlotNumber(PlannedFormationClass cls) => (int)cls + 1;
+
+        /// <summary>Header for a formation card: "3 — Ranged-Infantry" (composition label
+        /// when troops are known, otherwise the slot's class name).</summary>
+        private string HeaderFor(PlannedFormationClass cls)
+        {
+            var label = _compositionLabels.TryGetValue(cls, out var l) ? l : cls.ToString();
+            return $"{SlotNumber(cls)}   —   {label}";
         }
 
         private void Refresh()
@@ -56,7 +72,7 @@ namespace RealisticBattlePlanning.UI
             var plan = _draft.Build();
             _formations.Clear();
             foreach (var formation in plan.Formations)
-                _formations.Add(new FormationPlanItemVM(formation, AddStage, RemoveStage, CycleTrigger, CycleDirective));
+                _formations.Add(new FormationPlanItemVM(formation, HeaderFor(formation.Formation), AddStage, RemoveStage, CycleTrigger, CycleDirective));
 
             HasPlan = plan.Formations.Count > 0;
             EmptyText = HasPlan ? "" :
@@ -73,13 +89,20 @@ namespace RealisticBattlePlanning.UI
             var next = NextUnplannedClass(plan);
             CanAddFormation = next != null;
             IsAddFormationDisabled = next == null;
-            AddFormationText = next != null ? $"+  Add {next}" : "All formations planned";
+            AddFormationText = next is { } n ? $"+  Add Formation {SlotNumber(n)}" : "All formations planned";
         }
 
-        private static PlannedFormationClass? NextUnplannedClass(BattlePlan plan)
+        // The next slot to offer "Add Formation" for: the lowest-numbered slot
+        // that has troops but no plan yet. Falls back to every slot when there is
+        // no live composition data (engine read failed / not in a mission), so the
+        // editor never locks out adding.
+        private PlannedFormationClass? NextUnplannedClass(BattlePlan plan)
         {
             var planned = new HashSet<PlannedFormationClass>(plan.Formations.Select(f => f.Formation));
-            foreach (PlannedFormationClass c in Enum.GetValues(typeof(PlannedFormationClass)))
+            var candidates = _compositionLabels.Count > 0
+                ? _compositionLabels.Keys.AsEnumerable()
+                : Enum.GetValues(typeof(PlannedFormationClass)).Cast<PlannedFormationClass>();
+            foreach (var c in candidates.OrderBy(c => (int)c))
                 if (!planned.Contains(c))
                     return c;
             return null;
@@ -205,7 +228,7 @@ namespace RealisticBattlePlanning.UI
             if (NextUnplannedClass(_draft.Build()) is { } next)
             {
                 _draft.AddFormation(next);
-                StatusText = $"Added {next} (with a default opening stage).";
+                StatusText = $"Added Formation {SlotNumber(next)} (with a default opening stage).";
                 Refresh();
             }
         }
@@ -249,6 +272,7 @@ namespace RealisticBattlePlanning.UI
 
         public FormationPlanItemVM(
             FormationPlan formation,
+            string headerText,
             Action<PlannedFormationClass> addStage,
             Action<PlannedFormationClass> removeStage,
             Action<PlannedFormationClass, int> cycleTrigger,
@@ -257,7 +281,7 @@ namespace RealisticBattlePlanning.UI
             _formation = formation.Formation;
             _addStage = addStage;
             _removeStage = removeStage;
-            NameText = formation.Formation.ToString();
+            NameText = headerText;
             AbortText = PlanFormatter.DescribeAbort(formation.Abort);
             CanRemove = formation.Stages.Count > 0;
             IsRemoveDisabled = !CanRemove;

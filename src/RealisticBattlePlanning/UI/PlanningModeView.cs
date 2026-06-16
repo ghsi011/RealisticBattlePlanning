@@ -129,7 +129,10 @@ namespace RealisticBattlePlanning.UI
                 // player clicks Apply, which commits the built plan back to the
                 // mission (rebuilding the monitor) via ApplyPlan.
                 var draft = PlanDraft.EditingCopyOf(_planLogic?.ActivePlan);
-                _dataSource = new PlanningModeVM("Battle Plan", $"{ToggleKey} to close", draft, ApplyEditedPlan, Hide);
+                // Label each numbered formation by its live troop composition so
+                // the cards read "1 — Ranged-Infantry", not the slot's class name.
+                var labels = FormationReader.CompositionLabels(Mission?.PlayerTeam);
+                _dataSource = new PlanningModeVM("Battle Plan", $"{ToggleKey} to close", draft, ApplyEditedPlan, Hide, labels);
                 // High local order so the layer sits above the deployment UI for
                 // both rendering and input (the deployment HUD/order layers are
                 // low-order; a focus layer underneath them never gets clicks).

@@ -104,6 +104,9 @@ namespace RealisticBattlePlanning.Diagnostics
             // Harness troop redistribution (FormationSplitter).
             InstanceMember(typeof(Agent), "IsHuman");
             InstanceMember(typeof(Agent), "Formation");
+            // Formation composition labels (FormationReader / planning editor).
+            InstanceMember(typeof(Agent), "HasMount");
+            InstanceMember(typeof(Agent), "IsRangedCached");
 
             // Override detection & plan control (PlanMissionLogic, I7).
             Property(typeof(Team), "PlayerOrderController");
