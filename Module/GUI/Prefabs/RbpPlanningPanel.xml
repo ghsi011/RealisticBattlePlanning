@@ -131,7 +131,29 @@
                                                     HorizontalAlignment="Left" VerticalAlignment="Top"
                                                     Brush="AgentHUD.Interaction.Text" Brush.FontSize="18" Brush.FontColor="#D8A84CFF"
                                                     Brush.TextHorizontalAlignment="Left" />
-                                        <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginLeft="34"
+                                        <!-- reorder: move this stage up / down -->
+                                        <ListPanel HorizontalAlignment="Right" VerticalAlignment="Top" WidthSizePolicy="Fixed" SuggestedWidth="24" HeightSizePolicy="CoverChildren"
+                                                   StackLayout.LayoutMethod="VerticalTopToBottom">
+                                          <Children>
+                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteMoveUp" IsDisabled="@IsMoveUpDisabled" Brush="Rbp.Btn.Neutral"
+                                                          WidthSizePolicy="Fixed" SuggestedWidth="24" HeightSizePolicy="Fixed" SuggestedHeight="18">
+                                              <Children>
+                                                <TextWidget Text="↑" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#D7E1EDFF"
+                                                            Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                              </Children>
+                                            </ButtonWidget>
+                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteMoveDown" IsDisabled="@IsMoveDownDisabled" MarginTop="2" Brush="Rbp.Btn.Neutral"
+                                                          WidthSizePolicy="Fixed" SuggestedWidth="24" HeightSizePolicy="Fixed" SuggestedHeight="18">
+                                              <Children>
+                                                <TextWidget Text="↓" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#D7E1EDFF"
+                                                            Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                              </Children>
+                                            </ButtonWidget>
+                                          </Children>
+                                        </ListPanel>
+                                        <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginLeft="34" MarginRight="30"
                                                    StackLayout.LayoutMethod="VerticalTopToBottom">
                                           <Children>
                                             <!-- When: click to pick the trigger type -->

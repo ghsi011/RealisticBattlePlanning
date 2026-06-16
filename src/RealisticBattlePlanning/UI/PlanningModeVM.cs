@@ -89,7 +89,8 @@ namespace RealisticBattlePlanning.UI
                 var formationPlan = plan.Formations.FirstOrDefault(f => f.Formation == cls)
                                     ?? new FormationPlan { Formation = cls };
                 _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage,
-                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenAbortPicker, ClearFormation));
+                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenAbortPicker, ClearFormation,
+                    MoveStageUp, MoveStageDown));
             }
 
             HasPlan = _formations.Count > 0;
@@ -139,6 +140,22 @@ namespace RealisticBattlePlanning.UI
         {
             _draft.RemoveFormation(cls);
             StatusText = $"Formation {SlotNumber(cls)} cleared — now uncommanded.";
+            Refresh();
+        }
+
+        // Stages execute strictly in order (A3.3); ▲/▼ reorder them.
+        private void MoveStageUp(PlannedFormationClass cls, int index)
+        {
+            if (index <= 0) return;
+            _draft.MoveStage(cls, index, index - 1);
+            StatusText = $"Formation {SlotNumber(cls)}: moved stage {index + 1} up.";
+            Refresh();
+        }
+
+        private void MoveStageDown(PlannedFormationClass cls, int index)
+        {
+            _draft.MoveStage(cls, index, index + 1);
+            StatusText = $"Formation {SlotNumber(cls)}: moved stage {index + 1} down.";
             Refresh();
         }
 
@@ -501,7 +518,9 @@ namespace RealisticBattlePlanning.UI
             Action<PlannedFormationClass, int> editTriggerParam,
             Action<PlannedFormationClass, int> editDirectiveParam,
             Action<PlannedFormationClass> editAbort,
-            Action<PlannedFormationClass> clearFormation)
+            Action<PlannedFormationClass> clearFormation,
+            Action<PlannedFormationClass, int> moveStageUp,
+            Action<PlannedFormationClass, int> moveStageDown)
         {
             _formation = formation.Formation;
             _addStage = addStage;
@@ -518,16 +537,19 @@ namespace RealisticBattlePlanning.UI
             CanRemove = formation.Stages.Count > 0;
             IsRemoveDisabled = !CanRemove;
             Stages = new MBBindingList<StageItemVM>();
-            for (var i = 0; i < formation.Stages.Count; i++)
+            var count = formation.Stages.Count;
+            for (var i = 0; i < count; i++)
             {
                 var index = i; // capture for the per-stage picker closures
                 var cls = _formation;
                 Stages.Add(new StageItemVM(
-                    i, formation.Stages[i],
+                    i, count, formation.Stages[i],
                     () => editTrigger?.Invoke(cls, index),
                     () => editDirective?.Invoke(cls, index),
                     () => editTriggerParam?.Invoke(cls, index),
-                    () => editDirectiveParam?.Invoke(cls, index)));
+                    () => editDirectiveParam?.Invoke(cls, index),
+                    () => moveStageUp?.Invoke(cls, index),
+                    () => moveStageDown?.Invoke(cls, index)));
             }
         }
 
@@ -554,14 +576,20 @@ namespace RealisticBattlePlanning.UI
         private readonly Action _editDirective;
         private readonly Action _editTriggerParam;
         private readonly Action _editDirectiveParam;
+        private readonly Action _moveUp;
+        private readonly Action _moveDown;
 
-        public StageItemVM(int index, Stage stage, Action editTrigger, Action editDirective,
-            Action editTriggerParam, Action editDirectiveParam)
+        public StageItemVM(int index, int stageCount, Stage stage, Action editTrigger, Action editDirective,
+            Action editTriggerParam, Action editDirectiveParam, Action moveUp, Action moveDown)
         {
             _editTrigger = editTrigger;
             _editDirective = editDirective;
             _editTriggerParam = editTriggerParam;
             _editDirectiveParam = editDirectiveParam;
+            _moveUp = moveUp;
+            _moveDown = moveDown;
+            IsMoveUpDisabled = index <= 0;
+            IsMoveDownDisabled = index >= stageCount - 1;
             NumberText = (index + 1).ToString();
             TriggerText = "When:  " + PlanFormatter.DescribeWhen(stage, index);
             DirectiveText = "Do:  " + PlanFormatter.DescribeDirective(stage.Do);
@@ -577,6 +605,8 @@ namespace RealisticBattlePlanning.UI
         public void ExecuteEditDirective() => _editDirective?.Invoke();
         public void ExecuteEditTriggerParam() => _editTriggerParam?.Invoke();
         public void ExecuteEditDirectiveParam() => _editDirectiveParam?.Invoke();
+        public void ExecuteMoveUp() => _moveUp?.Invoke();
+        public void ExecuteMoveDown() => _moveDown?.Invoke();
 
         /// <summary>Whether a trigger type has an editable parameter, and the chip text for it.</summary>
         private static (bool has, string label) TriggerParam(TriggerSpec t)
@@ -624,5 +654,7 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public string TriggerParamLabel { get; }
         [DataSourceProperty] public bool HasDirectiveParam { get; }
         [DataSourceProperty] public string DirectiveParamLabel { get; }
+        [DataSourceProperty] public bool IsMoveUpDisabled { get; }
+        [DataSourceProperty] public bool IsMoveDownDisabled { get; }
     }
 }
