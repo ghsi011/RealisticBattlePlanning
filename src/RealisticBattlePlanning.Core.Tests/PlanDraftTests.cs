@@ -98,6 +98,21 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void PlayerSignalsDeclareWithCapAndRemoveCaseInsensitive()
+        {
+            var draft = new PlanDraft();
+            draft.DeclarePlayerSignal("advance").DeclarePlayerSignal("charge").DeclarePlayerSignal("advance"); // dup ignored
+            Assert.Equal(new[] { "advance", "charge" }, draft.PlayerSignals);
+
+            draft.DeclarePlayerSignal("a").DeclarePlayerSignal("b").DeclarePlayerSignal("c"); // capped at 4
+            Assert.Equal(4, draft.PlayerSignals.Count);
+
+            draft.RemovePlayerSignal("ADVANCE"); // case-insensitive
+            Assert.DoesNotContain("advance", draft.PlayerSignals);
+            Assert.Equal(3, draft.PlayerSignals.Count);
+        }
+
+        [Fact]
         public void StagesAddRemoveAndReorder()
         {
             var draft = new PlanDraft();

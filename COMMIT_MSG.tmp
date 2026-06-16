@@ -1,0 +1,12 @@
+Planning UI: declare and remove player signals
+
+The footer SIGNALS line is now a button that opens a manager picker:
+remove any declared signal, or add one from the preset palette
+(advance/charge/retreat/hold/flank/regroup/rally/fire), capped at 4.
+SignalsText is always actionable, even when none are declared.
+
+Adds PlanDraft.RemovePlayerSignal (case-insensitive) with a test
+covering declare/dedup/cap-at-4/remove. 250 Core tests pass.
+
+Verified in-game: adding 'retreat' updates the SIGNALS line to
+[advance] [charge] [retreat] and reports the change in the status line.

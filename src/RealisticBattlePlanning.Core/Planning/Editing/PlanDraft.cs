@@ -189,6 +189,14 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
+        /// <summary>Removes a declared player signal (case-insensitive). No-ops if absent.
+        /// Stages that still reference it are left dangling — PlanValidator flags those.</summary>
+        public PlanDraft RemovePlayerSignal(string signal)
+        {
+            _plan.PlayerSignals.RemoveAll(s => string.Equals(s, signal, System.StringComparison.OrdinalIgnoreCase));
+            return this;
+        }
+
         public PlanDraft AddAnchor(MapAnchor anchor)
         {
             if (anchor != null && !string.IsNullOrWhiteSpace(anchor.Id)

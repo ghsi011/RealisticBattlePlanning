@@ -235,9 +235,15 @@
                 <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
                            VerticalAlignment="Top" MarginTop="8" StackLayout.LayoutMethod="VerticalTopToBottom">
                   <Children>
-                    <TextWidget Text="@SignalsText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#B0A684FF"
-                                Brush.TextHorizontalAlignment="Left" />
+                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditSignals" Brush="Rbp.Field"
+                                  WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren">
+                      <Children>
+                        <TextWidget Text="@SignalsText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                    MarginLeft="6" MarginRight="6" MarginTop="1" MarginBottom="1"
+                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#B0A684FF"
+                                    Brush.TextHorizontalAlignment="Left" />
+                      </Children>
+                    </ButtonWidget>
                     <TextWidget Text="@ErrorsText" IsVisible="@HasErrors" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="3"
                                 Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#E2603CFF"
                                 Brush.TextHorizontalAlignment="Left" />

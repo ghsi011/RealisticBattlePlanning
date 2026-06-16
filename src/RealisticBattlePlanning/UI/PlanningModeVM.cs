@@ -97,8 +97,8 @@ namespace RealisticBattlePlanning.UI
             EmptyText = HasPlan ? "" : "No formations with troops to command.";
 
             SignalsText = plan.PlayerSignals.Count > 0
-                ? "SIGNALS    " + string.Join("     ", plan.PlayerSignals.Select(s => $"[ {s} ]"))
-                : "";
+                ? "SIGNALS    " + string.Join("     ", plan.PlayerSignals.Select(s => $"[ {s} ]")) + "        (click to manage)"
+                : "SIGNALS    (none — click to add player signals)";
 
             // Surface BOTH errors (red, blocks Apply) and warnings (amber, informational)
             // live as the player edits, so cycling into an un-appliable type (e.g. a
@@ -378,6 +378,37 @@ namespace RealisticBattlePlanning.UI
             StatusText = $"Formation {SlotNumber(cls)}: {what}.";
             ClosePicker();
             Refresh();
+        }
+
+        /// <summary>Common player-signal names offered by the manager (B9 caps at 4).
+        /// Text input isn't practical in Gauntlet, so the player picks from presets.</summary>
+        private static readonly string[] SignalPresets = { "advance", "charge", "retreat", "hold", "flank", "regroup", "rally", "fire" };
+
+        // Clicking the SIGNALS footer manages the declared player signals: remove
+        // an existing one or add a preset (the palette fires these in battle, B9).
+        public void ExecuteEditSignals()
+        {
+            var plan = _draft.Build();
+            _pickerOptions.Clear();
+            foreach (var s in plan.PlayerSignals.ToList())
+            {
+                var sig = s;
+                AddPickerOption($"Remove signal  '{sig}'", true, () =>
+                { _draft.RemovePlayerSignal(sig); StatusText = $"Removed player signal '{sig}'."; ClosePicker(); Refresh(); });
+            }
+            if (plan.PlayerSignals.Count < 4)
+            {
+                foreach (var preset in SignalPresets)
+                {
+                    if (plan.PlayerSignals.Any(s => string.Equals(s, preset, StringComparison.OrdinalIgnoreCase)))
+                        continue;
+                    var p = preset;
+                    AddPickerOption($"Add signal  '{p}'", false, () =>
+                    { _draft.DeclarePlayerSignal(p); StatusText = $"Declared player signal '{p}'."; ClosePicker(); Refresh(); });
+                }
+            }
+            PickerTitle = "Player signals  ·  declare or remove  (max 4)";
+            PickerOpen = true;
         }
 
         private static IEnumerable<string> EnemyTargets()
