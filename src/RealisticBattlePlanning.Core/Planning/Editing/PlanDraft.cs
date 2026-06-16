@@ -213,6 +213,17 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
+        /// <summary>The map anchors referenced by triggers/directives.</summary>
+        public IReadOnlyList<MapAnchor> Anchors => _plan.Anchors;
+
+        /// <summary>Removes a map anchor by id (case-insensitive). No-ops if absent.
+        /// Stages still referencing it are left dangling — PlanValidator flags those.</summary>
+        public PlanDraft RemoveAnchor(string id)
+        {
+            _plan.Anchors.RemoveAll(a => string.Equals(a.Id, id, System.StringComparison.OrdinalIgnoreCase));
+            return this;
+        }
+
         /// <summary>Live feasibility feedback for the editor (A3.8): non-blocking.</summary>
         public PlanValidationResult Validate() => PlanValidator.Validate(_plan);
 

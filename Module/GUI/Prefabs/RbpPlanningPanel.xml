@@ -44,7 +44,7 @@
 
             <!-- Body: one card per formation (scrolls when it overflows) -->
             <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                    MarginTop="68" MarginBottom="118" MarginLeft="24" MarginRight="16">
+                    MarginTop="68" MarginBottom="146" MarginLeft="24" MarginRight="16">
               <Children>
                 <ScrollablePanel Id="ScrollPanel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
                                  AutoHideScrollBars="true" ClipRect="ClipRect" InnerPanel="ClipRect\FormList"
@@ -234,8 +234,8 @@
               </Children>
             </Widget>
 
-            <!-- Footer: signals + live validation (errors red, warnings amber) -->
-            <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="56"
+            <!-- Footer: signals + anchors + live validation (errors red, warnings amber) -->
+            <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="84"
                     VerticalAlignment="Bottom" MarginLeft="26" MarginRight="26" MarginBottom="58">
               <Children>
                 <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="2"
@@ -249,6 +249,15 @@
                         <TextWidget Text="@SignalsText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
                                     MarginLeft="6" MarginRight="6" MarginTop="1" MarginBottom="1"
                                     Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#B0A684FF"
+                                    Brush.TextHorizontalAlignment="Left" />
+                      </Children>
+                    </ButtonWidget>
+                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditAnchors" Brush="Rbp.Field" MarginTop="3"
+                                  WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren">
+                      <Children>
+                        <TextWidget Text="@AnchorsText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                    MarginLeft="6" MarginRight="6" MarginTop="1" MarginBottom="1"
+                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#A6A28CFF"
                                     Brush.TextHorizontalAlignment="Left" />
                       </Children>
                     </ButtonWidget>

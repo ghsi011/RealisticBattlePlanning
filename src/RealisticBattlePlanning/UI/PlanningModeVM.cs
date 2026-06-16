@@ -32,6 +32,7 @@ namespace RealisticBattlePlanning.UI
         private string _titleText;
         private string _hintText;
         private string _signalsText;
+        private string _anchorsText;
         private string _statusText;
         private string _warningsText;
         private string _errorsText;
@@ -99,6 +100,10 @@ namespace RealisticBattlePlanning.UI
             SignalsText = plan.PlayerSignals.Count > 0
                 ? "SIGNALS    " + string.Join("     ", plan.PlayerSignals.Select(s => $"[ {s} ]")) + "        (click to manage)"
                 : "SIGNALS    (none — click to add player signals)";
+
+            AnchorsText = plan.Anchors.Count > 0
+                ? "ANCHORS    " + string.Join("     ", plan.Anchors.Select(a => $"[ {a.Id} ]")) + "        (click to manage)"
+                : "ANCHORS    (none — click to add map anchors for Move To / Position Reached)";
 
             // Surface BOTH errors (red, blocks Apply) and warnings (amber, informational)
             // live as the player edits, so cycling into an un-appliable type (e.g. a
@@ -450,6 +455,65 @@ namespace RealisticBattlePlanning.UI
             PickerOpen = true;
         }
 
+        /// <summary>Curated tactical anchors offered by the manager. Text input isn't
+        /// practical in Gauntlet, so anchors are placed from presets (relative to the
+        /// formation's deployment / team center) until the interactive map lands (#38).
+        /// Each is a (id, basis, forward m, right m) — forward is along the attack
+        /// axis, right is positive to the right of it.</summary>
+        private static readonly (string Id, AnchorBasis Basis, float Forward, float Right)[] AnchorPresets =
+        {
+            ("advance",     AnchorBasis.OwnStart,   60f,   0f),
+            ("push",        AnchorBasis.OwnStart,  120f,   0f),
+            ("hold-line",   AnchorBasis.OwnStart,    0f,   0f),
+            ("fall-back",   AnchorBasis.OwnStart,  -40f,   0f),
+            ("left-flank",  AnchorBasis.OwnStart,   40f, -60f),
+            ("right-flank", AnchorBasis.OwnStart,   40f,  60f),
+            ("center",      AnchorBasis.TeamCenter,  0f,   0f),
+        };
+
+        // Clicking the ANCHORS footer manages the plan's map anchors: remove an
+        // existing one, or add a tactical preset. Anchors are the destinations/
+        // reference points for Move To, Feign Retreat, Pull Back and Position
+        // Reached — without one, those directives can't be aimed.
+        public void ExecuteEditAnchors()
+        {
+            var plan = _draft.Build();
+            _pickerOptions.Clear();
+            foreach (var a in plan.Anchors.ToList())
+            {
+                var anchor = a;
+                AddPickerOption($"Remove anchor  '{anchor.Id}'   ({DescribeAnchor(anchor)})", true, () =>
+                { _draft.RemoveAnchor(anchor.Id); StatusText = $"Removed anchor '{anchor.Id}'."; ClosePicker(); Refresh(); });
+            }
+            foreach (var preset in AnchorPresets)
+            {
+                if (plan.Anchors.Any(a => string.Equals(a.Id, preset.Id, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+                var p = preset;
+                AddPickerOption($"Add anchor  '{p.Id}'   ({DescribeAnchor(new MapAnchor { Id = p.Id, Basis = p.Basis, Forward = p.Forward, Right = p.Right })})", false, () =>
+                {
+                    _draft.AddAnchor(new MapAnchor { Id = p.Id, Basis = p.Basis, Forward = p.Forward, Right = p.Right });
+                    StatusText = $"Added anchor '{p.Id}'.";
+                    ClosePicker();
+                    Refresh();
+                });
+            }
+            PickerTitle = "Map anchors  ·  add or remove";
+            PickerOpen = true;
+        }
+
+        /// <summary>Short human description of an anchor's position for the picker/footer.</summary>
+        private static string DescribeAnchor(MapAnchor a)
+        {
+            if (a.Basis == AnchorBasis.Scene)
+                return "scene position";
+            var baseName = a.Basis == AnchorBasis.TeamCenter ? "team center" : "deployment";
+            var parts = new List<string>();
+            if (System.Math.Abs(a.Forward) > 0.01f) parts.Add($"{(a.Forward >= 0 ? "+" : "")}{a.Forward:0} m fwd");
+            if (System.Math.Abs(a.Right) > 0.01f) parts.Add($"{System.Math.Abs(a.Right):0} m {(a.Right >= 0 ? "right" : "left")}");
+            return parts.Count == 0 ? baseName : $"{baseName}, " + string.Join(", ", parts);
+        }
+
         private static IEnumerable<string> EnemyTargets()
         {
             yield return "Nearest";
@@ -541,6 +605,7 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public string TitleText { get => _titleText; set { if (value != _titleText) { _titleText = value; OnPropertyChangedWithValue(value, "TitleText"); } } }
         [DataSourceProperty] public string HintText { get => _hintText; set { if (value != _hintText) { _hintText = value; OnPropertyChangedWithValue(value, "HintText"); } } }
         [DataSourceProperty] public string SignalsText { get => _signalsText; set { if (value != _signalsText) { _signalsText = value; OnPropertyChangedWithValue(value, "SignalsText"); } } }
+        [DataSourceProperty] public string AnchorsText { get => _anchorsText; set { if (value != _anchorsText) { _anchorsText = value; OnPropertyChangedWithValue(value, "AnchorsText"); } } }
         [DataSourceProperty] public string WarningsText { get => _warningsText; set { if (value != _warningsText) { _warningsText = value; OnPropertyChangedWithValue(value, "WarningsText"); } } }
         [DataSourceProperty] public string ErrorsText { get => _errorsText; set { if (value != _errorsText) { _errorsText = value; OnPropertyChangedWithValue(value, "ErrorsText"); } } }
         [DataSourceProperty] public string EmptyText { get => _emptyText; set { if (value != _emptyText) { _emptyText = value; OnPropertyChangedWithValue(value, "EmptyText"); } } }

@@ -182,6 +182,19 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void AnchorsCanBeAddedAndRemovedCaseInsensitively()
+        {
+            var draft = new PlanDraft();
+            draft.AddAnchor(new MapAnchor { Id = "advance", Forward = 60f });
+            draft.AddAnchor(new MapAnchor { Id = "fall-back", Forward = -40f });
+            Assert.Equal(new[] { "advance", "fall-back" }, draft.Anchors.Select(a => a.Id));
+
+            draft.RemoveAnchor("ADVANCE"); // case-insensitive
+            draft.RemoveAnchor("absent");  // harmless no-op
+            Assert.Equal(new[] { "fall-back" }, draft.Anchors.Select(a => a.Id));
+        }
+
+        [Fact]
         public void EmitSignalCanBeRemovedCaseInsensitively()
         {
             var draft = new PlanDraft();
