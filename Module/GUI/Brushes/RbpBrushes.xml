@@ -35,6 +35,21 @@
     </Styles>
   </Brush>
 
+  <!-- Modal backdrop behind the trigger/directive picker: a dark, clickable scrim
+       (a plain ButtonWidget ignores Sprite+Color and renders white, so it needs a
+       brush). No hover/press change — it just dims the panel and catches the
+       click-to-cancel. -->
+  <Brush Name="Rbp.Backdrop" TransitionDuration="0">
+    <Layers>
+      <BrushLayer Name="Default" Sprite="BlankWhiteSquare_9" Color="#0A0805C8" />
+    </Layers>
+    <Styles>
+      <Style Name="Default"><BrushLayer Name="Default" ColorFactor="1.0" /></Style>
+      <Style Name="Hovered"><BrushLayer Name="Default" ColorFactor="1.0" /></Style>
+      <Style Name="Pressed"><BrushLayer Name="Default" ColorFactor="1.0" /></Style>
+    </Styles>
+  </Brush>
+
   <!-- Inline click-to-cycle field (a stage's When / Do line). A faint chip that
        brightens on hover so the player sees the line is editable; the label text
        color comes from the child TextWidget. -->

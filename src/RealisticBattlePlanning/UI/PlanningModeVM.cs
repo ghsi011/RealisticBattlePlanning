@@ -40,7 +40,10 @@ namespace RealisticBattlePlanning.UI
         private bool _hasErrors;
         private bool _hasStatus;
         private bool _hasPlan;
+        private bool _pickerOpen;
+        private string _pickerTitle;
         private MBBindingList<FormationPlanItemVM> _formations;
+        private MBBindingList<PickerOptionVM> _pickerOptions;
 
         public PlanningModeVM(string title, string hint, PlanDraft draft, Action<BattlePlan> onApply, Action onClose,
             Dictionary<PlannedFormationClass, string> compositionLabels = null)
@@ -52,6 +55,7 @@ namespace RealisticBattlePlanning.UI
             _onClose = onClose;
             _compositionLabels = compositionLabels ?? new Dictionary<PlannedFormationClass, string>();
             _formations = new MBBindingList<FormationPlanItemVM>();
+            _pickerOptions = new MBBindingList<PickerOptionVM>();
             Refresh();
         }
 
@@ -84,7 +88,7 @@ namespace RealisticBattlePlanning.UI
             {
                 var formationPlan = plan.Formations.FirstOrDefault(f => f.Formation == cls)
                                     ?? new FormationPlan { Formation = cls };
-                _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage, CycleTrigger, CycleDirective));
+                _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage, OpenTriggerPicker, OpenDirectivePicker));
             }
 
             HasPlan = _formations.Count > 0;
@@ -128,37 +132,63 @@ namespace RealisticBattlePlanning.UI
             Refresh();
         }
 
-        // Cycle a stage's trigger ("When") to the next TriggerType, applying a
-        // valid default spec for it (using the plan's anchors/signals where the
-        // type needs them). Replaces the stage's conditions with the single new
-        // one — single-condition editing for v1.
-        private void CycleTrigger(PlannedFormationClass cls, int stageIndex)
+        // Clicking a stage's "When" field opens the picker: a modal list of every
+        // TriggerType. Selecting one sets a valid default spec for it (using the
+        // plan's anchors/signals where the type needs them) and closes the picker.
+        private void OpenTriggerPicker(PlannedFormationClass cls, int stageIndex)
         {
             var plan = _draft.Build();
             var stage = StageAt(plan, cls, stageIndex);
             if (stage == null)
                 return;
             var current = stage.When.Count > 0 ? stage.When[0].Type : TriggerType.BattleStart;
-            var next = (TriggerType)NextEnumValue(typeof(TriggerType), current);
-            _draft.SetTrigger(cls, stageIndex, DefaultTrigger(next, plan));
-            StatusText = $"{cls} stage {stageIndex + 1}: When → {Spaced(next.ToString())}.";
-            Refresh();
+            _pickerOptions.Clear();
+            foreach (TriggerType t in Enum.GetValues(typeof(TriggerType)))
+            {
+                var type = t; // capture per option
+                _pickerOptions.Add(new PickerOptionVM(Spaced(type.ToString()), type == current, () =>
+                {
+                    _draft.SetTrigger(cls, stageIndex, DefaultTrigger(type, _draft.Build()));
+                    StatusText = $"Formation {SlotNumber(cls)} stage {stageIndex + 1}: When → {Spaced(type.ToString())}.";
+                    ClosePicker();
+                    Refresh();
+                }));
+            }
+            PickerTitle = $"Formation {SlotNumber(cls)}  ·  Stage {stageIndex + 1}  ·  When";
+            PickerOpen = true;
         }
 
-        // Cycle a stage's directive ("Do") to the next DirectiveType, applying a
-        // valid default spec for it.
-        private void CycleDirective(PlannedFormationClass cls, int stageIndex)
+        // Clicking a stage's "Do" field opens the picker with every DirectiveType.
+        private void OpenDirectivePicker(PlannedFormationClass cls, int stageIndex)
         {
             var plan = _draft.Build();
             var stage = StageAt(plan, cls, stageIndex);
             if (stage == null)
                 return;
             var current = stage.Do?.Type ?? DirectiveType.Hold;
-            var next = (DirectiveType)NextEnumValue(typeof(DirectiveType), current);
-            _draft.SetDirective(cls, stageIndex, DefaultDirective(next, plan));
-            StatusText = $"{cls} stage {stageIndex + 1}: Do → {Spaced(next.ToString())}.";
-            Refresh();
+            _pickerOptions.Clear();
+            foreach (DirectiveType t in Enum.GetValues(typeof(DirectiveType)))
+            {
+                var type = t; // capture per option
+                _pickerOptions.Add(new PickerOptionVM(Spaced(type.ToString()), type == current, () =>
+                {
+                    _draft.SetDirective(cls, stageIndex, DefaultDirective(type, _draft.Build()));
+                    StatusText = $"Formation {SlotNumber(cls)} stage {stageIndex + 1}: Do → {Spaced(type.ToString())}.";
+                    ClosePicker();
+                    Refresh();
+                }));
+            }
+            PickerTitle = $"Formation {SlotNumber(cls)}  ·  Stage {stageIndex + 1}  ·  Do";
+            PickerOpen = true;
         }
+
+        private void ClosePicker()
+        {
+            PickerOpen = false;
+            _pickerOptions.Clear();
+        }
+
+        public void ExecuteClosePicker() => ClosePicker();
 
         private static Stage StageAt(BattlePlan plan, PlannedFormationClass cls, int stageIndex)
         {
@@ -166,13 +196,6 @@ namespace RealisticBattlePlanning.UI
             return formation != null && stageIndex >= 0 && stageIndex < formation.Stages.Count
                 ? formation.Stages[stageIndex]
                 : null;
-        }
-
-        private static object NextEnumValue(Type enumType, object current)
-        {
-            var values = Enum.GetValues(enumType);
-            var idx = Array.IndexOf(values, current);
-            return values.GetValue((idx + 1) % values.Length);
         }
 
         /// <summary>A valid default trigger for <paramref name="type"/>, filling in
@@ -249,6 +272,27 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public string EmptyText { get => _emptyText; set { if (value != _emptyText) { _emptyText = value; OnPropertyChangedWithValue(value, "EmptyText"); } } }
         [DataSourceProperty] public string StatusText { get => _statusText; set { if (value != _statusText) { _statusText = value; OnPropertyChangedWithValue(value, "StatusText"); HasStatus = !string.IsNullOrEmpty(value); } } }
         [DataSourceProperty] public MBBindingList<FormationPlanItemVM> Formations { get => _formations; set { if (value != _formations) { _formations = value; OnPropertyChangedWithValue(value, "Formations"); } } }
+        [DataSourceProperty] public bool PickerOpen { get => _pickerOpen; set { if (value != _pickerOpen) { _pickerOpen = value; OnPropertyChangedWithValue(value, "PickerOpen"); } } }
+        [DataSourceProperty] public string PickerTitle { get => _pickerTitle; set { if (value != _pickerTitle) { _pickerTitle = value; OnPropertyChangedWithValue(value, "PickerTitle"); } } }
+        [DataSourceProperty] public MBBindingList<PickerOptionVM> PickerOptions { get => _pickerOptions; set { if (value != _pickerOptions) { _pickerOptions = value; OnPropertyChangedWithValue(value, "PickerOptions"); } } }
+    }
+
+    /// <summary>One selectable row in the trigger/directive picker menu.</summary>
+    public sealed class PickerOptionVM : ViewModel
+    {
+        private readonly Action _onSelect;
+
+        public PickerOptionVM(string label, bool isCurrent, Action onSelect)
+        {
+            _onSelect = onSelect;
+            Label = label;
+            IsCurrent = isCurrent;
+        }
+
+        public void ExecuteSelect() => _onSelect?.Invoke();
+
+        [DataSourceProperty] public string Label { get; }
+        [DataSourceProperty] public bool IsCurrent { get; }
     }
 
     /// <summary>One formation's card: name, abort rule, its stage rows, and add/remove-stage controls.</summary>
@@ -263,8 +307,8 @@ namespace RealisticBattlePlanning.UI
             string headerText,
             Action<PlannedFormationClass> addStage,
             Action<PlannedFormationClass> removeStage,
-            Action<PlannedFormationClass, int> cycleTrigger,
-            Action<PlannedFormationClass, int> cycleDirective)
+            Action<PlannedFormationClass, int> editTrigger,
+            Action<PlannedFormationClass, int> editDirective)
         {
             _formation = formation.Formation;
             _addStage = addStage;
@@ -281,12 +325,12 @@ namespace RealisticBattlePlanning.UI
             Stages = new MBBindingList<StageItemVM>();
             for (var i = 0; i < formation.Stages.Count; i++)
             {
-                var index = i; // capture for the per-stage cycle closures
+                var index = i; // capture for the per-stage picker closures
                 var cls = _formation;
                 Stages.Add(new StageItemVM(
                     i, formation.Stages[i],
-                    () => cycleTrigger?.Invoke(cls, index),
-                    () => cycleDirective?.Invoke(cls, index)));
+                    () => editTrigger?.Invoke(cls, index),
+                    () => editDirective?.Invoke(cls, index)));
             }
         }
 
@@ -304,16 +348,16 @@ namespace RealisticBattlePlanning.UI
     }
 
     /// <summary>One stage row: number, the trigger ("When") and directive ("Do") as
-    /// click-to-cycle fields, and any emitted signals.</summary>
+    /// click-to-edit fields (open a picker menu), and any emitted signals.</summary>
     public sealed class StageItemVM : ViewModel
     {
-        private readonly Action _cycleTrigger;
-        private readonly Action _cycleDirective;
+        private readonly Action _editTrigger;
+        private readonly Action _editDirective;
 
-        public StageItemVM(int index, Stage stage, Action cycleTrigger, Action cycleDirective)
+        public StageItemVM(int index, Stage stage, Action editTrigger, Action editDirective)
         {
-            _cycleTrigger = cycleTrigger;
-            _cycleDirective = cycleDirective;
+            _editTrigger = editTrigger;
+            _editDirective = editDirective;
             NumberText = (index + 1).ToString();
             TriggerText = "When:  " + PlanFormatter.DescribeWhen(stage, index);
             DirectiveText = "Do:  " + PlanFormatter.DescribeDirective(stage.Do);
@@ -321,8 +365,8 @@ namespace RealisticBattlePlanning.UI
             HasEmit = stage.Emit.Count > 0;
         }
 
-        public void ExecuteCycleTrigger() => _cycleTrigger?.Invoke();
-        public void ExecuteCycleDirective() => _cycleDirective?.Invoke();
+        public void ExecuteEditTrigger() => _editTrigger?.Invoke();
+        public void ExecuteEditDirective() => _editDirective?.Invoke();
 
         [DataSourceProperty] public string NumberText { get; }
         [DataSourceProperty] public string TriggerText { get; }

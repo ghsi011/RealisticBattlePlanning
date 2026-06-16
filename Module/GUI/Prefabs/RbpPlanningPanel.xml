@@ -1,4 +1,4 @@
-<Prefab>
+﻿<Prefab>
   <!--
     Planning Mode editor. A dark, framed panel centred at the top (clear of the
     left/right formation cards): an accented header bar, one card per live
@@ -120,7 +120,7 @@
                                                    StackLayout.LayoutMethod="VerticalTopToBottom">
                                           <Children>
                                             <!-- When: click to cycle the trigger type -->
-                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteCycleTrigger" Brush="Rbp.Field"
+                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditTrigger" Brush="Rbp.Field"
                                                           WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren">
                                               <Children>
                                                 <TextWidget Text="@TriggerText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
@@ -130,7 +130,7 @@
                                               </Children>
                                             </ButtonWidget>
                                             <!-- Do: click to cycle the directive type -->
-                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteCycleDirective" Brush="Rbp.Field"
+                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditDirective" Brush="Rbp.Field"
                                                           WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="3">
                                               <Children>
                                                 <TextWidget Text="@DirectiveText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
@@ -228,9 +228,50 @@
               </Children>
             </Widget>
 
+            <!-- Trigger / Directive picker: a modal menu over the whole panel.
+                 Clicking a When/Do field opens it; clicking an option applies a
+                 valid default for that type; clicking the dimmed backdrop cancels. -->
+            <Widget IsVisible="@PickerOpen" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent">
+              <Children>
+                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteClosePicker" Brush="Rbp.Backdrop"
+                              WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" />
+                <Widget WidthSizePolicy="Fixed" SuggestedWidth="380" HeightSizePolicy="Fixed" SuggestedHeight="430"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Sprite="BlankWhiteSquare_9" Color="#1C160DFF">
+                  <Children>
+                    <TextWidget Text="@PickerTitle" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="40"
+                                VerticalAlignment="Top" MarginLeft="18" MarginRight="18"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="18" Brush.FontColor="#E0B85EFF"
+                                Brush.TextHorizontalAlignment="Left" Brush.TextVerticalAlignment="Center" />
+                    <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="2"
+                            VerticalAlignment="Top" MarginTop="42" Sprite="BlankWhiteSquare_9" Color="#9A7B3388" />
+                    <ListPanel DataSource="{PickerOptions}" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                               VerticalAlignment="Top" MarginTop="52" MarginLeft="14" MarginRight="14" MarginBottom="14"
+                               StackLayout.LayoutMethod="VerticalTopToBottom">
+                      <ItemTemplate>
+                        <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteSelect" Brush="Rbp.Btn.Neutral"
+                                      WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="32" MarginBottom="4">
+                          <Children>
+                            <TextWidget Text="@Label" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                        MarginLeft="30"
+                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#E2D2AEFF"
+                                        Brush.TextHorizontalAlignment="Left" Brush.TextVerticalAlignment="Center" />
+                            <TextWidget Text="*" IsVisible="@IsCurrent" WidthSizePolicy="Fixed" SuggestedWidth="20" HeightSizePolicy="StretchToParent"
+                                        HorizontalAlignment="Left" MarginLeft="8"
+                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#9FD6A0FF"
+                                        Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                          </Children>
+                        </ButtonWidget>
+                      </ItemTemplate>
+                    </ListPanel>
+                  </Children>
+                </Widget>
+              </Children>
+            </Widget>
+
           </Children>
         </Widget>
       </Children>
     </Widget>
   </Window>
 </Prefab>
+
