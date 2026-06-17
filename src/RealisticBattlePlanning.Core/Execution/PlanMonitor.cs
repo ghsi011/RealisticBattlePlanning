@@ -37,7 +37,11 @@ namespace RealisticBattlePlanning.Execution
         private readonly List<string> _pendingSignals = new();
         private readonly Dictionary<(string RefKey, int EnemyId), ApproachState> _approach = new();
         private readonly Dictionary<(TriggerSpec Spec, int EnemyId), float> _sustainedSince = new();
-        private readonly HashSet<(int Id, PlannedFormationClass? Class)> _initialEnemies = new();
+        // Enemy ids seen BROKEN while alive (with their class), latched until they
+        // return alive-and-unbroken. EnemyBroken (A4 "routs") reads this rather than
+        // inferring rout from disappearance — a formation cut down in melee never
+        // "broke", and a reinforcement reusing a slot id isn't broken.
+        private readonly Dictionary<int, PlannedFormationClass?> _observedBroken = new();
         private readonly HashSet<string> _warnedConditions = new(StringComparer.Ordinal);
         private readonly HashSet<int> _aliveEnemyIds = new();
         private readonly List<(TriggerSpec Spec, int EnemyId)> _staleSustainKeys = new();
@@ -147,8 +151,6 @@ namespace RealisticBattlePlanning.Execution
                 _battleStartSeconds = snapshot.TimeSeconds;
                 _attackAxis = snapshot.AttackDirection.Normalized();
                 Anchors = ResolvedAnchors.FromSnapshot(_plan.Anchors, snapshot);
-                foreach (var enemy in snapshot.Enemies)
-                    _initialEnemies.Add((enemy.Id, enemy.Class));
             }
 
             // Signals raised last tick become visible now.
@@ -277,7 +279,11 @@ namespace RealisticBattlePlanning.Execution
         /// started plans abort; commander death aborts unconditionally.</summary>
         private bool EvaluateAborts(FormationExecutionState state, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
         {
-            if (state.ActiveStageIndex < 0)
+            // A formation can abort once it has started executing — including while
+            // an opening stage's reaction delay is still parked (PendingStageIndex set
+            // but no stage active yet): commander-death/casualties/broken don't depend
+            // on which stage is live.
+            if (state.ActiveStageIndex < 0 && state.PendingStageIndex < 0)
                 return false;
 
             var abort = state.Plan.Abort;
@@ -287,8 +293,9 @@ namespace RealisticBattlePlanning.Execution
             if (own is { Exists: true })
             {
                 // Abort composure (D3): a green commander pulls out before the
-                // configured casualty limit; pass-through leaves it at 1.0.
-                var composure = _fidelity.AbortComposure(Commander(state.Plan.Formation));
+                // configured casualty limit; pass-through leaves it at 1.0. Clamped to
+                // ≤ 1 so a future config can never make a unit fight PAST the limit.
+                var composure = System.Math.Min(1f, _fidelity.AbortComposure(Commander(state.Plan.Formation)));
                 var casualtyLimit = abort.CasualtiesAbovePercent * composure;
 
                 // Unconditional on purpose: commander death always aborts in
@@ -419,7 +426,17 @@ namespace RealisticBattlePlanning.Execution
         {
             _aliveEnemyIds.Clear();
             foreach (var enemy in snapshot.Enemies)
+            {
                 _aliveEnemyIds.Add(enemy.Id);
+                // Latch a rout the moment we see it; clear it if the slot returns
+                // alive-and-unbroken (rallied, or a fresh wave reusing the id). An id
+                // that vanishes keeps whatever latch it had (broke-then-fled stays
+                // broken; killed-without-routing was never latched).
+                if (enemy.IsBroken)
+                    _observedBroken[enemy.Id] = enemy.Class;
+                else
+                    _observedBroken.Remove(enemy.Id);
+            }
 
             if (_sustainedSince.Count == 0 && _approach.Count == 0)
                 return;
@@ -671,17 +688,13 @@ namespace RealisticBattlePlanning.Execution
 
                 case TriggerType.EnemyBroken:
                 {
+                    // Fires when a matching enemy has been observed routing (and hasn't
+                    // recovered) — currently-broken or broke-then-fled. Updated each
+                    // tick by PurgeVanishedEnemyState; a melee kill never latches.
                     var selectorClass = FormationSelector.ParseClass(condition.Formation);
-                    foreach (var enemy in snapshot.Enemies)
+                    foreach (var observed in _observedBroken.Values)
                     {
-                        if (enemy.IsBroken && (selectorClass == null || enemy.Class == selectorClass))
-                            return true;
-                    }
-                    // A battle-start enemy that has since vanished fled or
-                    // died (alive ids are refreshed each tick by the purge).
-                    foreach (var initial in _initialEnemies)
-                    {
-                        if ((selectorClass == null || initial.Class == selectorClass) && !_aliveEnemyIds.Contains(initial.Id))
+                        if (selectorClass == null || observed == selectorClass)
                             return true;
                     }
                     return false;

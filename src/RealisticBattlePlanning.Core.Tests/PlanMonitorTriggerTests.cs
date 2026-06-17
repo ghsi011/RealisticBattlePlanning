@@ -156,7 +156,7 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
-        public void EnemyBrokenFiresOnRoutingAndOnVanishedEnemies()
+        public void EnemyBrokenFiresOnRouting()
         {
             var monitor = Monitor(StageOf(null, Hold()), StageOf(
                 new[] { new TriggerSpec { Type = TriggerType.EnemyBroken } },
@@ -167,14 +167,21 @@ namespace RealisticBattlePlanning.Tests
 
             var routed = monitor.Tick(Field(2).WithEnemy(1, 0, 100, broken: true));
             Assert.Single(routed.OfType<StageActivated>());
+        }
 
-            // Vanished variant: fresh monitor, the enemy disappears entirely.
-            var monitor2 = Monitor(StageOf(null, Hold()), StageOf(
+        [Fact]
+        public void EnemyBrokenDoesNotFireOnAMeleeKill()
+        {
+            // A formation cut down in melee (vanishes without ever routing) is NOT
+            // "broken" (A4 = routs). Only an observed rout latches the trigger.
+            var monitor = Monitor(StageOf(null, Hold()), StageOf(
                 new[] { new TriggerSpec { Type = TriggerType.EnemyBroken } },
                 Charge()));
-            monitor2.Tick(Field(0).WithEnemy(7, 0, 100));
-            var vanished = monitor2.Tick(Field(1));
-            Assert.Single(vanished.OfType<StageActivated>());
+
+            monitor.Tick(Field(0).WithEnemy(7, 0, 100));     // alive, unbroken
+            Assert.Empty(monitor.Tick(Field(1).WithEnemy(7, 0, 100)));
+            var gone = monitor.Tick(Field(2));               // vanished, never broke
+            Assert.Empty(gone.OfType<StageActivated>());
         }
 
         [Fact]

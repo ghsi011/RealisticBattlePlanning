@@ -62,7 +62,8 @@ namespace RealisticBattlePlanning.Planning
             switch (t.Type)
             {
                 case TriggerType.BattleStart: return "On battle start";
-                case TriggerType.EnemyCommits: return $"Enemy commits to attack{OnFormation(t)}";
+                case TriggerType.EnemyCommits:
+                    return $"Enemy commits to attack{OnFormation(t)}" + (t.Meters != null ? $" (within {t.Meters:0.#}m)" : "");
                 case TriggerType.EnemyWithinDistance:
                     return $"Enemy{Selector(t)} within {t.Meters:0.#}m" + (t.Anchor != null ? $" of '{t.Anchor}'" : "");
                 case TriggerType.FriendlyWithinDistance: return $"{t.Formation ?? "Friendly"} within {t.Meters:0.#}m";
@@ -119,6 +120,8 @@ namespace RealisticBattlePlanning.Planning
                     break;
                 case DirectiveType.Follow:
                     details.Append($"Follow {d.Target}");
+                    if (d.OffsetForwardMeters != null || d.OffsetRightMeters != null)
+                        details.Append($" (offset {d.OffsetForwardMeters ?? 0:0.#}m fwd, {d.OffsetRightMeters ?? 0:0.#}m right)");
                     break;
                 case DirectiveType.FireControl:
                     details.Append(d.Fire == FireMode.Hold ? "Hold fire" : "Free fire");
@@ -129,8 +132,12 @@ namespace RealisticBattlePlanning.Planning
             }
 
             if (d.Arrangement != null) details.Append($" ({d.Arrangement})");
+            if (d.WidthMeters != null) details.Append($", {d.WidthMeters:0.#}m wide");
             if (d.StandoffMeters != null) details.Append($", standoff {d.StandoffMeters:0.#}m");
             if (d.Speed != null) details.Append($", {d.Speed.ToString().ToLowerInvariant()}");
+            // A fire policy attached to a non-FireControl directive (e.g. hold + free-fire).
+            if (d.Fire != null && d.Type != DirectiveType.FireControl)
+                details.Append(d.Fire == FireMode.Hold ? ", hold fire" : ", free fire");
             return details.ToString();
 
             string TargetOrNearest(DirectiveSpec spec) => spec.Target ?? "nearest enemy";

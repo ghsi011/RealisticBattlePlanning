@@ -16,5 +16,13 @@ namespace RealisticBattlePlanning.Planning
 
         public static bool TryDeserialize(string json, out BattlePlan plan, out string error)
             => JsonDialect.TryDeserialize(json, JsonDialect.Strict, out plan, out error);
+
+        /// <summary>Deep-copies a plan fragment (a whole plan, a Stage, …) through the
+        /// shared lenient dialect, so the editor's copy operations (EditingCopyOf,
+        /// DuplicateStage) use ONE serialization path instead of diverging ad-hoc ones.</summary>
+        public static T DeepCopy<T>(T value) where T : class
+            => value == null
+                ? null
+                : JsonConvert.DeserializeObject<T>(JsonConvert.SerializeObject(value, JsonDialect.Lenient), JsonDialect.Lenient);
     }
 }

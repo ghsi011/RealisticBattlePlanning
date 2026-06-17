@@ -1,11 +1,28 @@
 using System;
 using RealisticBattlePlanning.Planning;
+using RealisticBattlePlanning.Planning.Model;
 using Xunit;
 
 namespace RealisticBattlePlanning.Tests
 {
     public class PlanFormatterTests
     {
+        [Fact]
+        public void SecondaryParametersAreRendered()
+        {
+            // Params that were previously dropped from the description.
+            Assert.Equal("Enemy commits to attack on Cavalry (within 60m)",
+                PlanFormatter.DescribeTrigger(new TriggerSpec { Type = TriggerType.EnemyCommits, Formation = "Cavalry", Meters = 60f }));
+
+            // A fire policy attached to a non-FireControl directive.
+            Assert.Contains(", free fire",
+                PlanFormatter.DescribeDirective(new DirectiveSpec { Type = DirectiveType.Hold, Fire = FireMode.Free }));
+
+            // Follow offset.
+            Assert.Contains("offset 10m fwd, 5m right",
+                PlanFormatter.DescribeDirective(new DirectiveSpec { Type = DirectiveType.Follow, Target = "Player", OffsetForwardMeters = 10f, OffsetRightMeters = 5f }));
+        }
+
         [Fact]
         public void SimplePlanGoldenOutput()
         {

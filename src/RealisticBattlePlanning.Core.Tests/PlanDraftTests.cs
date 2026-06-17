@@ -201,6 +201,34 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void SetTriggerWithNullArrayIsAHarmlessNoOp()
+        {
+            // params TriggerSpec[] — a literal null binds to the whole array; must
+            // not throw (the no-throw contract), and must leave the stage untouched.
+            var draft = new PlanDraft().AddFormation(PlannedFormationClass.Infantry);
+            draft.AddStage(PlannedFormationClass.Infantry);
+            draft.SetTrigger(PlannedFormationClass.Infantry, 1, new TriggerSpec { Type = TriggerType.TimerElapsed, Seconds = 30f });
+
+            draft.SetTrigger(PlannedFormationClass.Infantry, 1, (TriggerSpec[])null); // no throw, no change
+
+            Assert.Equal(TriggerType.TimerElapsed, draft.Build().Formations[0].Stages[1].When[0].Type);
+        }
+
+        [Fact]
+        public void SetTriggerCapsAtThreeConditions()
+        {
+            var draft = new PlanDraft().AddFormation(PlannedFormationClass.Infantry);
+            draft.AddStage(PlannedFormationClass.Infantry);
+            draft.SetTrigger(PlannedFormationClass.Infantry, 1,
+                new TriggerSpec { Type = TriggerType.EnemyCommits },
+                new TriggerSpec { Type = TriggerType.EnemyWithinDistance, Meters = 40f },
+                new TriggerSpec { Type = TriggerType.CasualtiesAbove, Percent = 20f },
+                new TriggerSpec { Type = TriggerType.TimerElapsed, Seconds = 5f }); // 4 -> capped to 3
+
+            Assert.Equal(3, draft.Build().Formations[0].Stages[1].When.Count);
+        }
+
+        [Fact]
         public void TriggerConditionOpsOnBadIndexAreHarmless()
         {
             var draft = new PlanDraft().AddFormation(PlannedFormationClass.Infantry); // one opening stage, empty When

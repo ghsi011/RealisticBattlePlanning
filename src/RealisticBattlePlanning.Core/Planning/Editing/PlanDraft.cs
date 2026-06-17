@@ -33,10 +33,8 @@ namespace RealisticBattlePlanning.Planning.Editing
         {
             if (plan == null)
                 return new PlanDraft();
-            var json = PlanSerializer.Serialize(plan);
-            return PlanSerializer.TryDeserialize(json, out var copy, out _)
-                ? new PlanDraft(copy)
-                : new PlanDraft();
+            try { return new PlanDraft(PlanSerializer.DeepCopy(plan)); }
+            catch { return new PlanDraft(); } // a broken plan must never crash the editor (G3)
         }
 
         /// <summary>The formation classes that already have a plan.</summary>
@@ -117,9 +115,7 @@ namespace RealisticBattlePlanning.Planning.Editing
             var plan = Find(formation);
             if (plan == null || index < 0 || index >= plan.Stages.Count)
                 return this;
-            var json = Newtonsoft.Json.JsonConvert.SerializeObject(plan.Stages[index]);
-            var copy = Newtonsoft.Json.JsonConvert.DeserializeObject<Stage>(json);
-            plan.Stages.Insert(index + 1, copy);
+            plan.Stages.Insert(index + 1, PlanSerializer.DeepCopy(plan.Stages[index]));
             return this;
         }
 
@@ -144,13 +140,15 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
+        /// <summary>Bulk-replaces a stage's trigger conditions. Null array is a no-op
+        /// (the no-throw contract); caps at <see cref="MaxTriggerConditions"/> (A3.5).</summary>
         public PlanDraft SetTrigger(PlannedFormationClass formation, int stageIndex, params TriggerSpec[] conditions)
         {
             var stage = StageAt(formation, stageIndex);
-            if (stage != null)
+            if (stage != null && conditions != null)
             {
                 stage.When.Clear();
-                stage.When.AddRange(conditions.Where(c => c != null));
+                stage.When.AddRange(conditions.Where(c => c != null).Take(MaxTriggerConditions));
             }
             return this;
         }
