@@ -25,10 +25,20 @@
                             MarginLeft="26" MarginRight="220"
                             Brush="AgentHUD.Interaction.Text" Brush.FontSize="27" Brush.FontColor="#ECE2C8FF"
                             Brush.TextHorizontalAlignment="Left" Brush.TextVerticalAlignment="Center" />
-                <TextWidget Text="@HintText" WidthSizePolicy="Fixed" SuggestedWidth="200" HeightSizePolicy="StretchToParent"
+                <TextWidget Text="@HintText" WidthSizePolicy="Fixed" SuggestedWidth="180" HeightSizePolicy="StretchToParent"
                             HorizontalAlignment="Right" MarginRight="22"
                             Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#9A9078FF"
                             Brush.TextHorizontalAlignment="Right" Brush.TextVerticalAlignment="Center" />
+                <!-- Switch the body between the list editor and the battlefield map -->
+                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteToggleMap" IsVisible="@HasMap" Brush="Rbp.Btn.Neutral"
+                              HorizontalAlignment="Right" VerticalAlignment="Center" MarginRight="214"
+                              WidthSizePolicy="Fixed" SuggestedWidth="96" HeightSizePolicy="Fixed" SuggestedHeight="30">
+                  <Children>
+                    <TextWidget Text="@MapToggleText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#D7E1EDFF"
+                                Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                  </Children>
+                </ButtonWidget>
               </Children>
             </Widget>
             <!-- Accent line under the header -->
@@ -43,7 +53,7 @@
                         Brush.TextHorizontalAlignment="Center" />
 
             <!-- Body: one card per formation (scrolls when it overflows) -->
-            <Widget IsVisible="@HasPlan" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+            <Widget IsVisible="@ShowListBody" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
                     MarginTop="68" MarginBottom="146" MarginLeft="24" MarginRight="16">
               <Children>
                 <ScrollablePanel Id="ScrollPanel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
@@ -315,6 +325,44 @@
                                  HorizontalAlignment="Center" Sprite="BlankWhiteSquare_9" Color="#9A7B33CC" />
                   </Children>
                 </ScrollbarWidget>
+              </Children>
+            </Widget>
+
+            <!-- Map body: a top-down tactical view of the deployment. Markers are
+                 absolutely placed via PositionXOffset/Y (design units) computed by
+                 the VM from PlanMapProjection. The marker ListPanel fills the canvas
+                 but its items are zero-size, so each marker offsets from the canvas
+                 top-left rather than flowing. -->
+            <Widget IsVisible="@ShowMapBody" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                    MarginTop="68" MarginBottom="146" MarginLeft="24" MarginRight="16">
+              <Children>
+                <Widget WidthSizePolicy="Fixed" SuggestedWidth="620" HeightSizePolicy="Fixed" SuggestedHeight="330"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Sprite="BlankWhiteSquare_9" Color="#10150E88">
+                  <Children>
+                    <TextWidget Text="↑  toward the enemy" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="18"
+                                VerticalAlignment="Top" MarginTop="3"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#7E8C98FF"
+                                Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                    <ListPanel DataSource="{MapMarkers}" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                               HorizontalAlignment="Left" VerticalAlignment="Top" StackLayout.LayoutMethod="VerticalTopToBottom">
+                      <ItemTemplate>
+                        <Widget WidthSizePolicy="Fixed" SuggestedWidth="0" HeightSizePolicy="Fixed" SuggestedHeight="0">
+                          <Children>
+                            <Widget HorizontalAlignment="Left" VerticalAlignment="Top" PositionXOffset="@X" PositionYOffset="@Y"
+                                    WidthSizePolicy="Fixed" SuggestedWidth="36" HeightSizePolicy="Fixed" SuggestedHeight="36"
+                                    Sprite="BlankWhiteSquare_9" Color="#2C3C2CDD">
+                              <Children>
+                                <TextWidget Text="@Label" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="19" Brush.FontColor="#E0B85EFF"
+                                            Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                              </Children>
+                            </Widget>
+                          </Children>
+                        </Widget>
+                      </ItemTemplate>
+                    </ListPanel>
+                  </Children>
+                </Widget>
               </Children>
             </Widget>
 

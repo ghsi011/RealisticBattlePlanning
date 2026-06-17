@@ -43,11 +43,21 @@ namespace RealisticBattlePlanning.UI
         private bool _hasPlan;
         private bool _pickerOpen;
         private string _pickerTitle;
+        private bool _hasMap;
+        private bool _showMap;
+        private bool _showMapBody;
+        private bool _showListBody;
+        private string _mapToggleText;
         private MBBindingList<FormationPlanItemVM> _formations;
         private MBBindingList<PickerOptionVM> _pickerOptions;
+        private MBBindingList<MapMarkerVM> _mapMarkers;
+        // Live deployment geometry (formation positions, attack direction, enemy
+        // positions) for the map view. Null outside a mission — the map is hidden.
+        private readonly BattlefieldGeometry _geometry;
 
         public PlanningModeVM(string title, string hint, PlanDraft draft, Action<BattlePlan> onApply, Action onClose,
-            Dictionary<PlannedFormationClass, string> compositionLabels = null)
+            Dictionary<PlannedFormationClass, string> compositionLabels = null,
+            BattlefieldGeometry geometry = null)
         {
             _titleText = title;
             _hintText = hint;
@@ -55,10 +65,18 @@ namespace RealisticBattlePlanning.UI
             _onApply = onApply;
             _onClose = onClose;
             _compositionLabels = compositionLabels ?? new Dictionary<PlannedFormationClass, string>();
+            _geometry = geometry;
             _formations = new MBBindingList<FormationPlanItemVM>();
             _pickerOptions = new MBBindingList<PickerOptionVM>();
+            _mapMarkers = new MBBindingList<MapMarkerVM>();
+            _mapToggleText = "▦  Map";
             Refresh();
         }
+
+        /// <summary>Map area size in design units (the prefab scales to the window).</summary>
+        private const float MapWidth = 620f;
+        private const float MapHeight = 330f;
+        private const float MarkerSize = 36f;
 
         /// <summary>Formation slot number (1-8) — the deployment formation index + 1.</summary>
         private static int SlotNumber(PlannedFormationClass cls) => (int)cls + 1;
@@ -98,6 +116,11 @@ namespace RealisticBattlePlanning.UI
             HasPlan = _formations.Count > 0;
             EmptyText = HasPlan ? "" : "No formations with troops to command.";
 
+            BuildMap();
+            // The map and the list share the body area: only one shows at a time.
+            ShowMapBody = _showMap && HasMap;
+            ShowListBody = HasPlan && !ShowMapBody;
+
             SignalsText = plan.PlayerSignals.Count > 0
                 ? "SIGNALS    " + string.Join("     ", plan.PlayerSignals.Select(s => $"[ {s} ]")) + "        (click to manage)"
                 : "SIGNALS    (none — click to add player signals)";
@@ -115,6 +138,40 @@ namespace RealisticBattlePlanning.UI
             ErrorsText = HasErrors ? $"{validation.Errors.Count} error(s):   " + string.Join("      ", validation.Errors) : "";
             HasWarnings = validation.Warnings.Count > 0;
             WarningsText = HasWarnings ? $"{validation.Warnings.Count} warning(s):   " + string.Join("      ", validation.Warnings) : "";
+        }
+
+        // Projects the live deployment geometry into the map view: one marker per
+        // commanded formation, placed in the tactical frame (forward = up). Rebuilt
+        // on every Refresh so later anchor/destination edits move live.
+        private void BuildMap()
+        {
+            _mapMarkers.Clear();
+            HasMap = _geometry != null && _geometry.HasFormations;
+            if (!HasMap)
+                return;
+
+            // Fit the frame to the player's formations (enemy framing comes later).
+            var projection = PlanMapProjection.Build(
+                _geometry.TeamCenter, _geometry.AttackDirection, _geometry.FormationPositions.Values);
+
+            foreach (var kv in _geometry.FormationPositions.OrderBy(p => (int)p.Key))
+            {
+                var p = projection.Project(kv.Value);
+                _mapMarkers.Add(new MapMarkerVM(
+                    x: p.X * MapWidth - MarkerSize / 2f,
+                    y: (1f - p.Y) * MapHeight - MarkerSize / 2f, // flip Y: forward (up) -> small screen-y
+                    label: SlotNumber(kv.Key).ToString(),
+                    sub: _compositionLabels.TryGetValue(kv.Key, out var l) ? l : kv.Key.ToString()));
+            }
+        }
+
+        // Header toggle between the formation-list editor and the battlefield map.
+        public void ExecuteToggleMap()
+        {
+            _showMap = !_showMap;
+            MapToggleText = _showMap ? "☰  List" : "▦  Map";
+            ShowMapBody = _showMap && HasMap;
+            ShowListBody = HasPlan && !ShowMapBody;
         }
 
         private void AddStage(PlannedFormationClass cls)
@@ -766,6 +823,32 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public bool PickerOpen { get => _pickerOpen; set { if (value != _pickerOpen) { _pickerOpen = value; OnPropertyChangedWithValue(value, "PickerOpen"); } } }
         [DataSourceProperty] public string PickerTitle { get => _pickerTitle; set { if (value != _pickerTitle) { _pickerTitle = value; OnPropertyChangedWithValue(value, "PickerTitle"); } } }
         [DataSourceProperty] public MBBindingList<PickerOptionVM> PickerOptions { get => _pickerOptions; set { if (value != _pickerOptions) { _pickerOptions = value; OnPropertyChangedWithValue(value, "PickerOptions"); } } }
+        [DataSourceProperty] public MBBindingList<MapMarkerVM> MapMarkers { get => _mapMarkers; set { if (value != _mapMarkers) { _mapMarkers = value; OnPropertyChangedWithValue(value, "MapMarkers"); } } }
+        [DataSourceProperty] public bool HasMap { get => _hasMap; set { if (value != _hasMap) { _hasMap = value; OnPropertyChangedWithValue(value, "HasMap"); } } }
+        [DataSourceProperty] public bool ShowMapBody { get => _showMapBody; set { if (value != _showMapBody) { _showMapBody = value; OnPropertyChangedWithValue(value, "ShowMapBody"); } } }
+        [DataSourceProperty] public bool ShowListBody { get => _showListBody; set { if (value != _showListBody) { _showListBody = value; OnPropertyChangedWithValue(value, "ShowListBody"); } } }
+        [DataSourceProperty] public string MapToggleText { get => _mapToggleText; set { if (value != _mapToggleText) { _mapToggleText = value; OnPropertyChangedWithValue(value, "MapToggleText"); } } }
+    }
+
+    /// <summary>One marker on the battlefield map: its top-left pixel offset (design
+    /// units) within the map area, a short label (formation number / anchor id), and
+    /// an optional sub-label (composition). Absolute-positioned via PositionXOffset.</summary>
+    public sealed class MapMarkerVM : ViewModel
+    {
+        public MapMarkerVM(float x, float y, string label, string sub)
+        {
+            X = x;
+            Y = y;
+            Label = label;
+            Sub = sub ?? "";
+            HasSub = !string.IsNullOrEmpty(Sub);
+        }
+
+        [DataSourceProperty] public float X { get; }
+        [DataSourceProperty] public float Y { get; }
+        [DataSourceProperty] public string Label { get; }
+        [DataSourceProperty] public string Sub { get; }
+        [DataSourceProperty] public bool HasSub { get; }
     }
 
     /// <summary>One selectable row in a picker menu. Type pickers carry a one-line

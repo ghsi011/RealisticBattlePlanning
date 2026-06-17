@@ -132,7 +132,9 @@ namespace RealisticBattlePlanning.UI
                 // Label each numbered formation by its live troop composition so
                 // the cards read "1 — Ranged-Infantry", not the slot's class name.
                 var labels = FormationReader.CompositionLabels(Mission?.PlayerTeam);
-                _dataSource = new PlanningModeVM("Battle Plan", $"{ToggleKey} to close", draft, ApplyEditedPlan, Hide, labels);
+                // Live deployment geometry for the battlefield map view.
+                var geometry = BattlefieldReader.Read(Mission?.PlayerTeam);
+                _dataSource = new PlanningModeVM("Battle Plan", $"{ToggleKey} to close", draft, ApplyEditedPlan, Hide, labels, geometry);
                 // High local order so the layer sits above the deployment UI for
                 // both rendering and input (the deployment HUD/order layers are
                 // low-order; a focus layer underneath them never gets clicks).
