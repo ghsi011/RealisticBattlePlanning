@@ -381,6 +381,10 @@ namespace RealisticBattlePlanning.Execution
                 return;
             }
 
+            // The engine action for the event (orders / AI handoff). The
+            // player-facing message is a single centralized bark below, so no case
+            // emits its own Notify — that keeps the wording in one tested place (B11)
+            // and guarantees no event is silently applied.
             switch (planEvent)
             {
                 case StageActivated stageActivated:
@@ -395,39 +399,42 @@ namespace RealisticBattlePlanning.Execution
                     _executor.Move(formation, steering.Target);
                     break;
 
-                case SignalEmitted:
-                    // Logged above; the signal bus wires receipt in I4.
-                    break;
-
-                case PlanSuspended:
-                    // The player's manual order stands; we only stop issuing
-                    // plan orders. Vanilla already flags the formation
-                    // player-controlled when an order is given.
-                    Notify($"{CommanderName(formation)}: holding your order, plan suspended. (rbp.resume {planEvent.Formation})");
-                    break;
-
                 case PlanResumed:
                     _executor.Adopt(formation);
-                    Notify($"{CommanderName(formation)}: resuming the plan.");
                     break;
 
-                case PlanAborted aborted:
-                    // B4: revert to vanilla AI with a notification.
+                case PlanAborted:
+                    // B4: revert to vanilla AI.
                     formation.SetControlledByAI(true);
-                    Notify($"{CommanderName(formation)}: plan aborted - {aborted.Reason}. Reverting to standard behavior.");
-                    break;
-
-                case StageSkipped:
-                    // Logged above (B11); the follow-up activation/hold event
-                    // carries the orders.
                     break;
 
                 case PlanHolding:
                     _executor.Apply(formation, new ResolvedDirective(
                         new Planning.Model.DirectiveSpec { Type = Planning.Model.DirectiveType.Hold }, null, null));
-                    Notify($"{CommanderName(formation)}: no executable orders remain; holding position.");
                     break;
+
+                // SignalEmitted, PlanSuspended, StageSkipped, StageCompleted,
+                // ReactionDelayed carry no engine action here — their orders ride
+                // the surrounding activation events; the bark is their visible effect.
             }
+
+            EmitBark(planEvent, formation);
+        }
+
+        /// <summary>
+        /// The one place a plan event becomes a battle message (B11/R2: attributed,
+        /// and no deviation is silent). The wording lives in Core <see cref="CommanderBarks"/>
+        /// (tested); the engine adds only the speaker's name and the suspend-event's
+        /// resume affordance.
+        /// </summary>
+        private void EmitBark(PlanEvent planEvent, Formation formation)
+        {
+            var bark = CommanderBarks.Line(planEvent, CommanderName(formation));
+            if (bark == null)
+                return;
+            if (planEvent is PlanSuspended)
+                bark += $" (rbp.resume {planEvent.Formation})";
+            Notify(bark);
         }
 
         /// <summary>

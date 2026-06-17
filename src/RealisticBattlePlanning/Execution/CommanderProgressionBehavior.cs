@@ -89,6 +89,11 @@ namespace RealisticBattlePlanning.Execution
             }
         }
 
+        // Snapshot() is a shallow copy — the dictionary is fresh but the
+        // CommanderRecord objects are shared with the live book. Safe because the
+        // save runs synchronously on the main thread, the same thread the mission
+        // tick mutates records on, so serialization never interleaves with a write.
+        // If an async-save path is ever added, deep-copy here.
         private string SerializeBook()
             => JsonConvert.SerializeObject(_service.Book.Snapshot(), JsonDialect.Lenient);
 
