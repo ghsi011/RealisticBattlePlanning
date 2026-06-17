@@ -7,32 +7,31 @@ autonomous mission ([[autonomous-mission]]). Check items off as committed.
 ## Hardening — fixes/refactors/tests (Phase 1, before the 10 iterations)
 
 Correctness (Core, unit-testable — no game needed):
-- [ ] **SetTrigger null-array throws** (PlanDraft) — `SetTrigger(f,i,null)` NREs; violates the no-throw contract. Guard `conditions != null`; cap at MaxTriggerConditions. + test.
-- [ ] **EnemyBroken permanent/spurious** (PlanMonitor) — inferred from disappearance, never pruned; conflates kill with rout; reinforcement reusing a slot id reads stale. Latch observed-broken-while-alive; prune on re-seen-alive. + tests (wiped-then-reinforced must read false). NOTE: a current test asserts the old behavior — revise it.
-- [ ] **MoveTo fully-unresolvable activates into a [FAULT] log** for an author error (R2). Treat as inevaluable → skip with StageSkipped. + test.
-- [ ] **Abort blocked while opening stage parked** (currently unreachable, but latent) — gate the `ActiveStageIndex < 0` abort early-out on `Started` instead. + test.
-- [ ] **Abort composure unclamped** — `Math.Min(1f, composure)` so a future >1 config can't make units fight past the limit.
-- [ ] **PlanFormatter drops secondary params** — EnemyCommits range/sustain/speed; Hold+Fire policy; Follow offsets; EnemyWithinDistance tolerance. Render them. + formatter golden tests.
+- [x] **SetTrigger null-array throws** — fixed + capped + tests. (7d0bbfd)
+- [x] **EnemyBroken permanent/spurious** — now latches observed-broken-while-alive; test revised + melee-kill test. (7d0bbfd)
+- [~] **MoveTo fully-unresolvable** — DirectiveEvaluable already skips it (anchor/Path[0] guard); the zero-point-after-truncation edge is LOW and largely covered. Left as-is.
+- [x] **Abort blocked while opening stage parked** — early-out now gated on Started/Pending. (7d0bbfd)
+- [x] **Abort composure unclamped** — Math.Min(1f, …). (7d0bbfd)
+- [x] **PlanFormatter drops secondary params** — EnemyCommits range, Follow offsets, width, non-FireControl fire policy + golden. (7d0bbfd)
 
 Harness trust (Core + engine):
-- [ ] **Fidelity seed never pinned** when arming → fidelity-gated scenarios non-reproducible. Pin a default seed on arm; store in ScenarioSpec.
+- [ ] **Fidelity seed never pinned** when arming → non-reproducible. (verification-heavy; do with a harness run)
 - [ ] **BattleRecord lacks fidelity mode/seed** — stamp it; ResultsDiff refuse cross-mode diffs.
 
 Refactors / cleanup:
-- [ ] Unify deep-copy: one `DeepCopy<T>` (PlanSerializer dialect) used by EditingCopyOf AND DuplicateStage.
-- [ ] Remove dead code: VM `HasEmit`, `CanRemove`. Collapse `IsRemoveDisabled`/`IsUncommanded` vs `!HasStages` if clean.
-- [ ] VM body-visibility: one `UpdateBodyVisibility()` for Refresh + ExecuteToggleMap.
-- [ ] Remove the dead `Harmony.PatchAll` ceremony in SubModule (no patches exist) or comment it as a deliberate empty hook; fix the AGENTS.md "Harmony… registered" line.
-- [ ] Rename `PlanDraft.Build()` → a live-accessor name (it returns the live `_plan`, mutated in place by the VM) OR document loudly.
-- [ ] **VM split** (PlanningModeVM ~1190 lines) → extract `PlanMapVM` (map projection/markers/geometry) and `PlanPickerVM` (the modal picker engine). High value; pairs with the click-to-place widget.
+- [x] Unify deep-copy: `PlanSerializer.DeepCopy<T>` used by EditingCopyOf + DuplicateStage. (7d0bbfd)
+- [x] Remove dead VM `HasEmit`, `CanRemove`. (31f7f2d)
+- [x] VM body-visibility: `UpdateBodyVisibility()`. (31f7f2d)
+- [x] Harmony hook commented as deliberately-empty; AGENTS.md line fixed. (31f7f2d)
+- [ ] Rename `PlanDraft.Build()` → a live-accessor name. (do with VM split)
+- [ ] **VM split** (PlanningModeVM ~1190 lines) → `PlanMapVM` + `PlanPickerVM`. (pairs with click-to-place, iteration 1)
 
 Test gaps (add):
-- [ ] Default-spec table: enumerate every TriggerType/DirectiveType, assert `DefaultTrigger`/`DefaultDirective` produces a spec that VALIDATES (catches a future enum addition that yields an un-appliable plan).
-- [ ] Formatter goldens for the dropped secondary params.
-- [ ] SetTrigger null/over-cap; AddStageToEach null args; SetDirective(f,i,null) no-op.
-- [ ] EditorDefaults.SkirmishThenWithdraw builds valid.
-- [ ] Harness determinism at integration: two pinned-seed runs identical; ResultsDiff cross-mode mismatch.
-- [ ] Competence calibration: representative vanilla skills → sensible tiers.
+- [x] Formatter goldens for the dropped secondary params. (7d0bbfd)
+- [x] SetTrigger null/over-cap. (7d0bbfd)
+- [ ] Default-spec table enumeration (needs DefaultTrigger/Directive moved to Core).
+- [ ] AddStageToEach null args; SetDirective(f,i,null) no-op; EditorDefaults.SkirmishThenWithdraw valid.
+- [ ] Harness determinism (pinned-seed identical; cross-mode mismatch); competence calibration.
 
 ## The 10 iterations (Phase 1 features, from the completeness backlog)
 
