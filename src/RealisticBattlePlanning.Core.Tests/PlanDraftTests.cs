@@ -229,6 +229,34 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void SkirmishThenWithdrawPatternBuildsValid()
+        {
+            var draft = new PlanDraft().AddAnchor(new MapAnchor { Id = "rally", Forward = -30f });
+            foreach (var stage in EditorDefaults.SkirmishThenWithdraw("rally"))
+                draft.AddStage(PlannedFormationClass.HorseArcher, stage);
+
+            var result = draft.Validate();
+            Assert.True(result.IsValid, string.Join("; ", result.Errors));
+        }
+
+        [Fact]
+        public void AddStageToEachWithNullArgsIsHarmless()
+        {
+            var draft = new PlanDraft();
+            draft.AddStageToEach(null, () => new Stage());                                  // null formations
+            draft.AddStageToEach(new[] { PlannedFormationClass.Infantry }, null);           // null factory
+            Assert.Empty(draft.Build().Formations);
+        }
+
+        [Fact]
+        public void SetDirectiveWithNullIsAHarmlessNoOp()
+        {
+            var draft = new PlanDraft().AddFormation(PlannedFormationClass.Infantry);
+            draft.SetDirective(PlannedFormationClass.Infantry, 0, null);
+            Assert.Equal(DirectiveType.Hold, draft.Build().Formations[0].Stages[0].Do.Type); // opening Hold untouched
+        }
+
+        [Fact]
         public void TriggerConditionOpsOnBadIndexAreHarmless()
         {
             var draft = new PlanDraft().AddFormation(PlannedFormationClass.Infantry); // one opening stage, empty When
