@@ -1,16 +1,16 @@
 {
-  // RealisticBattlePlanning debug plan — PLAYTEST-FIX verification round.
-  // Exercises the three behaviours fixed from the 8-formation playtest:
-  //   * Cavalry: hold, then FlankArc (charge allowed) — must work AROUND to the
-  //     enemy flank and CHARGE IN (not circle forever at standoff).
-  //   * HorseArcher: Skirmish at a set standoff — kite-and-shoot.
-  //   * LightCavalry: Screen the RANGED formation (a non-player target).
-  // Infantry/Ranged anchor the line so there's something to flank around.
-  //
-  // Edit this file in the deployed module to iterate without rebuilding.
+  // RealisticBattlePlanning debug plan — tuned to THIS save's actual troop layout
+  // (the game sorted troops into slots that don't match the class names):
+  //   formation 7 & 8 (LightCavalry / HeavyCavalry slots) hold the HORSE ARCHERS,
+  //   formation 3 (Cavalry slot) holds the cavalry, 1 & 2 are infantry.
+  // So directives are assigned to the slots that actually hold the right troops:
+  //   - LightCavalry + HeavyCavalry (the horse archers): Skirmish, CIRCLING at 70 m.
+  //   - Cavalry: hold, then FlankArc (charge allowed).
+  //   - Infantry: hold the line.
+  // (This is exactly why planning needs to be by numbered formation + composition,
+  //  not by class name — see the composition labels in the rbp.plan editor.)
 
   "playerSignals": [ "charge" ],
-
   "anchors": [],
 
   "formations": [
@@ -20,24 +20,6 @@
         { "name": "hold the line", "do": { "type": "Hold", "arrangement": "ShieldWall" } }
       ],
       "abort": { "casualtiesAbovePercent": 70 }
-    },
-    {
-      "formation": "Ranged",
-      "stages": [
-        { "name": "loose at will", "do": { "type": "Hold", "arrangement": "Loose", "fire": "Free" } }
-      ]
-    },
-    {
-      "formation": "HorseArcher",
-      "stages": [
-        { "name": "circle at 70 m", "do": { "type": "Skirmish", "target": "Nearest", "standoffMeters": 70.0, "circle": true } }
-      ]
-    },
-    {
-      "formation": "LightCavalry",
-      "stages": [
-        { "name": "screen the archers", "do": { "type": "Screen", "target": "Ranged", "gapMeters": 30.0 } }
-      ]
     },
     {
       "formation": "Cavalry",
@@ -50,6 +32,18 @@
         }
       ],
       "abort": { "casualtiesAbovePercent": 80 }
+    },
+    {
+      "formation": "LightCavalry",
+      "stages": [
+        { "name": "circle at 70 m", "do": { "type": "Skirmish", "target": "Nearest", "standoffMeters": 70.0, "circle": true } }
+      ]
+    },
+    {
+      "formation": "HeavyCavalry",
+      "stages": [
+        { "name": "circle at 70 m", "do": { "type": "Skirmish", "target": "Nearest", "standoffMeters": 70.0, "circle": true } }
+      ]
     }
   ]
 }
