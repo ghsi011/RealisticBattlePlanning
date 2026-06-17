@@ -226,16 +226,31 @@
                                                             Brush.TextHorizontalAlignment="Left" />
                                               </Children>
                                             </ButtonWidget>
-                                            <!-- Do value chip: click to pick the directive's parameter -->
-                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditDirectiveParam" IsVisible="@HasDirectiveParam" Brush="Rbp.Btn.Neutral"
-                                                          HorizontalAlignment="Left" MarginLeft="14" MarginTop="2"
-                                                          WidthSizePolicy="Fixed" SuggestedWidth="150" HeightSizePolicy="Fixed" SuggestedHeight="22">
+                                            <!-- Do value chip + optional secondary toggle on one row -->
+                                            <ListPanel WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren" HorizontalAlignment="Left" MarginLeft="14" MarginTop="2"
+                                                       StackLayout.LayoutMethod="HorizontalLeftToRight">
                                               <Children>
-                                                <TextWidget Text="@DirectiveParamLabel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#E2D2AEFF"
-                                                            Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                                <!-- Do value chip: click to pick the directive's parameter -->
+                                                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditDirectiveParam" IsVisible="@HasDirectiveParam" Brush="Rbp.Btn.Neutral"
+                                                              WidthSizePolicy="Fixed" SuggestedWidth="150" HeightSizePolicy="Fixed" SuggestedHeight="22">
+                                                  <Children>
+                                                    <TextWidget Text="@DirectiveParamLabel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#E2D2AEFF"
+                                                                Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                                  </Children>
+                                                </ButtonWidget>
+                                                <!-- Secondary on/off toggle (FeignRetreat firing / FlankArc missile-only / PullBack facing) -->
+                                                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteToggleDirectiveOption" IsVisible="@HasDirectiveToggle" Brush="Rbp.Btn.Neutral"
+                                                              MarginLeft="8" WidthSizePolicy="CoverChildren" HeightSizePolicy="Fixed" SuggestedHeight="22">
+                                                  <Children>
+                                                    <TextWidget Text="@DirectiveToggleLabel" WidthSizePolicy="CoverChildren" HeightSizePolicy="StretchToParent"
+                                                                MarginLeft="10" MarginRight="10"
+                                                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#C9BE9EFF"
+                                                                Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                                  </Children>
+                                                </ButtonWidget>
                                               </Children>
-                                            </ButtonWidget>
+                                            </ListPanel>
                                             <!-- Emit chip + duplicate-stage button on one row -->
                                             <ListPanel WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren" MarginTop="3"
                                                        StackLayout.LayoutMethod="HorizontalLeftToRight">

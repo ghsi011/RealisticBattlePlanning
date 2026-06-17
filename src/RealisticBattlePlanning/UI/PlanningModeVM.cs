@@ -92,7 +92,7 @@ namespace RealisticBattlePlanning.UI
                 _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage,
                     OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenEmitPicker,
                     AddCondition, RemoveCondition, OpenAbortPicker, ClearFormation,
-                    MoveStageUp, MoveStageDown, DuplicateStage));
+                    MoveStageUp, MoveStageDown, DuplicateStage, ToggleDirectiveOption));
             }
 
             HasPlan = _formations.Count > 0;
@@ -171,6 +171,38 @@ namespace RealisticBattlePlanning.UI
         {
             _draft.DuplicateStage(cls, index);
             StatusText = $"Formation {SlotNumber(cls)}: duplicated stage {index + 1}.";
+            Refresh();
+        }
+
+        // A few directives carry a secondary on/off option beyond their main
+        // parameter (FeignRetreat: keep firing; FlankArc: missile-only; PullBack:
+        // keep facing the enemy). Its chip flips the flag directly — no picker for a
+        // boolean — and the chip label reflects the new state.
+        private void ToggleDirectiveOption(PlannedFormationClass cls, int stageIndex)
+        {
+            var stage = StageAt(_draft.Build(), cls, stageIndex);
+            var d = stage?.Do;
+            if (d == null)
+                return;
+            string what;
+            switch (d.Type)
+            {
+                case DirectiveType.FeignRetreat:
+                    d.FireWhileWithdrawing = !(d.FireWhileWithdrawing ?? false);
+                    what = $"fire while withdrawing {(d.FireWhileWithdrawing == true ? "ON" : "off")}";
+                    break;
+                case DirectiveType.FlankArc:
+                    d.MissileOnly = !(d.MissileOnly ?? false);
+                    what = $"missile-only {(d.MissileOnly == true ? "ON" : "off")}";
+                    break;
+                case DirectiveType.PullBack:
+                    d.MaintainFacing = !(d.MaintainFacing ?? false);
+                    what = $"maintain facing {(d.MaintainFacing == true ? "ON" : "off")}";
+                    break;
+                default:
+                    return;
+            }
+            StatusText = $"Formation {SlotNumber(cls)} stage {stageIndex + 1}: {what}.";
             Refresh();
         }
 
@@ -694,7 +726,8 @@ namespace RealisticBattlePlanning.UI
             Action<PlannedFormationClass> clearFormation,
             Action<PlannedFormationClass, int> moveStageUp,
             Action<PlannedFormationClass, int> moveStageDown,
-            Action<PlannedFormationClass, int> duplicateStage)
+            Action<PlannedFormationClass, int> duplicateStage,
+            Action<PlannedFormationClass, int> toggleDirectiveOption)
         {
             _formation = formation.Formation;
             _addStage = addStage;
@@ -727,7 +760,8 @@ namespace RealisticBattlePlanning.UI
                     () => editEmit?.Invoke(cls, index),
                     () => moveStageUp?.Invoke(cls, index),
                     () => moveStageDown?.Invoke(cls, index),
-                    () => duplicateStage?.Invoke(cls, index)));
+                    () => duplicateStage?.Invoke(cls, index),
+                    () => toggleDirectiveOption?.Invoke(cls, index)));
             }
         }
 
@@ -758,10 +792,12 @@ namespace RealisticBattlePlanning.UI
         private readonly Action _moveUp;
         private readonly Action _moveDown;
         private readonly Action _duplicate;
+        private readonly Action _toggleDirectiveOption;
 
         public StageItemVM(int index, int stageCount, Stage stage,
             Action<int> editConditionType, Action<int> editConditionParam, Action<int> removeCondition, Action addCondition,
-            Action editDirective, Action editDirectiveParam, Action editEmit, Action moveUp, Action moveDown, Action duplicate)
+            Action editDirective, Action editDirectiveParam, Action editEmit, Action moveUp, Action moveDown, Action duplicate,
+            Action toggleDirectiveOption)
         {
             _editDirective = editDirective;
             _editDirectiveParam = editDirectiveParam;
@@ -770,6 +806,7 @@ namespace RealisticBattlePlanning.UI
             _moveUp = moveUp;
             _moveDown = moveDown;
             _duplicate = duplicate;
+            _toggleDirectiveOption = toggleDirectiveOption;
             IsMoveUpDisabled = index <= 0;
             IsMoveDownDisabled = index >= stageCount - 1;
             NumberText = (index + 1).ToString();
@@ -796,6 +833,7 @@ namespace RealisticBattlePlanning.UI
             AddConditionText = stage.When.Count == 0 ? "+ trigger condition" : "+ AND condition";
 
             (HasDirectiveParam, DirectiveParamLabel) = DirectiveParam(stage.Do);
+            (HasDirectiveToggle, DirectiveToggleLabel) = DirectiveToggle(stage.Do);
         }
 
         public void ExecuteEditDirective() => _editDirective?.Invoke();
@@ -805,6 +843,7 @@ namespace RealisticBattlePlanning.UI
         public void ExecuteMoveUp() => _moveUp?.Invoke();
         public void ExecuteMoveDown() => _moveDown?.Invoke();
         public void ExecuteDuplicate() => _duplicate?.Invoke();
+        public void ExecuteToggleDirectiveOption() => _toggleDirectiveOption?.Invoke();
 
         private static (bool has, string label) DirectiveParam(DirectiveSpec d)
         {
@@ -825,6 +864,19 @@ namespace RealisticBattlePlanning.UI
             }
         }
 
+        /// <summary>The optional secondary on/off flag some directives carry, and its chip label.</summary>
+        private static (bool has, string label) DirectiveToggle(DirectiveSpec d)
+        {
+            if (d == null) return (false, "");
+            switch (d.Type)
+            {
+                case DirectiveType.FeignRetreat: return (true, (d.FireWhileWithdrawing ?? false) ? "firing while withdrawing" : "not firing");
+                case DirectiveType.FlankArc: return (true, (d.MissileOnly ?? false) ? "missile-only" : "may charge in");
+                case DirectiveType.PullBack: return (true, (d.MaintainFacing ?? false) ? "facing the enemy" : "facing away");
+                default: return (false, "");
+            }
+        }
+
         [DataSourceProperty] public string NumberText { get; }
         [DataSourceProperty] public MBBindingList<ConditionItemVM> Conditions { get; }
         [DataSourceProperty] public bool ShowWhenEmpty { get; }
@@ -836,6 +888,8 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public bool HasEmit { get; }
         [DataSourceProperty] public bool HasDirectiveParam { get; }
         [DataSourceProperty] public string DirectiveParamLabel { get; }
+        [DataSourceProperty] public bool HasDirectiveToggle { get; }
+        [DataSourceProperty] public string DirectiveToggleLabel { get; }
         [DataSourceProperty] public bool IsMoveUpDisabled { get; }
         [DataSourceProperty] public bool IsMoveDownDisabled { get; }
     }
