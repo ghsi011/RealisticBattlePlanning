@@ -124,9 +124,7 @@ namespace RealisticBattlePlanning.UI
             EmptyText = HasPlan ? "" : "No formations with troops to command.";
 
             BuildMap();
-            // The map and the list share the body area: only one shows at a time.
-            ShowMapBody = _showMap && HasMap;
-            ShowListBody = HasPlan && !ShowMapBody;
+            UpdateBodyVisibility();
 
             SignalsText = plan.PlayerSignals.Count > 0
                 ? "SIGNALS    " + string.Join("     ", plan.PlayerSignals.Select(s => $"[ {s} ]")) + "        (click to manage)"
@@ -217,6 +215,12 @@ namespace RealisticBattlePlanning.UI
         {
             _showMap = !_showMap;
             MapToggleText = _showMap ? "☰  List" : "▦  Map";
+            UpdateBodyVisibility();
+        }
+
+        // The map and the list share the body area: exactly one shows at a time.
+        private void UpdateBodyVisibility()
+        {
             ShowMapBody = _showMap && HasMap;
             ShowListBody = HasPlan && !ShowMapBody;
         }
@@ -964,8 +968,7 @@ namespace RealisticBattlePlanning.UI
             IsUncommanded = !HasStages;
             AbortText = PlanFormatter.DescribeAbort(formation.Abort);
             UncommandedText = "Uncommanded — holds position. Add a stage to give it orders.";
-            CanRemove = formation.Stages.Count > 0;
-            IsRemoveDisabled = !CanRemove;
+            IsRemoveDisabled = formation.Stages.Count == 0;
             Stages = new MBBindingList<StageItemVM>();
             var count = formation.Stages.Count;
             for (var i = 0; i < count; i++)
@@ -999,7 +1002,6 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public string UncommandedText { get; }
         [DataSourceProperty] public bool HasStages { get; }
         [DataSourceProperty] public bool IsUncommanded { get; }
-        [DataSourceProperty] public bool CanRemove { get; }
         [DataSourceProperty] public bool IsRemoveDisabled { get; }
         [DataSourceProperty] public MBBindingList<StageItemVM> Stages { get; }
     }
@@ -1037,8 +1039,7 @@ namespace RealisticBattlePlanning.UI
             DirectiveText = "Do:  " + PlanFormatter.DescribeDirective(stage.Do);
             // The emit chip is always present (click to manage); its label shows the
             // broadcast signals, or a "+ emit signal" affordance when there are none.
-            HasEmit = stage.Emit.Count > 0;
-            EmitText = HasEmit ? "→ emits  " + string.Join(", ", stage.Emit) : "+ emit signal";
+            EmitText = stage.Emit.Count > 0 ? "→ emits  " + string.Join(", ", stage.Emit) : "+ emit signal";
 
             // One row per ANDed trigger condition; an empty When shows a placeholder
             // ("On battle start" for the opening stage, else a needs-a-trigger note).
@@ -1110,7 +1111,6 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public string AddConditionText { get; }
         [DataSourceProperty] public string DirectiveText { get; }
         [DataSourceProperty] public string EmitText { get; }
-        [DataSourceProperty] public bool HasEmit { get; }
         [DataSourceProperty] public bool HasDirectiveParam { get; }
         [DataSourceProperty] public string DirectiveParamLabel { get; }
         [DataSourceProperty] public bool HasDirectiveToggle { get; }

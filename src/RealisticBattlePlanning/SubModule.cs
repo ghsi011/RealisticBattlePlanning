@@ -37,6 +37,10 @@ namespace RealisticBattlePlanning
                 RbpLog.Error("Engine contract check itself failed.", e);
             }
 
+            // Deliberately empty today: there are NO [HarmonyPatch] classes — the
+            // mod is vanilla-first (§1.1), so order-override detection rides the
+            // vanilla OrderController.OnOrderIssued event, not a patch. This is the
+            // registration hook kept ready for any genuinely-needed future patch.
             Harmony.PatchAll(typeof(SubModule).Assembly);
 
             UIExtender.Register(typeof(SubModule).Assembly);

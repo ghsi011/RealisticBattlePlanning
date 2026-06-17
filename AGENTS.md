@@ -148,8 +148,11 @@ deviation in the log is tagged `INTENDED_FIDELITY` or `FAULT` (spec R2).
 
 Assume installed and loaded (declared in `Module\SubModule.xml`):
 
-- **Harmony** (`Lib.Harmony`) — patches via `[HarmonyPatch]`. Registered in
-  `SubModule.OnSubModuleLoad`.
+- **Harmony** (`Lib.Harmony`) — patch hook registered in
+  `SubModule.OnSubModuleLoad`, but **there are currently no `[HarmonyPatch]`
+  classes**: the mod is vanilla-first, so order-override detection rides the
+  vanilla `OrderController.OnOrderIssued` event, not a patch. Add a patch only
+  when no event/extension point exists.
 - **BLSE** — replaces the launcher. Mods don't take a code dependency, but it
   must be running for ButterLib/MCM to behave.
 - **ButterLib** — DI container, extended logging, event helpers.
