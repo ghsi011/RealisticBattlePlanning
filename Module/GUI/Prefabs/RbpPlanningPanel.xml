@@ -402,7 +402,7 @@
               <Children>
                 <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteClosePicker" Brush="Rbp.Backdrop"
                               WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" />
-                <Widget WidthSizePolicy="Fixed" SuggestedWidth="460" HeightSizePolicy="Fixed" SuggestedHeight="540"
+                <Widget WidthSizePolicy="Fixed" SuggestedWidth="460" HeightSizePolicy="Fixed" SuggestedHeight="552"
                         HorizontalAlignment="Center" VerticalAlignment="Center" Sprite="BlankWhiteSquare_9" Color="#1C160DFF">
                   <Children>
                     <TextWidget Text="@PickerTitle" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="40"
@@ -416,9 +416,9 @@
                                StackLayout.LayoutMethod="VerticalTopToBottom">
                       <ItemTemplate>
                         <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteSelect" Brush="Rbp.Btn.Neutral"
-                                      WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginBottom="4">
+                                      WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginBottom="3">
                           <Children>
-                            <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="4" MarginBottom="5"
+                            <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="3" MarginBottom="3"
                                        StackLayout.LayoutMethod="VerticalTopToBottom">
                               <Children>
                                 <!-- label row with the current-selection marker -->
