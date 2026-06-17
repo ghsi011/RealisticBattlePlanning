@@ -343,6 +343,20 @@
                                 VerticalAlignment="Top" MarginTop="3"
                                 Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#7E8C98FF"
                                 Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                    <!-- enemy markers (drawn first, under the friendly ones) -->
+                    <ListPanel DataSource="{EnemyMarkers}" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                               HorizontalAlignment="Left" VerticalAlignment="Top" StackLayout.LayoutMethod="VerticalTopToBottom">
+                      <ItemTemplate>
+                        <Widget WidthSizePolicy="Fixed" SuggestedWidth="0" HeightSizePolicy="Fixed" SuggestedHeight="0">
+                          <Children>
+                            <Widget HorizontalAlignment="Left" VerticalAlignment="Top" PositionXOffset="@X" PositionYOffset="@Y"
+                                    WidthSizePolicy="Fixed" SuggestedWidth="26" HeightSizePolicy="Fixed" SuggestedHeight="26"
+                                    Sprite="BlankWhiteSquare_9" Color="#5A2422DD" />
+                          </Children>
+                        </Widget>
+                      </ItemTemplate>
+                    </ListPanel>
+                    <!-- friendly formation markers -->
                     <ListPanel DataSource="{MapMarkers}" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
                                HorizontalAlignment="Left" VerticalAlignment="Top" StackLayout.LayoutMethod="VerticalTopToBottom">
                       <ItemTemplate>

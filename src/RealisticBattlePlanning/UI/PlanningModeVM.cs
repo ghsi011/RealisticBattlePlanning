@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using RealisticBattlePlanning.Execution;
 using RealisticBattlePlanning.Planning;
 using RealisticBattlePlanning.Planning.Editing;
 using RealisticBattlePlanning.Planning.Model;
@@ -51,6 +52,7 @@ namespace RealisticBattlePlanning.UI
         private MBBindingList<FormationPlanItemVM> _formations;
         private MBBindingList<PickerOptionVM> _pickerOptions;
         private MBBindingList<MapMarkerVM> _mapMarkers;
+        private MBBindingList<MapMarkerVM> _enemyMarkers;
         // Live deployment geometry (formation positions, attack direction, enemy
         // positions) for the map view. Null outside a mission — the map is hidden.
         private readonly BattlefieldGeometry _geometry;
@@ -69,6 +71,7 @@ namespace RealisticBattlePlanning.UI
             _formations = new MBBindingList<FormationPlanItemVM>();
             _pickerOptions = new MBBindingList<PickerOptionVM>();
             _mapMarkers = new MBBindingList<MapMarkerVM>();
+            _enemyMarkers = new MBBindingList<MapMarkerVM>();
             _mapToggleText = "▦  Map";
             Refresh();
         }
@@ -77,6 +80,7 @@ namespace RealisticBattlePlanning.UI
         private const float MapWidth = 620f;
         private const float MapHeight = 330f;
         private const float MarkerSize = 36f;
+        private const float EnemySize = 26f;
 
         /// <summary>Formation slot number (1-8) — the deployment formation index + 1.</summary>
         private static int SlotNumber(PlannedFormationClass cls) => (int)cls + 1;
@@ -146,11 +150,17 @@ namespace RealisticBattlePlanning.UI
         private void BuildMap()
         {
             _mapMarkers.Clear();
+            _enemyMarkers.Clear();
             HasMap = _geometry != null && _geometry.HasFormations;
             if (!HasMap)
                 return;
 
-            // Fit the frame to the player's formations (enemy framing comes later).
+            // Fit the scale to the OWN formations so they spread out and stay
+            // readable (a deployment's order of battle is only tens of metres deep,
+            // while the enemy is typically 100 m+ away — fitting to include them
+            // collapses the own markers into one blob). The enemy is shown as a
+            // direction band: its markers are CLAMPED to the top edge of the frame,
+            // indicating "the enemy is this way" without to-scale distance.
             var projection = PlanMapProjection.Build(
                 _geometry.TeamCenter, _geometry.AttackDirection, _geometry.FormationPositions.Values);
 
@@ -163,7 +173,18 @@ namespace RealisticBattlePlanning.UI
                     label: SlotNumber(kv.Key).ToString(),
                     sub: _compositionLabels.TryGetValue(kv.Key, out var l) ? l : kv.Key.ToString()));
             }
+
+            foreach (var e in _geometry.EnemyPositions)
+            {
+                var p = projection.Project(e);
+                _enemyMarkers.Add(new MapMarkerVM(
+                    x: Clamp(p.X, 0.05f, 0.95f) * MapWidth - EnemySize / 2f,
+                    y: (1f - Clamp(p.Y, 0.05f, 0.95f)) * MapHeight - EnemySize / 2f,
+                    label: "", sub: ""));
+            }
         }
+
+        private static float Clamp(float v, float lo, float hi) => v < lo ? lo : (v > hi ? hi : v);
 
         // Header toggle between the formation-list editor and the battlefield map.
         public void ExecuteToggleMap()
@@ -824,6 +845,7 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public string PickerTitle { get => _pickerTitle; set { if (value != _pickerTitle) { _pickerTitle = value; OnPropertyChangedWithValue(value, "PickerTitle"); } } }
         [DataSourceProperty] public MBBindingList<PickerOptionVM> PickerOptions { get => _pickerOptions; set { if (value != _pickerOptions) { _pickerOptions = value; OnPropertyChangedWithValue(value, "PickerOptions"); } } }
         [DataSourceProperty] public MBBindingList<MapMarkerVM> MapMarkers { get => _mapMarkers; set { if (value != _mapMarkers) { _mapMarkers = value; OnPropertyChangedWithValue(value, "MapMarkers"); } } }
+        [DataSourceProperty] public MBBindingList<MapMarkerVM> EnemyMarkers { get => _enemyMarkers; set { if (value != _enemyMarkers) { _enemyMarkers = value; OnPropertyChangedWithValue(value, "EnemyMarkers"); } } }
         [DataSourceProperty] public bool HasMap { get => _hasMap; set { if (value != _hasMap) { _hasMap = value; OnPropertyChangedWithValue(value, "HasMap"); } } }
         [DataSourceProperty] public bool ShowMapBody { get => _showMapBody; set { if (value != _showMapBody) { _showMapBody = value; OnPropertyChangedWithValue(value, "ShowMapBody"); } } }
         [DataSourceProperty] public bool ShowListBody { get => _showListBody; set { if (value != _showListBody) { _showListBody = value; OnPropertyChangedWithValue(value, "ShowListBody"); } } }
