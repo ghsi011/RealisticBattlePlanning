@@ -134,6 +134,12 @@ namespace RealisticBattlePlanning.Execution
             formation.SetMovementOrder(MovementOrder.MovementOrderMove(position));
         }
 
+        /// <summary>Commit a formation to a vanilla charge (e.g. a FlankArc pressing home).</summary>
+        public void Charge(Formation formation)
+        {
+            formation.SetMovementOrder(MovementOrder.MovementOrderCharge);
+        }
+
         /// <summary>
         /// Explicit fire mode wins; otherwise missile-posture directives
         /// default to free fire, feign retreat to its flag (A5).

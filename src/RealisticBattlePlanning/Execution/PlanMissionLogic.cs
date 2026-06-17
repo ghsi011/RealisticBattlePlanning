@@ -413,6 +413,12 @@ namespace RealisticBattlePlanning.Execution
                         new Planning.Model.DirectiveSpec { Type = Planning.Model.DirectiveType.Hold }, null, null));
                     break;
 
+                case ChargeOrdered:
+                    // A FlankArc (or other steering directive) that committed to a
+                    // charge — hand it to the vanilla charge order.
+                    _executor.Charge(formation);
+                    break;
+
                 // SignalEmitted, PlanSuspended, StageSkipped, StageCompleted,
                 // ReactionDelayed carry no engine action here — their orders ride
                 // the surrounding activation events; the bark is their visible effect.

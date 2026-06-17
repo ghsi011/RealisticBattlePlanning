@@ -890,8 +890,12 @@ namespace RealisticBattlePlanning.Execution
                 return;
             if (!IsSteeringDirective(directive.Spec.Type))
                 return;
-            if (snapshot.GetOwn(state.Plan.Formation) is not { Exists: true })
+            if (snapshot.GetOwn(state.Plan.Formation) is not { Exists: true } own)
                 return; // A wiped formation is the abort path's business.
+
+            // A committed flank charge is in melee now — stop repositioning it.
+            if (state.SteeringCommitted)
+                return;
 
             if (ComputeSteeringTarget(directive.Spec, state, snapshot) is not { } target)
             {
@@ -901,6 +905,18 @@ namespace RealisticBattlePlanning.Execution
                 events.Add(new StageSkipped(state.Plan.Formation, state.ActiveStageIndex, SteeringReferenceGone(directive.Spec)));
                 state.CarryFidelity(FidelityProfile.Perfect);
                 ActivateChecked(state, state.ActiveStageIndex + 1, snapshot, events);
+                return;
+            }
+
+            // FlankArc presses home (A5): once it has worked around to its abeam
+            // station, a charge-allowed arc (MissileOnly off) commits to the charge
+            // instead of circling forever at standoff — the playtest's missing piece.
+            if (directive.Spec.Type == DirectiveType.FlankArc
+                && directive.Spec.MissileOnly != true
+                && own.Position.DistanceTo(target) <= DirectiveDefaults.FlankChargeRangeMeters)
+            {
+                state.SteeringCommitted = true;
+                events.Add(new ChargeOrdered(state.Plan.Formation, "flank reached"));
                 return;
             }
 

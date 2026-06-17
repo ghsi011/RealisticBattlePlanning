@@ -68,6 +68,41 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void FlankArcChargesHomeOnceItReachesItsStationWhenChargeIsAllowed()
+        {
+            // MissileOnly unset => the charge is allowed (A5).
+            var monitor = new PlanMonitor(Plan(Formation(PlannedFormationClass.Cavalry,
+                StageOf(null, new DirectiveSpec { Type = DirectiveType.FlankArc, Side = FlankSide.Left, StandoffMeters = 50f }))));
+
+            // Far from the abeam station (-50,100): still steering toward it, not charging.
+            var approach = monitor.Tick(Snap(0f).WithOwn(PlannedFormationClass.Cavalry, 0, 0).WithEnemy(1, 0, 100));
+            Assert.Single(approach.OfType<SteeringTargetChanged>());
+            Assert.Empty(approach.OfType<ChargeOrdered>());
+
+            // Arrived on the flank station: commit to the charge instead of circling.
+            var arrived = monitor.Tick(Snap(1f).WithOwn(PlannedFormationClass.Cavalry, -48, 98).WithEnemy(1, 0, 100));
+            Assert.Single(arrived.OfType<ChargeOrdered>());
+            Assert.Empty(arrived.OfType<SteeringTargetChanged>());
+
+            // Committed: the enemy relocating no longer drags it back to a standoff.
+            var after = monitor.Tick(Snap(2f).WithOwn(PlannedFormationClass.Cavalry, -48, 98).WithEnemy(1, 80, 40));
+            Assert.Empty(after.OfType<SteeringTargetChanged>());
+            Assert.Empty(after.OfType<ChargeOrdered>());
+        }
+
+        [Fact]
+        public void MissileOnlyFlankArcNeverCharges()
+        {
+            var monitor = new PlanMonitor(Plan(Formation(PlannedFormationClass.HorseArcher,
+                StageOf(null, new DirectiveSpec { Type = DirectiveType.FlankArc, Side = FlankSide.Left, StandoffMeters = 50f, MissileOnly = true }))));
+
+            monitor.Tick(Snap(0f).WithOwn(PlannedFormationClass.HorseArcher, 0, 0).WithEnemy(1, 0, 100));
+            // Sitting right on the abeam station: a charge-allowed arc would commit; this stays a kiter.
+            var onStation = monitor.Tick(Snap(1f).WithOwn(PlannedFormationClass.HorseArcher, -50, 100).WithEnemy(1, 0, 100));
+            Assert.Empty(onStation.OfType<ChargeOrdered>());
+        }
+
+        [Fact]
         public void ScreenStandsBetweenTheProtectedFormationAndTheThreat()
         {
             var monitor = new PlanMonitor(Plan(Formation(PlannedFormationClass.Cavalry,

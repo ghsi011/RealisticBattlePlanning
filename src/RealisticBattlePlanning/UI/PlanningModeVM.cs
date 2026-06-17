@@ -459,13 +459,14 @@ namespace RealisticBattlePlanning.UI
                 return;
             var t = stage.When[condIndex];
 
-            IEnumerable<string> choices;
+            IEnumerable<(string Label, string Value)> choices;
             string defaultLabel; // null => no "(default)" option (selector is required)
             switch (t.Type)
             {
                 case TriggerType.EnemyWithinDistance:
                 case TriggerType.EnemyBroken:
-                    choices = FormationClasses(); defaultLabel = "Any enemy (nearest)"; break;
+                    // Enemy formations are referenced by class, not the player's numbered slots.
+                    choices = FormationClasses().Select(c => (Label: c, Value: c)); defaultLabel = "Any enemy (nearest)"; break;
                 case TriggerType.FriendlyWithinDistance:
                     choices = FriendlyTargets(); defaultLabel = null; break; // required
                 case TriggerType.EnemyCommits:
@@ -480,11 +481,12 @@ namespace RealisticBattlePlanning.UI
             if (defaultLabel != null)
                 AddPickerOption(defaultLabel, t.Formation == null, () =>
                 { t.Formation = null; ParamPicked(cls, stageIndex, "Formation", defaultLabel); });
-            foreach (var c in choices)
+            foreach (var (label, value) in choices)
             {
-                var ch = c;
-                AddPickerOption(ch, string.Equals(ch, t.Formation, StringComparison.OrdinalIgnoreCase), () =>
-                { t.Formation = ch; ParamPicked(cls, stageIndex, "Formation", ch); });
+                var lbl = label;
+                var val = value;
+                AddPickerOption(lbl, string.Equals(val, t.Formation, StringComparison.OrdinalIgnoreCase), () =>
+                { t.Formation = val; ParamPicked(cls, stageIndex, "Formation", lbl); });
             }
             ShowParamPicker(cls, stageIndex, "When", "Formation");
         }
@@ -526,6 +528,19 @@ namespace RealisticBattlePlanning.UI
                     { set(ch); ParamPicked(cls, stageIndex, param, ch); });
                 }
             }
+            // Like Choices, but the display label and the stored value differ
+            // (e.g. show "1 — Infantry", store the "Infantry" slot selector).
+            void ChoicesLabeled(string param, IEnumerable<(string Label, string Value)> options, string current, Action<string> set)
+            {
+                name = param;
+                foreach (var (label, value) in options)
+                {
+                    var lbl = label;
+                    var val = value;
+                    AddPickerOption(lbl, string.Equals(val, current, StringComparison.OrdinalIgnoreCase), () =>
+                    { set(val); ParamPicked(cls, stageIndex, param, lbl); });
+                }
+            }
 
             _pickerOptions.Clear();
             switch (d.Type)
@@ -537,7 +552,9 @@ namespace RealisticBattlePlanning.UI
                 case DirectiveType.Skirmish:
                     Numeric("Standoff", "m", d.StandoffMeters ?? 60f, new[] { 20f, 40f, 60f, 80f, 100f }, v => d.StandoffMeters = v); break;
                 case DirectiveType.Screen:
-                    Numeric("Gap", "m", d.GapMeters ?? 30f, new[] { 10f, 20f, 30f, 40f, 60f }, v => d.GapMeters = v); break;
+                    // Pick the formation to guard (it screens any friendly, not just the
+                    // player); the gap keeps its default.
+                    ChoicesLabeled("Guard", FriendlyTargets(), d.Target, x => d.Target = x); break;
                 case DirectiveType.FlankArc:
                     Choices("Side", new[] { "Left", "Right" }, d.Side?.ToString(), s => d.Side = (FlankSide)Enum.Parse(typeof(FlankSide), s)); break;
                 case DirectiveType.FireControl:
@@ -548,7 +565,7 @@ namespace RealisticBattlePlanning.UI
                 case DirectiveType.Charge:
                     Choices("Target", EnemyTargets(), d.Target, x => d.Target = x); break;
                 case DirectiveType.Follow:
-                    Choices("Follow", FriendlyTargets(), d.Target, x => d.Target = x); break;
+                    ChoicesLabeled("Follow", FriendlyTargets(), d.Target, x => d.Target = x); break;
                 default:
                     return;
             }
@@ -743,11 +760,28 @@ namespace RealisticBattlePlanning.UI
                 yield return c.ToString();
         }
 
-        private static IEnumerable<string> FriendlyTargets()
+        // Friendly formation targets shown as "N — composition" ("1 — Infantry",
+        // "2 — Mixed") rather than the slot's class name: with eight numbered
+        // formations the class name is ambiguous and often wrong once troops are
+        // mixed. The stored value stays the slot selector (the class name / "Player").
+        private IEnumerable<(string Label, string Value)> FriendlyTargets()
         {
-            yield return "Player";
+            yield return ("Player (you)", "Player");
             foreach (PlannedFormationClass c in Enum.GetValues(typeof(PlannedFormationClass)))
-                yield return c.ToString();
+                yield return (FriendlyTargetLabel(c.ToString()), c.ToString());
+        }
+
+        /// <summary>"N — composition" for a friendly slot selector; passes "Player" through.</summary>
+        private string FriendlyTargetLabel(string selector)
+        {
+            if (string.IsNullOrEmpty(selector) || string.Equals(selector, "Player", StringComparison.OrdinalIgnoreCase))
+                return "Player (you)";
+            if (Enum.TryParse<PlannedFormationClass>(selector, ignoreCase: true, out var cls))
+            {
+                var label = _compositionLabels.TryGetValue(cls, out var l) ? l : cls.ToString();
+                return $"{(int)cls + 1} — {label}";
+            }
+            return selector;
         }
 
         private static Stage StageAt(BattlePlan plan, PlannedFormationClass cls, int stageIndex)
@@ -1080,7 +1114,7 @@ namespace RealisticBattlePlanning.UI
                 case DirectiveType.FeignRetreat:
                 case DirectiveType.PullBack: return (true, string.IsNullOrEmpty(d.Anchor) ? "pick anchor" : d.Anchor);
                 case DirectiveType.Skirmish: return (true, $"standoff {d.StandoffMeters ?? 60:0.#} m");
-                case DirectiveType.Screen: return (true, $"gap {d.GapMeters ?? 30:0.#} m");
+                case DirectiveType.Screen: return (true, $"guard {d.Target ?? "Player"}");
                 case DirectiveType.FlankArc: return (true, (d.Side ?? FlankSide.Left).ToString());
                 case DirectiveType.FireControl: return (true, (d.Fire ?? FireMode.Free).ToString());
                 case DirectiveType.Hold: return (true, (d.Arrangement ?? Arrangement.Line).ToString());

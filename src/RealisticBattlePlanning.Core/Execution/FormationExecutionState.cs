@@ -54,6 +54,13 @@ namespace RealisticBattlePlanning.Execution
         public int WaypointIndex { get; set; }
         public MapVec? LastSteeringTarget { get; set; }
 
+        /// <summary>
+        /// A steering directive that has committed to its decisive action and
+        /// should stop repositioning — e.g. a FlankArc that reached its station and
+        /// charged home (A5). Cleared when a new stage begins.
+        /// </summary>
+        public bool SteeringCommitted { get; set; }
+
         /// <summary>Activate a stage: adopt its resolved directive and clear the per-stage scratch.</summary>
         public void BeginStage(int stageIndex, float atSeconds, ResolvedDirective directive)
         {
@@ -124,6 +131,7 @@ namespace RealisticBattlePlanning.Execution
             ActivatedAtSeconds = atSeconds;
             WaypointIndex = 0;
             LastSteeringTarget = null;
+            SteeringCommitted = false;
             PendingStageIndex = -1;
         }
     }

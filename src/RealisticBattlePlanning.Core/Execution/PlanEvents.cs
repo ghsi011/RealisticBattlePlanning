@@ -227,4 +227,23 @@ namespace RealisticBattlePlanning.Execution
 
         public override string Describe() => $"[{Formation}] emits signal '{Signal}'";
     }
+
+    /// <summary>
+    /// A steering directive committed to a charge — a FlankArc that reached its
+    /// station and presses home (A5: charge allowed when MissileOnly is off). The
+    /// engine turns it into a vanilla charge order; from here the formation is in
+    /// melee and the plan stops repositioning it.
+    /// </summary>
+    public sealed class ChargeOrdered : PlanEvent
+    {
+        public ChargeOrdered(PlannedFormationClass formation, string reason)
+            : base(formation)
+        {
+            Reason = reason;
+        }
+
+        public string Reason { get; }
+
+        public override string Describe() => $"[{Formation}] charges - {Reason}";
+    }
 }

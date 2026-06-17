@@ -13,6 +13,13 @@ namespace RealisticBattlePlanning.Execution
         /// <summary>Flank arc: distance kept abeam of the target enemy (A6 uses ~50).</summary>
         public const float FlankArcStandoffMeters = 50f;
 
+        /// <summary>
+        /// Flank arc with charge allowed (MissileOnly off): once the formation is
+        /// within this of its abeam station it commits to the charge instead of
+        /// holding off — so cavalry presses the flank home rather than circling.
+        /// </summary>
+        public const float FlankChargeRangeMeters = 20f;
+
         /// <summary>Screen: gap kept between the rear guard and the protected formation.</summary>
         public const float ScreenGapMeters = 30f;
 

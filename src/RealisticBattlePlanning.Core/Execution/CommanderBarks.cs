@@ -49,6 +49,9 @@ namespace RealisticBattlePlanning.Execution
                 case PlanHolding _:
                     return Pick(ev, "no orders left — holding position.", "nothing more to do; we hold.", "standing fast, awaiting orders.");
 
+                case ChargeOrdered _:
+                    return Pick(ev, "flank reached — charge!", "into their flank!", "now — hit them in the flank!");
+
                 case SignalEmitted signal:
                     return $"signalling '{signal.Signal}'.";
 
