@@ -20,6 +20,9 @@ namespace ModDebugKit.Commands
         [CommandLineFunctionality.CommandLineArgumentFunction("snapshot", "dbg")]
         public static string Snapshot(List<string> args) => Run("dbg.snapshot", args);
 
+        [CommandLineFunctionality.CommandLineArgumentFunction("battle", "dbg")]
+        public static string Battle(List<string> args) => Run("dbg.battle", args);
+
         private static string Run(string fullName, List<string> args)
         {
             var dispatcher = ModDebugKitRuntime.Dispatcher;

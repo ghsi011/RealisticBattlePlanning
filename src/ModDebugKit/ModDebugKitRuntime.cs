@@ -1,4 +1,5 @@
 using System.IO;
+using ModDebugKit.Battles;
 using ModDebugKit.Commands;
 using ModDebugKit.Diagnostics;
 using ModDebugKit.Io;
@@ -31,6 +32,7 @@ namespace ModDebugKit
 
             Dispatcher = new CommandDispatcher();
             CoreCommands.RegisterAll(Dispatcher);
+            BattleCommands.RegisterAll(Dispatcher);
 
             Initialized = true;
         }

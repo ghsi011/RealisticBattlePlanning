@@ -84,13 +84,68 @@ Example:
 {"seq":1,"ts":"2026-06-17T12:00:00.0000000Z","ok":true,"cmd":"dbg.ping","raw":"dbg.ping","msg":"pong — ModDebugKit live, at the menu","data":{"pong":true,"outputRoot":"…/Debug","inMission":false}}
 ```
 
-## Commands (M0)
+## Commands
 
 | command            | `data` payload                                              | effect                                                              |
 |--------------------|-------------------------------------------------------------|---------------------------------------------------------------------|
 | `dbg.ping`         | `{ pong, outputRoot, inMission, scene? }`                   | Liveness; confirms the channel is live and where the game is.       |
 | `dbg.help`         | `{ commands: string[] }`                                    | Lists every registered command's usage.                            |
 | `dbg.snapshot [path]` | `{ path, formations, battleStarted }`                    | Writes the full battle state to `path` (default `battle_state.json`) and acks with a summary. Requires an active mission. |
+| `dbg.battle [preset]` | `{ preset, mode }` (`mode`: `load` from menu, `direct` from the custom-battle menu) | Launches a custom field battle from a preset, no menu navigation. No arg = the default Empire-vs-Aserai battle. Refuses when already in a mission. |
+
+### `dbg.battle` preset resolution
+
+The argument resolves to a preset file:
+- A bare name (`skirmish`) → `presets/skirmish.json` under the output root.
+- A path or `.json` name (`foo/bar.json`, `C:\tmp\x.json`) → resolved relative to the output root, or absolute.
+- No argument → the built-in default (Empire 150 inf / 49 rng vs Aserai 120 inf / 40 rng / 40 cav, player Defender Commander, `battle_terrain_029`, summer dawn).
+
+From the main menu it loads the custom game then launches on load-finish; from the custom-battle menu it launches directly. Then `dbg.snapshot` reads the result — the whole "set up a battle and read what each formation did" loop runs with no mouse and no console.
+
+## Battle presets — `presets/*.json`
+
+Every field is optional; an omitted field falls back to the default, so a partial preset only overrides what it sets (`{}` is the full default).
+
+```json
+{
+  "scene": "battle_terrain_029",
+  "season": "summer",
+  "timeOfDay": 6.0,
+  "gameType": "Battle",
+  "playerSide": "Defender",
+  "playerType": "Commander",
+  "player": {
+    "culture": "battania",
+    "commander": "commander_1",
+    "counts": [120, 40, 0, 0],
+    "troopsByClass": [["battanian_veteran_falxman"], ["battanian_fian_champion"], [], []]
+  },
+  "enemy": {
+    "culture": "empire",
+    "commander": "commander_11",
+    "counts": [100, 30, 30, 0]
+  }
+}
+```
+
+| field                | type        | notes                                                                                  |
+|----------------------|-------------|----------------------------------------------------------------------------------------|
+| `scene`              | string      | Scene id; default `battle_terrain_029`.                                               |
+| `season`             | string      | `summer`/`winter`/`spring`/`fall`; default `summer`.                                  |
+| `timeOfDay`          | float       | Hours 0–24; default 6.                                                                 |
+| `gameType`           | string      | `Battle` (field). Default `Battle`.                                                   |
+| `playerSide`         | string      | `Defender` or `Attacker`; default `Defender`.                                         |
+| `playerType`         | string      | `Commander` or `Sergeant` (no spectator role in custom battle); default `Commander`.  |
+| `player` / `enemy`   | object      | One side each (below).                                                                 |
+
+**Side**
+
+| field           | type       | notes                                                                                               |
+|-----------------|------------|-----------------------------------------------------------------------------------------------------|
+| `culture`       | string     | Culture string id (`empire`, `aserai`, `battania`, …). The +1 commander is added on top.            |
+| `commander`     | string     | Commander character id (e.g. `commander_1`); becomes the side's general.                            |
+| `counts`        | int[4]     | `[infantry, ranged, cavalry, horseArcher]`. Note: troops are sorted into formation slots by their *actual* class, so an "aserai cavalry" count can land in the HorseArcher slot — read the snapshot's `composition`, not the slot. |
+| `troopsByClass` | string[][] | Optional troop ids per class bucket (index 0–3). The bucket's count is split across the listed ids; an empty/missing bucket uses the culture's default troop. |
 
 ## `battle_state.json` — battle snapshot
 
