@@ -53,6 +53,7 @@ namespace RealisticBattlePlanning.UI
         private MBBindingList<PickerOptionVM> _pickerOptions;
         private MBBindingList<MapMarkerVM> _mapMarkers;
         private MBBindingList<MapMarkerVM> _enemyMarkers;
+        private MBBindingList<MapMarkerVM> _anchorMarkers;
         // Live deployment geometry (formation positions, attack direction, enemy
         // positions) for the map view. Null outside a mission — the map is hidden.
         private readonly BattlefieldGeometry _geometry;
@@ -72,6 +73,7 @@ namespace RealisticBattlePlanning.UI
             _pickerOptions = new MBBindingList<PickerOptionVM>();
             _mapMarkers = new MBBindingList<MapMarkerVM>();
             _enemyMarkers = new MBBindingList<MapMarkerVM>();
+            _anchorMarkers = new MBBindingList<MapMarkerVM>();
             _mapToggleText = "▦  Map";
             Refresh();
         }
@@ -81,6 +83,7 @@ namespace RealisticBattlePlanning.UI
         private const float MapHeight = 330f;
         private const float MarkerSize = 36f;
         private const float EnemySize = 26f;
+        private const float AnchorSize = 18f;
 
         /// <summary>Formation slot number (1-8) — the deployment formation index + 1.</summary>
         private static int SlotNumber(PlannedFormationClass cls) => (int)cls + 1;
@@ -151,18 +154,21 @@ namespace RealisticBattlePlanning.UI
         {
             _mapMarkers.Clear();
             _enemyMarkers.Clear();
+            _anchorMarkers.Clear();
             HasMap = _geometry != null && _geometry.HasFormations;
             if (!HasMap)
                 return;
 
-            // Fit the scale to the OWN formations so they spread out and stay
-            // readable (a deployment's order of battle is only tens of metres deep,
-            // while the enemy is typically 100 m+ away — fitting to include them
-            // collapses the own markers into one blob). The enemy is shown as a
-            // direction band: its markers are CLAMPED to the top edge of the frame,
-            // indicating "the enemy is this way" without to-scale distance.
+            // Fit the scale to the own formations AND the authored anchors, so the
+            // plan's spatial extent (e.g. a "push" anchor 120 m forward) frames the
+            // map. The enemy — typically far beyond that — is a direction band:
+            // its markers are CLAMPED to the top edge ("the enemy is this way")
+            // rather than dragged into the fit, which would collapse the own markers.
+            var anchors = _draft.Build().Anchors;
+            var fitPoints = new List<MapVec>(_geometry.FormationPositions.Values);
+            fitPoints.AddRange(anchors.Select(AnchorDisplayPosition));
             var projection = PlanMapProjection.Build(
-                _geometry.TeamCenter, _geometry.AttackDirection, _geometry.FormationPositions.Values);
+                _geometry.TeamCenter, _geometry.AttackDirection, fitPoints);
 
             foreach (var kv in _geometry.FormationPositions.OrderBy(p => (int)p.Key))
             {
@@ -182,6 +188,26 @@ namespace RealisticBattlePlanning.UI
                     y: (1f - Clamp(p.Y, 0.05f, 0.95f)) * MapHeight - EnemySize / 2f,
                     label: "", sub: ""));
             }
+
+            foreach (var a in anchors)
+            {
+                var p = projection.Project(AnchorDisplayPosition(a));
+                _anchorMarkers.Add(new MapMarkerVM(
+                    x: Clamp(p.X, 0.03f, 0.97f) * MapWidth - AnchorSize / 2f,
+                    y: (1f - Clamp(p.Y, 0.03f, 0.97f)) * MapHeight - AnchorSize / 2f,
+                    label: a.Id, sub: ""));
+            }
+        }
+
+        /// <summary>A single map position for an anchor. Scene anchors are absolute;
+        /// relative ones are shown from the team centre (OwnStart resolves per
+        /// formation in execution, but a shared display point reads fine on the map).</summary>
+        private MapVec AnchorDisplayPosition(MapAnchor a)
+        {
+            if (a.Basis == AnchorBasis.Scene)
+                return new MapVec(a.X, a.Y);
+            var forward = _geometry.AttackDirection.Normalized();
+            return _geometry.TeamCenter + forward * a.Forward + forward.Right() * a.Right;
         }
 
         private static float Clamp(float v, float lo, float hi) => v < lo ? lo : (v > hi ? hi : v);
@@ -846,6 +872,7 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public MBBindingList<PickerOptionVM> PickerOptions { get => _pickerOptions; set { if (value != _pickerOptions) { _pickerOptions = value; OnPropertyChangedWithValue(value, "PickerOptions"); } } }
         [DataSourceProperty] public MBBindingList<MapMarkerVM> MapMarkers { get => _mapMarkers; set { if (value != _mapMarkers) { _mapMarkers = value; OnPropertyChangedWithValue(value, "MapMarkers"); } } }
         [DataSourceProperty] public MBBindingList<MapMarkerVM> EnemyMarkers { get => _enemyMarkers; set { if (value != _enemyMarkers) { _enemyMarkers = value; OnPropertyChangedWithValue(value, "EnemyMarkers"); } } }
+        [DataSourceProperty] public MBBindingList<MapMarkerVM> AnchorMarkers { get => _anchorMarkers; set { if (value != _anchorMarkers) { _anchorMarkers = value; OnPropertyChangedWithValue(value, "AnchorMarkers"); } } }
         [DataSourceProperty] public bool HasMap { get => _hasMap; set { if (value != _hasMap) { _hasMap = value; OnPropertyChangedWithValue(value, "HasMap"); } } }
         [DataSourceProperty] public bool ShowMapBody { get => _showMapBody; set { if (value != _showMapBody) { _showMapBody = value; OnPropertyChangedWithValue(value, "ShowMapBody"); } } }
         [DataSourceProperty] public bool ShowListBody { get => _showListBody; set { if (value != _showListBody) { _showListBody = value; OnPropertyChangedWithValue(value, "ShowListBody"); } } }

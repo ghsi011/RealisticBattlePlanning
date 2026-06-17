@@ -356,6 +356,26 @@
                         </Widget>
                       </ItemTemplate>
                     </ListPanel>
+                    <!-- authored map anchors (amber dots with their id) -->
+                    <ListPanel DataSource="{AnchorMarkers}" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                               HorizontalAlignment="Left" VerticalAlignment="Top" StackLayout.LayoutMethod="VerticalTopToBottom">
+                      <ItemTemplate>
+                        <Widget WidthSizePolicy="Fixed" SuggestedWidth="0" HeightSizePolicy="Fixed" SuggestedHeight="0">
+                          <Children>
+                            <Widget HorizontalAlignment="Left" VerticalAlignment="Top" PositionXOffset="@X" PositionYOffset="@Y"
+                                    WidthSizePolicy="Fixed" SuggestedWidth="18" HeightSizePolicy="Fixed" SuggestedHeight="18"
+                                    Sprite="BlankWhiteSquare_9" Color="#C8922EDD">
+                              <Children>
+                                <TextWidget Text="@Label" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
+                                            HorizontalAlignment="Center" VerticalAlignment="Bottom" PositionYOffset="15"
+                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="11" Brush.FontColor="#E0BE78FF"
+                                            Brush.TextHorizontalAlignment="Center" />
+                              </Children>
+                            </Widget>
+                          </Children>
+                        </Widget>
+                      </ItemTemplate>
+                    </ListPanel>
                     <!-- friendly formation markers -->
                     <ListPanel DataSource="{MapMarkers}" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
                                HorizontalAlignment="Left" VerticalAlignment="Top" StackLayout.LayoutMethod="VerticalTopToBottom">
