@@ -95,8 +95,12 @@ Example:
 | `dbg.ready`        | —                                                           | Finishes deployment and starts the battle (no Ready click). After this, `battleStarted` is true and the snapshot reports casualties against the deployment baseline. |
 | `dbg.leave`        | —                                                           | Ends the current mission and returns to the menu.                  |
 | `dbg.restart`      | —                                                           | Ends the current battle and relaunches the same preset (the relaunch is deferred until the game is back at the custom-battle menu). |
+| `dbg.assign <sel> <N>` | `{ moved, formation, selector }`                        | Moves the player's units matching `<sel>` into formation `N` (1–8). `<sel>` ∈ `all`/`inf`/`ranged`/`cav`/`ha` (matched by live class — mounted × shoots). |
+| `dbg.layout <sel=N> …` | `{ assignments: [{selector, formation, moved}] }`       | Applies several `dbg.assign`s at once, e.g. `dbg.layout inf=1 ranged=3 cav=5 ha=7`. |
 
-Together these give a full mouse-free battle lifecycle: `dbg.battle` → `dbg.ready` → `dbg.snapshot` → `dbg.restart` or `dbg.leave`.
+Together these give a full mouse-free battle lifecycle: `dbg.battle` → (`dbg.assign`/`dbg.layout` to set the layout) → `dbg.ready` → `dbg.snapshot` → `dbg.restart` or `dbg.leave`.
+
+**Slot vs contents:** assignment moves units into a formation *number*, whose slot keeps its own class name. After `dbg.layout inf=5`, formation 5 (slot "Skirmisher") holds infantry — the snapshot's `slotClass` reads "Skirmisher" while `composition.label` reads "Infantry". Always trust `composition`, not the slot.
 
 ### `dbg.battle` preset resolution
 

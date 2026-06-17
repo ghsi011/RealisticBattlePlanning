@@ -32,6 +32,12 @@ namespace ModDebugKit.Commands
         [CommandLineFunctionality.CommandLineArgumentFunction("restart", "dbg")]
         public static string Restart(List<string> args) => Run("dbg.restart", args);
 
+        [CommandLineFunctionality.CommandLineArgumentFunction("assign", "dbg")]
+        public static string Assign(List<string> args) => Run("dbg.assign", args);
+
+        [CommandLineFunctionality.CommandLineArgumentFunction("layout", "dbg")]
+        public static string Layout(List<string> args) => Run("dbg.layout", args);
+
         private static string Run(string fullName, List<string> args)
         {
             var dispatcher = ModDebugKitRuntime.Dispatcher;

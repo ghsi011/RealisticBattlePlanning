@@ -33,6 +33,7 @@ namespace ModDebugKit
             Dispatcher = new CommandDispatcher();
             CoreCommands.RegisterAll(Dispatcher);
             BattleCommands.RegisterAll(Dispatcher);
+            FormationCommands.RegisterAll(Dispatcher);
 
             Initialized = true;
         }
