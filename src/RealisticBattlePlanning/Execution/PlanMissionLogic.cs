@@ -164,11 +164,23 @@ namespace RealisticBattlePlanning.Execution
                 if (_isHarnessRun)
                     ApplySplit(PlannedFormationClasses());
 
-                RbpLog.Info("Deployment finished. Player formations:");
+                // Log each formation by NUMBER and its LIVE composition, not the
+                // engine slot's class name. Bannerlord files troops into the eight
+                // slots by its own classification, so e.g. the "HorseArcher" slot
+                // can hold ranged infantry — a directive must target the slot that
+                // actually holds the right troops (see the formation-slots-vs-
+                // composition gotcha). Showing the real mix here makes that mismatch
+                // impossible to miss when reading the log or authoring a plan.
+                var liveComposition = UI.FormationReader.CompositionLabels(Mission.PlayerTeam);
+                RbpLog.Info("Deployment finished. Player formations (number — live composition [slot]):");
                 foreach (var formation in Mission.PlayerTeam.FormationsIncludingEmpty)
                 {
-                    if (formation.CountOfUnits > 0)
-                        RbpLog.Info($"  {formation.FormationIndex}: {formation.CountOfUnits} unit(s), captain: {formation.Captain?.Name?.ToString() ?? "none"}");
+                    if (formation.CountOfUnits == 0)
+                        continue;
+                    var slot = FormationClassMap.ToPlanned(formation.FormationIndex);
+                    var comp = slot is { } s && liveComposition.TryGetValue(s, out var label) ? label : "?";
+                    RbpLog.Info($"  Formation {(int)formation.FormationIndex + 1} — {comp} [{formation.FormationIndex} slot]: " +
+                                $"{formation.CountOfUnits} unit(s), captain: {formation.Captain?.Name?.ToString() ?? "none"}");
                 }
 
                 AdoptPlannedFormations();

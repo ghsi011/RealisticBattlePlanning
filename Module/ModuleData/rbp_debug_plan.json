@@ -1,14 +1,16 @@
 {
-  // RealisticBattlePlanning debug plan — tuned to THIS save's actual troop layout
-  // (the game sorted troops into slots that don't match the class names):
-  //   formation 7 & 8 (LightCavalry / HeavyCavalry slots) hold the HORSE ARCHERS,
-  //   formation 3 (Cavalry slot) holds the cavalry, 1 & 2 are infantry.
-  // So directives are assigned to the slots that actually hold the right troops:
-  //   - LightCavalry + HeavyCavalry (the horse archers): Skirmish, CIRCLING at 70 m.
-  //   - Cavalry: hold, then FlankArc (charge allowed).
-  //   - Infantry: hold the line.
-  // (This is exactly why planning needs to be by numbered formation + composition,
-  //  not by class name — see the composition labels in the rbp.plan editor.)
+  // RealisticBattlePlanning debug plan — matched to THIS save's formation layout:
+  //   formations 1-2 = Infantry, 3-4 = Ranged, 5-6 = Cavalry, 7-8 = Horse Archer.
+  // The game files troops into the 8 engine slots by its own classification, so a
+  // directive must go on the SLOT that actually holds the troops you mean — not on
+  // the slot whose class name matches (see formation-slots-vs-composition).
+  // Engine slot -> formation number:
+  //   Infantry=1  Ranged=2  Cavalry=3  HorseArcher=4
+  //   Skirmisher=5  HeavyInfantry=6  LightCavalry=7  HeavyCavalry=8
+  // So here:
+  //   Infantry slot (formation 1, infantry):           hold the line.
+  //   Skirmisher + HeavyInfantry (formations 5-6, CAVALRY): flank and charge.
+  //   LightCavalry + HeavyCavalry (formations 7-8, HORSE ARCHERS): circle at 70 m.
 
   "playerSignals": [ "charge" ],
   "anchors": [],
@@ -22,13 +24,25 @@
       "abort": { "casualtiesAbovePercent": 70 }
     },
     {
-      "formation": "Cavalry",
+      "formation": "Skirmisher",
       "stages": [
         { "name": "wait for it", "do": { "type": "Hold", "arrangement": "Line" } },
         {
           "name": "flank left and charge",
           "when": [ { "type": "TimerElapsed", "seconds": 12 } ],
           "do": { "type": "FlankArc", "side": "Left", "standoffMeters": 50.0 }
+        }
+      ],
+      "abort": { "casualtiesAbovePercent": 80 }
+    },
+    {
+      "formation": "HeavyInfantry",
+      "stages": [
+        { "name": "wait for it", "do": { "type": "Hold", "arrangement": "Line" } },
+        {
+          "name": "flank right and charge",
+          "when": [ { "type": "TimerElapsed", "seconds": 12 } ],
+          "do": { "type": "FlankArc", "side": "Right", "standoffMeters": 50.0 }
         }
       ],
       "abort": { "casualtiesAbovePercent": 80 }
