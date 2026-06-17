@@ -90,7 +90,7 @@ namespace RealisticBattlePlanning.UI
                 var formationPlan = plan.Formations.FirstOrDefault(f => f.Formation == cls)
                                     ?? new FormationPlan { Formation = cls };
                 _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage,
-                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenEmitPicker,
+                    OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenTriggerFormationPicker, OpenDirectiveParamPicker, OpenEmitPicker,
                     AddCondition, RemoveCondition, OpenAbortPicker, ClearFormation,
                     MoveStageUp, MoveStageDown, DuplicateStage, ToggleDirectiveOption));
             }
@@ -338,6 +338,53 @@ namespace RealisticBattlePlanning.UI
                     return;
             }
             ShowParamPicker(cls, stageIndex, "When", name);
+        }
+
+        // Clicking a condition's formation chip picks WHICH formation it watches
+        // (a3.10): enemy selector for Enemy Within/Broken, friendly selector for
+        // Friendly Within / Enemy Commits / Casualties. A "(default)" option clears
+        // it back to nearest-enemy / own-formation where that is valid.
+        private void OpenTriggerFormationPicker(PlannedFormationClass cls, int stageIndex, int condIndex)
+        {
+            var stage = StageAt(_draft.Build(), cls, stageIndex);
+            if (stage == null || condIndex < 0 || condIndex >= stage.When.Count)
+                return;
+            var t = stage.When[condIndex];
+
+            IEnumerable<string> choices;
+            string defaultLabel; // null => no "(default)" option (selector is required)
+            switch (t.Type)
+            {
+                case TriggerType.EnemyWithinDistance:
+                case TriggerType.EnemyBroken:
+                    choices = FormationClasses(); defaultLabel = "Any enemy (nearest)"; break;
+                case TriggerType.FriendlyWithinDistance:
+                    choices = FriendlyTargets(); defaultLabel = null; break; // required
+                case TriggerType.EnemyCommits:
+                    choices = FriendlyTargets(); defaultLabel = "Any (no specific unit)"; break;
+                case TriggerType.CasualtiesAbove:
+                    choices = FriendlyTargets(); defaultLabel = "This formation"; break;
+                default:
+                    return;
+            }
+
+            _pickerOptions.Clear();
+            if (defaultLabel != null)
+                AddPickerOption(defaultLabel, t.Formation == null, () =>
+                { t.Formation = null; ParamPicked(cls, stageIndex, "Formation", defaultLabel); });
+            foreach (var c in choices)
+            {
+                var ch = c;
+                AddPickerOption(ch, string.Equals(ch, t.Formation, StringComparison.OrdinalIgnoreCase), () =>
+                { t.Formation = ch; ParamPicked(cls, stageIndex, "Formation", ch); });
+            }
+            ShowParamPicker(cls, stageIndex, "When", "Formation");
+        }
+
+        private static IEnumerable<string> FormationClasses()
+        {
+            foreach (PlannedFormationClass c in Enum.GetValues(typeof(PlannedFormationClass)))
+                yield return c.ToString();
         }
 
         // Clicking a Do line's value chip opens a picker for the current
@@ -718,6 +765,7 @@ namespace RealisticBattlePlanning.UI
             Action<PlannedFormationClass, int, int> editConditionType,
             Action<PlannedFormationClass, int> editDirective,
             Action<PlannedFormationClass, int, int> editConditionParam,
+            Action<PlannedFormationClass, int, int> editConditionFormation,
             Action<PlannedFormationClass, int> editDirectiveParam,
             Action<PlannedFormationClass, int> editEmit,
             Action<PlannedFormationClass, int> addCondition,
@@ -753,6 +801,7 @@ namespace RealisticBattlePlanning.UI
                     i, count, formation.Stages[i],
                     condIdx => editConditionType?.Invoke(cls, index, condIdx),
                     condIdx => editConditionParam?.Invoke(cls, index, condIdx),
+                    condIdx => editConditionFormation?.Invoke(cls, index, condIdx),
                     condIdx => removeCondition?.Invoke(cls, index, condIdx),
                     () => addCondition?.Invoke(cls, index),
                     () => editDirective?.Invoke(cls, index),
@@ -795,7 +844,7 @@ namespace RealisticBattlePlanning.UI
         private readonly Action _toggleDirectiveOption;
 
         public StageItemVM(int index, int stageCount, Stage stage,
-            Action<int> editConditionType, Action<int> editConditionParam, Action<int> removeCondition, Action addCondition,
+            Action<int> editConditionType, Action<int> editConditionParam, Action<int> editConditionFormation, Action<int> removeCondition, Action addCondition,
             Action editDirective, Action editDirectiveParam, Action editEmit, Action moveUp, Action moveDown, Action duplicate,
             Action toggleDirectiveOption)
         {
@@ -825,6 +874,7 @@ namespace RealisticBattlePlanning.UI
                 Conditions.Add(new ConditionItemVM(ci, stage.When[ci],
                     () => editConditionType?.Invoke(ci),
                     () => editConditionParam?.Invoke(ci),
+                    () => editConditionFormation?.Invoke(ci),
                     () => removeCondition?.Invoke(ci)));
             }
             ShowWhenEmpty = stage.When.Count == 0;
@@ -901,19 +951,23 @@ namespace RealisticBattlePlanning.UI
     {
         private readonly Action _editType;
         private readonly Action _editParam;
+        private readonly Action _editFormation;
         private readonly Action _remove;
 
-        public ConditionItemVM(int index, TriggerSpec condition, Action editType, Action editParam, Action remove)
+        public ConditionItemVM(int index, TriggerSpec condition, Action editType, Action editParam, Action editFormation, Action remove)
         {
             _editType = editType;
             _editParam = editParam;
+            _editFormation = editFormation;
             _remove = remove;
             RowText = (index == 0 ? "When:  " : "AND  ") + PlanFormatter.DescribeTrigger(condition);
             (HasParam, ParamLabel) = TriggerParam(condition);
+            (HasFormation, FormationLabel) = TriggerFormation(condition);
         }
 
         public void ExecuteEditType() => _editType?.Invoke();
         public void ExecuteEditParam() => _editParam?.Invoke();
+        public void ExecuteEditFormation() => _editFormation?.Invoke();
         public void ExecuteRemove() => _remove?.Invoke();
 
         /// <summary>Whether a trigger type has an editable parameter, and the chip text for it.</summary>
@@ -934,8 +988,25 @@ namespace RealisticBattlePlanning.UI
             }
         }
 
+        /// <summary>The optional "which formation" selector some triggers carry, and its chip label.</summary>
+        private static (bool has, string label) TriggerFormation(TriggerSpec t)
+        {
+            if (t == null) return (false, "");
+            switch (t.Type)
+            {
+                case TriggerType.EnemyWithinDistance:
+                case TriggerType.EnemyBroken: return (true, "vs " + (t.Formation ?? "any enemy"));
+                case TriggerType.FriendlyWithinDistance: return (true, "of " + (t.Formation ?? "pick unit"));
+                case TriggerType.EnemyCommits: return (true, "vs " + (t.Formation ?? "any unit"));
+                case TriggerType.CasualtiesAbove: return (true, "of " + (t.Formation ?? "this unit"));
+                default: return (false, "");
+            }
+        }
+
         [DataSourceProperty] public string RowText { get; }
         [DataSourceProperty] public bool HasParam { get; }
         [DataSourceProperty] public string ParamLabel { get; }
+        [DataSourceProperty] public bool HasFormation { get; }
+        [DataSourceProperty] public string FormationLabel { get; }
     }
 }

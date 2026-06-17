@@ -187,16 +187,30 @@
                                                         </ButtonWidget>
                                                       </Children>
                                                     </Widget>
-                                                    <!-- value chip for this condition (distance / % / time / anchor / signal) -->
-                                                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditParam" IsVisible="@HasParam" Brush="Rbp.Btn.Neutral"
-                                                                  HorizontalAlignment="Left" MarginLeft="14" MarginTop="2"
-                                                                  WidthSizePolicy="Fixed" SuggestedWidth="150" HeightSizePolicy="Fixed" SuggestedHeight="22">
+                                                    <!-- value chip (distance / % / time / anchor / signal) + optional "which formation" chip -->
+                                                    <ListPanel WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren" HorizontalAlignment="Left" MarginLeft="14" MarginTop="2"
+                                                               StackLayout.LayoutMethod="HorizontalLeftToRight">
                                                       <Children>
-                                                        <TextWidget Text="@ParamLabel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#C5D2DEFF"
-                                                                    Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                                        <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditParam" IsVisible="@HasParam" Brush="Rbp.Btn.Neutral"
+                                                                      WidthSizePolicy="Fixed" SuggestedWidth="150" HeightSizePolicy="Fixed" SuggestedHeight="22">
+                                                          <Children>
+                                                            <TextWidget Text="@ParamLabel" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#C5D2DEFF"
+                                                                        Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                                          </Children>
+                                                        </ButtonWidget>
+                                                        <!-- "which formation" the condition watches -->
+                                                        <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditFormation" IsVisible="@HasFormation" Brush="Rbp.Btn.Neutral"
+                                                                      MarginLeft="8" WidthSizePolicy="CoverChildren" HeightSizePolicy="Fixed" SuggestedHeight="22">
+                                                          <Children>
+                                                            <TextWidget Text="@FormationLabel" WidthSizePolicy="CoverChildren" HeightSizePolicy="StretchToParent"
+                                                                        MarginLeft="10" MarginRight="10"
+                                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#B9C6D4FF"
+                                                                        Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                                          </Children>
+                                                        </ButtonWidget>
                                                       </Children>
-                                                    </ButtonWidget>
+                                                    </ListPanel>
                                                   </Children>
                                                 </ListPanel>
                                               </ItemTemplate>
