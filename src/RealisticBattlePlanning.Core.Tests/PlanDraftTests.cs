@@ -128,6 +128,43 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void DuplicateStageInsertsAnIndependentDeepCopyAfterIt()
+        {
+            var draft = new PlanDraft();
+            draft.AddStage(PlannedFormationClass.Infantry, new Stage
+            {
+                Name = "hold",
+                When = { new TriggerSpec { Type = TriggerType.TimerElapsed, Seconds = 30f } },
+                Do = new DirectiveSpec { Type = DirectiveType.Hold, Arrangement = Arrangement.ShieldWall },
+                Emit = { "advance" },
+            });
+            draft.AddStage(PlannedFormationClass.Infantry, Named("second"));
+
+            draft.DuplicateStage(PlannedFormationClass.Infantry, 0); // copy of "hold" lands at index 1
+
+            var stages = draft.Build().Formations[0].Stages;
+            Assert.Equal(new[] { "hold", "hold", "second" }, stages.Select(s => s.Name));
+            // The copy carried the nested state...
+            Assert.Equal(Arrangement.ShieldWall, stages[1].Do.Arrangement);
+            Assert.Equal(new[] { "advance" }, stages[1].Emit);
+            Assert.Equal(30f, stages[1].When[0].Seconds);
+            // ...and is independent: editing it must not touch the original.
+            stages[1].Do.Type = DirectiveType.Charge;
+            stages[1].Emit.Add("charge");
+            Assert.Equal(DirectiveType.Hold, stages[0].Do.Type);
+            Assert.Equal(new[] { "advance" }, stages[0].Emit);
+        }
+
+        [Fact]
+        public void DuplicateStageOnBadIndexOrAbsentFormationIsHarmless()
+        {
+            var draft = new PlanDraft().AddStage(PlannedFormationClass.Infantry, Named("only"));
+            draft.DuplicateStage(PlannedFormationClass.Infantry, 9);
+            draft.DuplicateStage(PlannedFormationClass.Cavalry, 0);
+            Assert.Equal(new[] { "only" }, StageNames(draft));
+        }
+
+        [Fact]
         public void OutOfRangeStageOpsAreHarmless()
         {
             var draft = new PlanDraft().AddStage(PlannedFormationClass.Infantry, Named("only"));

@@ -108,6 +108,21 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
+        /// <summary>Inserts a deep copy of a stage immediately after it (so the player
+        /// can author one stage then tweak a clone). Bounds-checked; out-of-range or
+        /// absent-formation no-op. The copy round-trips through JSON, so its nested
+        /// trigger/directive/emit state is fully independent of the original.</summary>
+        public PlanDraft DuplicateStage(PlannedFormationClass formation, int index)
+        {
+            var plan = Find(formation);
+            if (plan == null || index < 0 || index >= plan.Stages.Count)
+                return this;
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(plan.Stages[index]);
+            var copy = Newtonsoft.Json.JsonConvert.DeserializeObject<Stage>(json);
+            plan.Stages.Insert(index + 1, copy);
+            return this;
+        }
+
         /// <summary>Reorders a stage. Out-of-range indices are clamped; identical positions no-op.</summary>
         public PlanDraft MoveStage(PlannedFormationClass formation, int from, int to)
         {

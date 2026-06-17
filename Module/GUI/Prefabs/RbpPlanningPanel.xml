@@ -236,17 +236,32 @@
                                                             Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                                               </Children>
                                             </ButtonWidget>
-                                            <!-- Emit chip: click to manage the signals this stage broadcasts when it activates -->
-                                            <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditEmit" Brush="Rbp.Field"
-                                                          HorizontalAlignment="Left" MarginTop="3"
-                                                          WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren">
+                                            <!-- Emit chip + duplicate-stage button on one row -->
+                                            <ListPanel WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren" MarginTop="3"
+                                                       StackLayout.LayoutMethod="HorizontalLeftToRight">
                                               <Children>
-                                                <TextWidget Text="@EmitText" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
-                                                            MarginLeft="6" MarginRight="6" MarginTop="1" MarginBottom="1"
-                                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#7E9A7EFF"
-                                                            Brush.TextHorizontalAlignment="Left" />
+                                                <!-- Emit chip: click to manage the signals this stage broadcasts when it activates -->
+                                                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditEmit" Brush="Rbp.Field"
+                                                              WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren">
+                                                  <Children>
+                                                    <TextWidget Text="@EmitText" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
+                                                                MarginLeft="6" MarginRight="6" MarginTop="1" MarginBottom="1"
+                                                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#7E9A7EFF"
+                                                                Brush.TextHorizontalAlignment="Left" />
+                                                  </Children>
+                                                </ButtonWidget>
+                                                <!-- Duplicate this stage (clone it right after) -->
+                                                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteDuplicate" Brush="Rbp.Field" MarginLeft="10"
+                                                              WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren">
+                                                  <Children>
+                                                    <TextWidget Text="⧉ duplicate stage" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
+                                                                MarginLeft="6" MarginRight="6" MarginTop="1" MarginBottom="1"
+                                                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#9DB6C8FF"
+                                                                Brush.TextHorizontalAlignment="Left" />
+                                                  </Children>
+                                                </ButtonWidget>
                                               </Children>
-                                            </ButtonWidget>
+                                            </ListPanel>
                                           </Children>
                                         </ListPanel>
                                       </Children>

@@ -92,7 +92,7 @@ namespace RealisticBattlePlanning.UI
                 _formations.Add(new FormationPlanItemVM(formationPlan, HeaderFor(cls), AddStage, RemoveStage,
                     OpenTriggerPicker, OpenDirectivePicker, OpenTriggerParamPicker, OpenDirectiveParamPicker, OpenEmitPicker,
                     AddCondition, RemoveCondition, OpenAbortPicker, ClearFormation,
-                    MoveStageUp, MoveStageDown));
+                    MoveStageUp, MoveStageDown, DuplicateStage));
             }
 
             HasPlan = _formations.Count > 0;
@@ -162,6 +162,15 @@ namespace RealisticBattlePlanning.UI
         {
             _draft.MoveStage(cls, index, index + 1);
             StatusText = $"Formation {SlotNumber(cls)}: moved stage {index + 1} down.";
+            Refresh();
+        }
+
+        // Clones a stage (all its conditions/directive/emit) right after it, so the
+        // player can author one stage then tweak a copy instead of rebuilding it.
+        private void DuplicateStage(PlannedFormationClass cls, int index)
+        {
+            _draft.DuplicateStage(cls, index);
+            StatusText = $"Formation {SlotNumber(cls)}: duplicated stage {index + 1}.";
             Refresh();
         }
 
@@ -684,7 +693,8 @@ namespace RealisticBattlePlanning.UI
             Action<PlannedFormationClass> editAbort,
             Action<PlannedFormationClass> clearFormation,
             Action<PlannedFormationClass, int> moveStageUp,
-            Action<PlannedFormationClass, int> moveStageDown)
+            Action<PlannedFormationClass, int> moveStageDown,
+            Action<PlannedFormationClass, int> duplicateStage)
         {
             _formation = formation.Formation;
             _addStage = addStage;
@@ -716,7 +726,8 @@ namespace RealisticBattlePlanning.UI
                     () => editDirectiveParam?.Invoke(cls, index),
                     () => editEmit?.Invoke(cls, index),
                     () => moveStageUp?.Invoke(cls, index),
-                    () => moveStageDown?.Invoke(cls, index)));
+                    () => moveStageDown?.Invoke(cls, index),
+                    () => duplicateStage?.Invoke(cls, index)));
             }
         }
 
@@ -746,10 +757,11 @@ namespace RealisticBattlePlanning.UI
         private readonly Action _addCondition;
         private readonly Action _moveUp;
         private readonly Action _moveDown;
+        private readonly Action _duplicate;
 
         public StageItemVM(int index, int stageCount, Stage stage,
             Action<int> editConditionType, Action<int> editConditionParam, Action<int> removeCondition, Action addCondition,
-            Action editDirective, Action editDirectiveParam, Action editEmit, Action moveUp, Action moveDown)
+            Action editDirective, Action editDirectiveParam, Action editEmit, Action moveUp, Action moveDown, Action duplicate)
         {
             _editDirective = editDirective;
             _editDirectiveParam = editDirectiveParam;
@@ -757,6 +769,7 @@ namespace RealisticBattlePlanning.UI
             _addCondition = addCondition;
             _moveUp = moveUp;
             _moveDown = moveDown;
+            _duplicate = duplicate;
             IsMoveUpDisabled = index <= 0;
             IsMoveDownDisabled = index >= stageCount - 1;
             NumberText = (index + 1).ToString();
@@ -791,6 +804,7 @@ namespace RealisticBattlePlanning.UI
         public void ExecuteAddCondition() => _addCondition?.Invoke();
         public void ExecuteMoveUp() => _moveUp?.Invoke();
         public void ExecuteMoveDown() => _moveDown?.Invoke();
+        public void ExecuteDuplicate() => _duplicate?.Invoke();
 
         private static (bool has, string label) DirectiveParam(DirectiveSpec d)
         {
