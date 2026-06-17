@@ -41,8 +41,14 @@ MUST-have for v1 (spec hard reqs / H-scenarios), roughly in dependency order:
 3. **Wire progression (D4)** — DONE (iter 4 Core `ProgressionService` seam bfd8e1c; iter 5 engine adapter 2fe9f34). `CommanderProgressionBehavior` owns the service per campaign; PlanMissionLogic maps formation→captain-hero, feeds monitor events (completed=XP, skipped/aborted=trickle), uses `ProfileFor` instead of `FromStats`, bumps battles-under-command; `HeroKilledEvent`→Forget. Core unit-tested (8); adapter compile-verified. **Awaiting the batched campaign-wiring review** (can't exercise save round-trip / death-loss in Custom Battle).
 4. **Save persistence (G1)** — DONE (iter 5, part of `CommanderProgressionBehavior.SyncData`): record book ↔ single JSON string through `IDataStore`; corrupt-blob-safe; no SaveableTypeDefiner. Same review caveat.
 5. **After-Action Report (B10)** — Core builder DONE (iter 2, e4124fa). UI screen still pending (Phase 2/3).
-6. **Commander barks with attribution (B11/R2/H9)** — event → commander-named messages; no silent deviation.
-7. **Remaining D3 fidelity dims** — trigger misjudgment, discipline break, signal miss (needed for H1-Untrained/H8).
+6. **Commander barks with attribution (B11/R2/H9)** — DONE (iter 7, e3877a5). Core `CommanderBarks`
+   (attributed, deterministic, varied; fixes the silent StageActivated/StageSkipped); wired via a
+   centralized `EmitBark` in ApplyEvent. **In-game verified** (2026-06-17): saw "Infantry: holding
+   position." / "Ranged: forming up." at deploy; log confirmed the fault-free signal→complete→charge
+   →abort chain. 9 tests.
+7. **Remaining D3 fidelity dims** — trigger misjudgment, discipline break, signal miss (needed for
+   H1-Untrained/H8). **DEFERRED to Phase 2** (its theme): needs fiddly PlanMonitor hot-path surgery
+   AND fidelity-ON playtesting to trust. Reaction-delay (the dominant D3 effect) already ships.
 8. **Per-formation HUD (B7)** — compact per-formation current-stage/pending-trigger/abort badge.
 9. **MCM settings (F)** — settings class + master toggles (planning on/off, progression on/off); needs const→config.
 10. **Presets + repeat-last-plan (A3.9)** — Core remap logic DONE (iter 3, b448c3e `PlanRemapper`). UI re-apply button pending.
