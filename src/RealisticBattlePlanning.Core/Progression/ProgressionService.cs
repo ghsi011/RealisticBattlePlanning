@@ -84,10 +84,17 @@ namespace RealisticBattlePlanning.Progression
         }
 
         /// <summary>The familiarity-bearing profile for a commander (replaces
-        /// CommanderProfile.FromStats at the call site). A None key reads a blank
-        /// record, so it equals the stats-only base.</summary>
+        /// CommanderProfile.FromStats at the call site). A read, never a write: a
+        /// commander with no record yet (or a None key) reads a transient blank, so
+        /// it equals the stats-only base WITHOUT inserting an empty record. Records
+        /// are born only when something is actually earned (OnBattleEvents /
+        /// OnBattleConcluded), so the book stays free of blank entries for every
+        /// officer who was ever merely queried.</summary>
         public CommanderProfile ProfileFor(CommanderKey key, int tactics, int leadership)
-            => ProgressionModel.ProfileFor(_book.GetOrCreate(key.Id), tactics, leadership);
+        {
+            var record = _book.TryGet(key.Id, out var existing) ? existing : new CommanderRecord();
+            return ProgressionModel.ProfileFor(record, tactics, leadership);
+        }
 
         /// <summary>Commander death loses everything (D4): the record is forgotten, so a
         /// replacement captain starts green. No-op for a None key.</summary>

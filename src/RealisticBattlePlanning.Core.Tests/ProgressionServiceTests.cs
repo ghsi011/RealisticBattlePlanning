@@ -115,6 +115,26 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void ProfileForIsAPureReadAndNeverInsertsARecord()
+        {
+            var svc = new ProgressionService();
+
+            // Querying competence must not mutate the book — records are born only
+            // when something is earned. (Regression: GetOrCreate in the read path
+            // silently created a blank record for every commander ever queried.)
+            svc.ProfileFor(Hero, 30, 30);
+            svc.ProfileFor(Hero, 99, 99);
+            svc.ProfileFor(CommanderKey.None, 50, 50);
+
+            Assert.Equal(0, svc.Book.Count);
+            Assert.False(svc.Book.TryGet("hero_1", out _));
+
+            // ...but a queried-then-awarded commander does get exactly one record.
+            svc.OnBattleEvents(new PlanEvent[] { Completed() }, Map(Hero));
+            Assert.Equal(1, svc.Book.Count);
+        }
+
+        [Fact]
         public void BookRoundTripsThroughSnapshotAndLoad()
         {
             var svc = new ProgressionService();
