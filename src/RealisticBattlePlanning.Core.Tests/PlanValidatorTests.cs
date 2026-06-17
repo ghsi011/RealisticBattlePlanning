@@ -388,5 +388,74 @@ namespace RealisticBattlePlanning.Tests
             var result = PlanValidator.Validate(plan);
             Assert.Contains(result.Errors, e => e.Contains("abort casualties"));
         }
+
+        [Fact]
+        public void DeclaredButUnusedAnchorIsAWarning()
+        {
+            // A stranded anchor (rename/delete leftover) is dead glue: warn, never block.
+            var plan = TestPlans.SimpleValid();
+            plan.Anchors.Add(new MapAnchor { Id = "stranded", Basis = AnchorBasis.OwnStart, Forward = 99f });
+
+            var result = PlanValidator.Validate(plan);
+            Assert.True(result.IsValid);
+            Assert.Contains(result.Warnings, w => w.Contains("stranded") && w.Contains("never used"));
+        }
+
+        [Fact]
+        public void EveryDeclaredAnchorBeingReferencedRaisesNoUnusedWarning()
+        {
+            // The shipped sample references its one anchor from both formations.
+            var result = PlanValidator.Validate(TestPlans.SimpleValid());
+            Assert.DoesNotContain(result.Warnings, w => w.Contains("never used"));
+        }
+
+        [Fact]
+        public void RepeatedConditionOfTheSameKindIsAWarning()
+        {
+            // Two timers on one stage: ANDed, so only the longer has any effect.
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When.Add(new TriggerSpec { Type = TriggerType.TimerElapsed, Seconds = 60f });
+
+            var result = PlanValidator.Validate(plan);
+            Assert.True(result.IsValid);
+            Assert.Contains(result.Warnings, w => w.Contains("repeats a TimerElapsed"));
+        }
+
+        [Fact]
+        public void TwoDistanceConditionsWithDifferentSelectorsAreNotRedundant()
+        {
+            // "enemy infantry within 50 m AND enemy cavalry within 80 m" is a real
+            // conjunction, not a duplicate — it must not be flagged.
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec { Type = TriggerType.EnemyWithinDistance, Formation = "Infantry", Meters = 50f };
+            plan.Formations[0].Stages[1].When.Add(new TriggerSpec { Type = TriggerType.EnemyWithinDistance, Formation = "Cavalry", Meters = 80f });
+
+            var result = PlanValidator.Validate(plan);
+            Assert.DoesNotContain(result.Warnings, w => w.Contains("repeats"));
+        }
+
+        [Fact]
+        public void CasualtyTriggerAtOrPastTheAbortThresholdIsAWarning()
+        {
+            // Abort fires at 50%; a stage gated on casualties >= 60% can never be reached.
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Abort.CasualtiesAbovePercent = 50f;
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec { Type = TriggerType.CasualtiesAbove, Percent = 60f };
+
+            var result = PlanValidator.Validate(plan);
+            Assert.True(result.IsValid);
+            Assert.Contains(result.Warnings, w => w.Contains("may never be reached"));
+        }
+
+        [Fact]
+        public void CasualtyTriggerBelowTheAbortThresholdIsFine()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Abort.CasualtiesAbovePercent = 50f;
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec { Type = TriggerType.CasualtiesAbove, Percent = 20f };
+
+            var result = PlanValidator.Validate(plan);
+            Assert.DoesNotContain(result.Warnings, w => w.Contains("may never be reached"));
+        }
     }
 }

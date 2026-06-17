@@ -91,10 +91,43 @@ namespace RealisticBattlePlanning.Planning
                         if (!string.IsNullOrWhiteSpace(signal) && !consumedSignals.Contains(signal))
                             result.Warnings.Add($"[{f.Formation}] stage {i + 1} emits '{signal}', but no stage reacts to it.");
 
+            // Dead anchors (A3.8, non-blocking): a declared anchor that no trigger
+            // or directive references is harmless, but usually a rename or a deleted
+            // stage left it stranded. Symmetric with the dead-signal warning above;
+            // the inverse (referencing an undefined anchor) is an error per-site.
+            var referencedAnchors = CollectReferencedAnchors(plan);
+            foreach (var anchor in plan.Anchors)
+                if (!string.IsNullOrWhiteSpace(anchor.Id) && !referencedAnchors.Contains(anchor.Id))
+                    result.Warnings.Add($"Anchor '{anchor.Id}' is declared but never used by a trigger or directive.");
+
             foreach (var formation in plan.Formations)
                 ValidateFormationPlan(formation, anchorIds, emittedSignals, declaredPlayerSignals, result);
 
             return result;
+        }
+
+        /// <summary>Every anchor id a trigger or directive points at, across the whole plan.</summary>
+        private static HashSet<string> CollectReferencedAnchors(BattlePlan plan)
+        {
+            var refs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var formation in plan.Formations)
+                foreach (var stage in formation.Stages)
+                {
+                    foreach (var trigger in stage.When)
+                        if (!string.IsNullOrWhiteSpace(trigger.Anchor))
+                            refs.Add(trigger.Anchor);
+
+                    var directive = stage.Do;
+                    if (directive == null)
+                        continue;
+                    if (!string.IsNullOrWhiteSpace(directive.Anchor))
+                        refs.Add(directive.Anchor);
+                    if (directive.Path != null)
+                        foreach (var waypoint in directive.Path)
+                            if (!string.IsNullOrWhiteSpace(waypoint))
+                                refs.Add(waypoint);
+                }
+            return refs;
         }
 
         private static void ValidateFormationPlan(
@@ -125,11 +158,78 @@ namespace RealisticBattlePlanning.Planning
                 foreach (var trigger in stage.When)
                     ValidateTrigger(trigger, Where(i), anchorIds, emittedSignals, declaredPlayerSignals, result);
 
+                WarnRedundantConditions(stage, Where(i), result);
+                WarnUnreachablePastAbort(stage, formation.Abort.CasualtiesAbovePercent, Where(i), result);
+
                 if (stage.Do == null)
                     result.Errors.Add($"{Where(i)} has no directive.");
                 else
                     ValidateDirective(stage.Do, Where(i), anchorIds, result);
             }
+        }
+
+        /// <summary>
+        /// A stage's conditions are ANDed (A3.5), so two conditions that test the
+        /// same thing leave only the stricter one with any effect. Flags a repeated
+        /// condition (same kind, same selector/anchor/signal) — almost always a
+        /// duplicated trigger left over from editing. Warning, never blocking.
+        /// </summary>
+        private static void WarnRedundantConditions(Stage stage, string where, PlanValidationResult result)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var reported = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var trigger in stage.When)
+            {
+                var key = RedundancyKey(trigger);
+                if (key == null)
+                    continue;
+                if (!seen.Add(key) && reported.Add(key))
+                    result.Warnings.Add($"{where} repeats a {trigger.Type} condition; conditions are ANDed, so the looser one has no effect.");
+            }
+        }
+
+        /// <summary>
+        /// The key two conditions collide on when one makes the other redundant.
+        /// Distance/timer/casualty thresholds collapse to the strictest, so the
+        /// selector (not the magnitude) is the key; signals key on the name, so an
+        /// AND of two *different* signals is left alone. Returns null for kinds we
+        /// never flag (e.g. BattleStart).
+        /// </summary>
+        private static string RedundancyKey(TriggerSpec trigger)
+        {
+            string Selector() => (trigger.Formation ?? "").Trim().ToLowerInvariant();
+            string Sig() => (trigger.Signal ?? "").Trim().ToLowerInvariant();
+            string Anc() => (trigger.Anchor ?? "").Trim().ToLowerInvariant();
+            return trigger.Type switch
+            {
+                TriggerType.TimerElapsed => "TimerElapsed",
+                TriggerType.CasualtiesAbove => "CasualtiesAbove",
+                TriggerType.PositionReached => $"PositionReached|{Anc()}",
+                TriggerType.EnemyWithinDistance => $"EnemyWithinDistance|{Selector()}|{Anc()}",
+                TriggerType.FriendlyWithinDistance => $"FriendlyWithinDistance|{Selector()}",
+                TriggerType.EnemyCommits => $"EnemyCommits|{Selector()}",
+                TriggerType.EnemyBroken => $"EnemyBroken|{Selector()}",
+                TriggerType.SignalReceived => $"SignalReceived|{Sig()}",
+                TriggerType.PlayerSignal => $"PlayerSignal|{Sig()}",
+                _ => null,
+            };
+        }
+
+        /// <summary>
+        /// A stage gated on "casualties above X%" can never fire when X is at or
+        /// past this formation's abort threshold: the formation reverts to the AI
+        /// (B4) before the stage is reachable. Dead stage — warn (A3.8).
+        /// </summary>
+        private static void WarnUnreachablePastAbort(Stage stage, float abortPercent, string where, PlanValidationResult result)
+        {
+            if (abortPercent <= 0 || abortPercent > 100)
+                return; // an out-of-range abort threshold is already an error; don't pile on.
+            foreach (var trigger in stage.When)
+                if (trigger.Type == TriggerType.CasualtiesAbove && trigger.Percent is { } p && p >= abortPercent)
+                {
+                    result.Warnings.Add($"{where} triggers at casualties ≥ {p:0}%, but the formation aborts at {abortPercent:0}%; the stage may never be reached.");
+                    break; // one note per stage is enough.
+                }
         }
 
         private static void ValidateTrigger(
