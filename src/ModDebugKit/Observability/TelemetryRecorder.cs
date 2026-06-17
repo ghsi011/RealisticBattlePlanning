@@ -13,10 +13,24 @@ namespace ModDebugKit.Observability
     /// </summary>
     public sealed class TelemetryRecorder : MissionLogic
     {
+        private const float OrderPollIntervalSeconds = 0.25f;
+        private float _orderPollAccum;
+
         public override void AfterStart()
         {
             base.AfterStart();
+            OrderTelemetry.Reset(); // fresh per-formation order-dedup cache for this mission
             TelemetryLog.Write(TelemetryKinds.MissionStart, Mission.CurrentTime, Mission.SceneName);
+        }
+
+        public override void OnMissionTick(float dt)
+        {
+            base.OnMissionTick(dt);
+            _orderPollAccum += dt;
+            if (_orderPollAccum < OrderPollIntervalSeconds)
+                return;
+            _orderPollAccum = 0f;
+            OrderTelemetry.Poll(Mission); // main-thread sampling of formation orders -> "order" events on change
         }
 
         public override void OnDeploymentFinished()

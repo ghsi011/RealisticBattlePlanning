@@ -175,11 +175,19 @@ On by default; toggle/clear with `dbg.telemetry`. Each event:
 | `msg`  | string | Optional human-readable detail.                    |
 | `data` | object | Optional structured payload (per kind).            |
 
-Kinds emitted so far: `mission_start` (msg = scene), `deployment_finished`,
+Kinds emitted: `mission_start` (msg = scene), `deployment_finished`,
 `mode_change` (msg = `OldMode -> NewMode`), `agent_removed`
 (`data: { agent, team, formation, state, killer, killerTeam }` — `state` ∈
-Killed/Routed/Unconscious/…), `mission_result` (msg = PlayerVictory/…),
-`mission_end`. Order capture (`order`, cross-mod) lands in M2.2.
+Killed/Routed/Unconscious/…), `order`
+(`data: { team, formation, order, moveTarget?, targetHasNavMeshFace?, count }` —
+emitted whenever a formation's current movement order changes, from any source;
+for a Move order, `targetHasNavMeshFace: false` flags the silent-ignore move bug),
+`mission_result` (msg = PlayerVictory/…), `mission_end`.
+
+Order events are sampled by polling each formation's effective order ~4×/second
+on the main thread (not a Harmony hook on `SetMovementOrder` — that runs on the
+engine's worker threads and crashes `MovementOrder`'s type init). Two order
+changes within one sample window collapse to the latest.
 
 ```json
 {"seq":6,"ts":"2026-06-18T00:00:53.3Z","t":53.3,"kind":"agent_removed","data":{"agent":"Imperial Archer","team":0,"formation":2,"state":"Killed","killer":"Aserai Mamluke Cavalry","killerTeam":1}}
