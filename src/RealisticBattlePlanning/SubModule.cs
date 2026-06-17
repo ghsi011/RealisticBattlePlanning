@@ -4,6 +4,7 @@ using HarmonyLib;
 using RealisticBattlePlanning.Diagnostics;
 using RealisticBattlePlanning.Execution;
 using RealisticBattlePlanning.Harness;
+using TaleWorlds.CampaignSystem;
 using TaleWorlds.Core;
 using TaleWorlds.Library;
 using TaleWorlds.ModuleManager;
@@ -45,6 +46,27 @@ namespace RealisticBattlePlanning
 
             UIExtender.Register(typeof(SubModule).Assembly);
             UIExtender.Enable();
+        }
+
+        protected override void OnGameStart(Game game, IGameStarter gameStarterObject)
+        {
+            base.OnGameStart(game, gameStarterObject);
+            try
+            {
+                // D4 commander progression lives only in a campaign (it persists
+                // hero records across battles). Custom Battle / the harness use a
+                // CustomGameStarter and get no behavior, so progression stays inert
+                // there — exactly the no-campaign-hero path.
+                if (gameStarterObject is CampaignGameStarter campaignStarter)
+                {
+                    campaignStarter.AddBehavior(new CommanderProgressionBehavior());
+                    RbpLog.Info("Commander progression behavior registered for this campaign.");
+                }
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("OnGameStart: registering the progression behavior failed; D4 progression inert this campaign.", e);
+            }
         }
 
         public override void OnMissionBehaviorInitialize(Mission mission)

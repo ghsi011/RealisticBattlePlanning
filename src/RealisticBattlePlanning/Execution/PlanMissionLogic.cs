@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TaleWorlds.CampaignSystem;
 using TaleWorlds.Core;
 using TaleWorlds.InputSystem;
 using TaleWorlds.Library;
@@ -9,6 +10,7 @@ using RealisticBattlePlanning.Fidelity;
 using RealisticBattlePlanning.Harness;
 using RealisticBattlePlanning.Planning;
 using RealisticBattlePlanning.Planning.Model;
+using RealisticBattlePlanning.Progression;
 
 namespace RealisticBattlePlanning.Execution
 {
@@ -53,9 +55,20 @@ namespace RealisticBattlePlanning.Execution
 
         private readonly Dictionary<PlannedFormationClass, int> _initialCounts = new();
         private readonly Dictionary<PlannedFormationClass, Agent> _initialCaptains = new();
+        private readonly Dictionary<PlannedFormationClass, CommanderKey> _commanders = new();
         private BattlePlan _plan;
         private PlanMonitor _monitor;
         private FormationOrderExecutor _executor;
+
+        /// <summary>
+        /// The campaign's D4 progression service, resolved at deployment — null in
+        /// Custom Battle / the harness (no campaign) and when fidelity is off (D
+        /// progression is part of the fidelity subsystem; off means zero-touch, G3).
+        /// When set, completed stages earn each commander Plan-Familiarity XP that
+        /// raises the competence the fidelity model rolls against next time.
+        /// </summary>
+        private ProgressionService _progression;
+        private bool _battleCounted;
         private bool _deploymentFinished;
         private bool _isHarnessRun;
         private bool _fidelityActive;
@@ -182,6 +195,23 @@ namespace RealisticBattlePlanning.Execution
             {
                 RbpLog.Error("[FAULT] Unsubscribing from player orders failed.", e);
             }
+
+            try
+            {
+                // D1 service record: count this battle once per commander who led a
+                // governed formation in it. Guarded so a re-entrant teardown can't
+                // double-count.
+                if (_progression != null && _deploymentFinished && !_battleCounted)
+                {
+                    _battleCounted = true;
+                    _progression.OnBattleConcluded(_commanders);
+                }
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Recording battles-under-command failed.", e);
+            }
+
             base.OnRemoveBehavior();
         }
 
@@ -319,6 +349,11 @@ namespace RealisticBattlePlanning.Execution
                     RbpLog.Info(planEvent.Describe());
                     ApplyEvent(planEvent);
                 }
+
+                // D4: a completed stage earns its commander familiarity, a
+                // skipped/aborted one trickles. Inert outside a campaign (_progression
+                // null) and harmless if a formation has no mapped commander.
+                _progression?.OnBattleEvents(events, _commanders);
 
                 MonitorTicked?.Invoke(snapshot, events);
             }
@@ -581,11 +616,22 @@ namespace RealisticBattlePlanning.Execution
         /// real officer. A formation with no captain (e.g. the harness
         /// auto-split) reads 0/0 -> Untrained. Only called when fidelity is on,
         /// so normal play stays zero-touch (G3).
+        ///
+        /// Also resolves the D4 progression seam: in a campaign it folds each
+        /// commander's earned Plan-Familiarity XP into the profile (so a drilled
+        /// officer rolls better than his raw stats), and records the
+        /// formation-&gt;commander map this battle's events will accrue against.
         /// </summary>
         private void SetCommanderProfiles()
         {
             if (_monitor == null || _plan == null)
                 return;
+
+            // The harness must stay reproducible and fields no campaign heroes, so it
+            // never accrues progression; real play resolves the campaign service
+            // (null when this isn't a campaign — then it's stats-only, as before).
+            _progression = _isHarnessRun ? null : CommanderProgressionBehavior.Current?.Service;
+            _commanders.Clear();
 
             foreach (var formationPlan in _plan.Formations)
             {
@@ -596,11 +642,29 @@ namespace RealisticBattlePlanning.Execution
                 var character = captain?.Character;
                 var tactics = character?.GetSkillValue(DefaultSkills.Tactics) ?? 0;
                 var leadership = character?.GetSkillValue(DefaultSkills.Leadership) ?? 0;
-                var profile = CommanderProfile.FromStats(tactics, leadership);
+
+                var key = CommanderKeyFor(captain);
+                _commanders[formationPlan.Formation] = key;
+
+                var profile = _progression != null
+                    ? _progression.ProfileFor(key, tactics, leadership)
+                    : CommanderProfile.FromStats(tactics, leadership);
                 _monitor.SetCommander(formationPlan.Formation, profile);
                 RbpLog.Info($"[{formationPlan.Formation}] commander {character?.Name?.ToString() ?? "(none)"}: " +
-                            $"Tactics {tactics}, Leadership {leadership} -> {profile.Competence}.");
+                            $"Tactics {tactics}, Leadership {leadership} -> {profile.Competence}" +
+                            (_progression != null && key.IsPersistent ? " (with earned familiarity)" : "") + ".");
             }
+        }
+
+        /// <summary>
+        /// A campaign captain's Character is a CharacterObject carrying a HeroObject
+        /// with a stable id; a custom-battle basic-troop captain is a plain
+        /// BasicCharacterObject (no hero) -> None, so it accrues and persists nothing.
+        /// </summary>
+        private static CommanderKey CommanderKeyFor(Agent captain)
+        {
+            var hero = (captain?.Character as CharacterObject)?.HeroObject;
+            return hero != null ? new CommanderKey(hero.StringId) : CommanderKey.None;
         }
 
         private void LogMissionFacts()
