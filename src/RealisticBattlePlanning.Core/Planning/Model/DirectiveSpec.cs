@@ -71,6 +71,9 @@ namespace RealisticBattlePlanning.Planning.Model
         public float? StandoffMeters { get; set; }
         public MoveSpeed? Speed { get; set; }
 
+        /// <summary>Skirmish: orbit the target at the standoff radius (mounted caracole) instead of holding the standoff line.</summary>
+        public bool? Circle { get; set; }
+
         /// <summary>FeignRetreat: keep shooting while withdrawing.</summary>
         public bool? FireWhileWithdrawing { get; set; }
 

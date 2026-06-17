@@ -956,6 +956,17 @@ namespace RealisticBattlePlanning.Execution
                     var standoff = spec.StandoffMeters ?? DirectiveDefaults.SkirmishStandoffMeters;
                     var away = own.Position - enemy.Position;
                     var direction = away.Length > 1e-3f ? away.Normalized() : _attackAxis * -1f;
+                    if (spec.Circle == true)
+                    {
+                        // Caracole: aim a fixed arc-length ahead around the standoff
+                        // circle, so a mounted formation keeps orbiting-and-shooting
+                        // rather than sitting at the standoff point.
+                        var theta = DirectiveDefaults.CircleLeadMeters / System.Math.Max(standoff, 1f);
+                        var cos = (float)System.Math.Cos(theta);
+                        var sin = (float)System.Math.Sin(theta);
+                        var orbit = new MapVec(direction.X * cos - direction.Y * sin, direction.X * sin + direction.Y * cos);
+                        return enemy.Position + orbit * standoff;
+                    }
                     return enemy.Position + direction * standoff;
                 }
 

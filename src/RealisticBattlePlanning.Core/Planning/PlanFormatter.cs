@@ -98,6 +98,7 @@ namespace RealisticBattlePlanning.Planning
                     break;
                 case DirectiveType.Skirmish:
                     details.Append($"Skirmish {TargetOrNearest(d)}");
+                    if (d.Circle == true) details.Append(", circling");
                     break;
                 case DirectiveType.FeignRetreat:
                     details.Append($"Feign retreat toward '{d.Anchor}'");

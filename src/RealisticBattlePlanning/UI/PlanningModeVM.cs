@@ -303,6 +303,10 @@ namespace RealisticBattlePlanning.UI
                     d.MissileOnly = !(d.MissileOnly ?? false);
                     what = $"missile-only {(d.MissileOnly == true ? "ON" : "off")}";
                     break;
+                case DirectiveType.Skirmish:
+                    d.Circle = !(d.Circle ?? false);
+                    what = $"circling {(d.Circle == true ? "ON" : "off")}";
+                    break;
                 case DirectiveType.PullBack:
                     d.MaintainFacing = !(d.MaintainFacing ?? false);
                     what = $"maintain facing {(d.MaintainFacing == true ? "ON" : "off")}";
@@ -1133,6 +1137,7 @@ namespace RealisticBattlePlanning.UI
                 case DirectiveType.FeignRetreat: return (true, (d.FireWhileWithdrawing ?? false) ? "firing while withdrawing" : "not firing");
                 case DirectiveType.FlankArc: return (true, (d.MissileOnly ?? false) ? "missile-only" : "may charge in");
                 case DirectiveType.PullBack: return (true, (d.MaintainFacing ?? false) ? "facing the enemy" : "facing away");
+                case DirectiveType.Skirmish: return (true, (d.Circle ?? false) ? "circling the enemy" : "holding at standoff");
                 default: return (false, "");
             }
         }

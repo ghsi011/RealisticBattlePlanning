@@ -53,6 +53,25 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void CirclingSkirmishOrbitsAtTheStandoffRadiusInsteadOfHolding()
+        {
+            var stand = new PlanMonitor(Plan(Formation(PlannedFormationClass.HorseArcher,
+                StageOf(null, new DirectiveSpec { Type = DirectiveType.Skirmish, StandoffMeters = 50f }))));
+            var standTarget = Assert.Single(stand.Tick(Snap(0f).WithOwn(PlannedFormationClass.HorseArcher, 0, 0).WithEnemy(1, 0, 100))
+                .OfType<SteeringTargetChanged>()).Target;
+            Assert.Equal(new MapVec(0f, 50f), standTarget); // default skirmish holds on the radial line
+
+            var circle = new PlanMonitor(Plan(Formation(PlannedFormationClass.HorseArcher,
+                StageOf(null, new DirectiveSpec { Type = DirectiveType.Skirmish, StandoffMeters = 50f, Circle = true }))));
+            var orbitTarget = Assert.Single(circle.Tick(Snap(0f).WithOwn(PlannedFormationClass.HorseArcher, 0, 0).WithEnemy(1, 0, 100))
+                .OfType<SteeringTargetChanged>()).Target;
+
+            var enemy = new MapVec(0f, 100f);
+            Assert.Equal(50f, orbitTarget.DistanceTo(enemy), 1);                 // same standoff radius...
+            Assert.True(System.Math.Abs(orbitTarget.X) > 5f, $"want a tangential lead, got {orbitTarget}"); // ...but led tangentially, so it keeps moving
+        }
+
+        [Fact]
         public void FlankArcSidesMirrorAcrossTheBattleAxis()
         {
             MapVec TargetFor(FlankSide side, PlannedFormationClass cls)

@@ -10,6 +10,14 @@ namespace RealisticBattlePlanning.Execution
         /// <summary>Skirmish: distance kept from the target enemy.</summary>
         public const float SkirmishStandoffMeters = 60f;
 
+        /// <summary>
+        /// Circling skirmish: the tangential arc-length the orbit point leads the
+        /// formation by, so it keeps moving around the enemy at the standoff radius
+        /// instead of sitting still. Constant lead => consistent orbit speed at any
+        /// standoff (the step angle is lead / standoff).
+        /// </summary>
+        public const float CircleLeadMeters = 25f;
+
         /// <summary>Flank arc: distance kept abeam of the target enemy (A6 uses ~50).</summary>
         public const float FlankArcStandoffMeters = 50f;
 

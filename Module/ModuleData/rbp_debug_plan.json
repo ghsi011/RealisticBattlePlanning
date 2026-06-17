@@ -11,9 +11,7 @@
 
   "playerSignals": [ "charge" ],
 
-  "anchors": [
-    { "id": "hold", "basis": "OwnStart", "forward": 0.0, "right": 0.0 }
-  ],
+  "anchors": [],
 
   "formations": [
     {
@@ -32,7 +30,7 @@
     {
       "formation": "HorseArcher",
       "stages": [
-        { "name": "skirmish at 70 m", "do": { "type": "Skirmish", "target": "Nearest", "standoffMeters": 70.0 } }
+        { "name": "circle at 70 m", "do": { "type": "Skirmish", "target": "Nearest", "standoffMeters": 70.0, "circle": true } }
       ]
     },
     {
