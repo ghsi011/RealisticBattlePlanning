@@ -29,7 +29,10 @@ parallel one.
   `dotnet test src\RealisticBattlePlanning.Core.Tests` — no game install
   needed.
 - `Module/` — files copied verbatim into the deployed module root
-  (`SubModule.xml`, eventually `ModuleData/`, `GUI/`, etc.).
+  (`SubModule.xml`, `ModuleData/`, `GUI/` prefabs + brushes, etc.).
+- `tools/` — dev scripts: `dev-relaunch.ps1` / `deploy-ui.ps1` /
+  `focus-game.ps1` (the in-game UI loop, below), `view-screenshot.ps1`,
+  `run-harness.ps1`, `decompile-game.ps1`.
 - `Directory.Build.props` — resolves `BannerlordGameDir` and `ModuleDeployDir`.
 - `local.props` (gitignored) — per-machine overrides. Template in `local.props.example`.
 - `bannerlord-battle-planning-mod-spec.md` — the design spec.
@@ -101,6 +104,24 @@ Screenshots\<name>.bmp` (the engine writes BMP regardless of extension). Run
 `tools\view-screenshot.ps1 <name>` to convert it to a `.png`, then Read that
 PNG — the Read tool renders it, so you can visually verify UI/state directly
 instead of asking the user to describe it. Logs go to `Logs\rbp.log`.
+
+**Fast UI dev loop (computer-use to drive the panel):** `tools\dev-relaunch.ps1`
+does kill → build+deploy → launch → auto-dismiss the BLSE safe-mode dialog →
+pin the window to the primary monitor, returning when the menu is up (~60s;
+`-NoBuild` skips the build). For **XML/brush-only** edits, skip the relaunch
+entirely: `tools\deploy-ui.ps1` copies `Module\GUI\**` into the running game
+(no build, no kill), and Gauntlet re-reads the prefab when the movie reopens —
+so edit a prefab, run `deploy-ui.ps1`, toggle the panel, and the change is live.
+A loaded .NET assembly can't be hot-swapped, so **C# changes still need the
+relaunch**. In the dev console, `rbp.autobattle` spawns a land custom field
+battle (no menu nav) and `rbp.plan` toggles the Planning Mode editor.
+`tools\focus-game.ps1` kills the focus-stealing Windows TextInputHost and
+foregrounds the game — run it before driving the UI with computer-use. Keep the
+game open between iterations; close it when the work is done.
+
+**Committing:** PowerShell here-strings mangle `-`, `/`, `!`, and `()` in a
+commit body — write the message to `COMMIT_MSG.tmp` (gitignored) and
+`git commit -F COMMIT_MSG.tmp` instead of `-m`.
 
 ## Testing
 
