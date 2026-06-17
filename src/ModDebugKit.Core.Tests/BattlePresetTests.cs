@@ -83,6 +83,44 @@ namespace ModDebugKit.Tests
         }
 
         [Fact]
+        public void Explicit_roster_round_trips_and_validates()
+        {
+            const string json = "{ \"player\": { \"culture\": \"empire\", \"troops\": [ " +
+                                "{ \"troop\": \"imperial_legionary\", \"count\": 50 }, " +
+                                "{ \"troop\": \"imperial_archer\", \"count\": 30 } ], " +
+                                "\"heroes\": [\"lord_1\"] } }";
+            Assert.True(DbgJson.TryDeserialize<BattlePreset>(json, out var p, out var error), error);
+            Assert.True(p.Player.HasExplicitRoster);
+            Assert.Equal(2, p.Player.Troops.Count);
+            Assert.Equal("imperial_legionary", p.Player.Troops[0].Troop);
+            Assert.Equal(50, p.Player.Troops[0].Count);
+            Assert.Equal(new[] { "lord_1" }, p.Player.Heroes);
+            Assert.Empty(BattlePresetValidator.Validate(p));
+        }
+
+        [Fact]
+        public void Explicit_roster_with_bad_entries_is_rejected()
+        {
+            var p = new BattlePreset
+            {
+                Enemy = new SidePreset
+                {
+                    Troops = new() { new TroopEntry("imperial_legionary", 0), new TroopEntry("", 10) },
+                },
+            };
+            var errors = BattlePresetValidator.Validate(p);
+            Assert.Contains(errors, e => e.Contains("enemy.troops[0]") && e.Contains("count"));
+            Assert.Contains(errors, e => e.Contains("enemy.troops[1]") && e.Contains("no troop id"));
+        }
+
+        [Fact]
+        public void HasExplicitRoster_is_false_without_troops()
+        {
+            Assert.False(new SidePreset { Counts = new[] { 10, 0, 0, 0 } }.HasExplicitRoster);
+            Assert.False(new SidePreset { Troops = new() }.HasExplicitRoster);
+        }
+
+        [Fact]
         public void Bad_side_role_and_time_are_all_reported()
         {
             var p = new BattlePreset { PlayerSide = "north", PlayerType = "wizard", TimeOfDay = 30f };

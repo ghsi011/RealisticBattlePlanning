@@ -3,13 +3,24 @@ using Newtonsoft.Json;
 
 namespace ModDebugKit.Battles
 {
+    /// <summary>An exact roster line: this many of this troop id.</summary>
+    public sealed class TroopEntry
+    {
+        public TroopEntry() { }
+        public TroopEntry(string troop, int count) { Troop = troop; Count = count; }
+
+        [JsonProperty("troop")] public string Troop { get; set; }
+        [JsonProperty("count")] public int Count { get; set; }
+    }
+
     /// <summary>
-    /// One side of a battle: who leads it, what culture, and how many of each
-    /// class. For M1.1 the roster is the four engine class buckets
-    /// (<see cref="Counts"/> = [infantry, ranged, cavalry, horseArcher]); the
-    /// culture's default troop fills each bucket unless
-    /// <see cref="TroopsByClass"/> names specific troop ids to distribute the
-    /// count across. Arbitrary per-troop rosters arrive in M1.2.
+    /// One side of a battle: who leads it, what culture, and the roster.
+    /// Two roster modes: <see cref="Troops"/> gives an <em>exact</em> per-troop
+    /// roster ({troop, count}); otherwise <see cref="Counts"/> = [infantry,
+    /// ranged, cavalry, horseArcher] fills each class with the culture's
+    /// default troop (or the ids in <see cref="TroopsByClass"/>, split across
+    /// the count). <see cref="Troops"/> wins when both are present.
+    /// <see cref="Heroes"/> adds named characters (one each) on top.
     /// </summary>
     public sealed class SidePreset
     {
@@ -26,9 +37,22 @@ namespace ModDebugKit.Battles
         /// Optional: troop ids to use for each class bucket (index 0..3 =
         /// inf/rng/cav/ha). The bucket's count is split across the listed ids.
         /// Omitted/empty buckets fall back to the culture's default troop.
+        /// Ignored when <see cref="Troops"/> is set.
         /// </summary>
         [JsonProperty("troopsByClass", NullValueHandling = NullValueHandling.Ignore)]
         public List<string>[] TroopsByClass { get; set; }
+
+        /// <summary>Exact roster: each entry adds <c>count</c> of <c>troop</c>. Overrides <see cref="Counts"/>.</summary>
+        [JsonProperty("troops", NullValueHandling = NullValueHandling.Ignore)]
+        public List<TroopEntry> Troops { get; set; }
+
+        /// <summary>Named characters (companions, lords) added one each, on top of the roster.</summary>
+        [JsonProperty("heroes", NullValueHandling = NullValueHandling.Ignore)]
+        public List<string> Heroes { get; set; }
+
+        /// <summary>True when an exact <see cref="Troops"/> roster is given.</summary>
+        [JsonIgnore]
+        public bool HasExplicitRoster => Troops != null && Troops.Count > 0;
     }
 
     /// <summary>

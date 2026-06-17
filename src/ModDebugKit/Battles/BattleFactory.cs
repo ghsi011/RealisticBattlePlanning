@@ -1,6 +1,10 @@
 using System.Collections.Generic;
+using System.Linq;
 using ModDebugKit.Diagnostics;
 using TaleWorlds.Core;
+using TaleWorlds.Library;
+using TaleWorlds.Localization;
+using TaleWorlds.MountAndBlade;
 using TaleWorlds.MountAndBlade.CustomBattle.CustomBattle;
 using TaleWorlds.ObjectSystem;
 
@@ -8,11 +12,14 @@ namespace ModDebugKit.Battles
 {
     /// <summary>
     /// Builds a <see cref="CustomBattleData"/> from an engine-free
-    /// <see cref="BattlePreset"/>, the same way the Custom Battle menu's
-    /// "Start" does (generalizing RBP's hard-coded RbpCustomBattleFactory).
-    /// Missing preset fields fall back to the known-good default, so a partial
-    /// preset only overrides what it sets. Returns null + a message on any
-    /// missing object rather than throwing deep in the engine.
+    /// <see cref="BattlePreset"/> (generalizing RBP's hard-coded factory).
+    /// Both parties are assembled here rather than via
+    /// CustomBattleHelper.GetCustomBattleParties, so a side can be an exact
+    /// per-troop roster, per-class counts, or a mix — plus named heroes. The
+    /// per-class distribution mirrors the vanilla helper (even split, same-
+    /// culture banner recolour). Missing preset fields fall back to the
+    /// known-good default; a missing object returns a message, not an
+    /// exception.
     /// </summary>
     public static class BattleFactory
     {
@@ -31,22 +38,22 @@ namespace ModDebugKit.Battles
 
             var def = BattlePreset.CreateDefault();
             var p = preset ?? def;
-            var playerSidePreset = p.Player ?? def.Player;
-            var enemySidePreset = p.Enemy ?? def.Enemy;
+            var playerSide = p.Player ?? def.Player;
+            var enemySide = p.Enemy ?? def.Enemy;
 
             BattlePresetValidator.TryParseSide(p.PlayerSide ?? "Defender", out var sideKind);
             BattlePresetValidator.TryParseRole(p.PlayerType ?? "Commander", out var roleKind);
 
-            var playerCommanderId = playerSidePreset.Commander ?? def.Player.Commander;
-            var enemyCommanderId = enemySidePreset.Commander ?? def.Enemy.Commander;
-            var playerCultureId = playerSidePreset.Culture ?? def.Player.Culture;
-            var enemyCultureId = enemySidePreset.Culture ?? def.Enemy.Culture;
+            var playerCommanderId = playerSide.Commander ?? def.Player.Commander;
+            var enemyCommanderId = enemySide.Commander ?? def.Enemy.Commander;
+            var playerCultureId = playerSide.Culture ?? def.Player.Culture;
+            var enemyCultureId = enemySide.Culture ?? def.Enemy.Culture;
 
             var playerChar = om.GetObject<BasicCharacterObject>(playerCommanderId);
             var enemyChar = om.GetObject<BasicCharacterObject>(enemyCommanderId);
             var playerCulture = om.GetObject<BasicCultureObject>(playerCultureId);
             // The enemy culture may be gated out of the active content set; fall back to the player's
-            // rather than NPE deep in GetCustomBattleParties (RBP hit this with aserai).
+            // rather than NPE deep in party-building (RBP hit this with aserai).
             var enemyCulture = om.GetObject<BasicCultureObject>(enemyCultureId) ?? playerCulture;
 
             if (playerChar == null || enemyChar == null || playerCulture == null)
@@ -57,23 +64,16 @@ namespace ModDebugKit.Battles
                 return false;
             }
 
-            // GetCustomBattleParties mutates the counts arrays as it distributes troops, so clone
-            // them — otherwise a second build (dbg.restart) would see zeroed counts.
-            var playerCounts = (int[])(playerSidePreset.Counts ?? def.Player.Counts).Clone();
-            var enemyCounts = (int[])(enemySidePreset.Counts ?? def.Enemy.Counts).Clone();
-
-            var playerSelections = ResolveSelections(om, playerSidePreset.TroopsByClass);
-            var enemySelections = ResolveSelections(om, enemySidePreset.TroopsByClass);
-
             var isPlayerAttacker = sideKind == PlayerSideKind.Attacker;
-            var parties = CustomBattleHelper.GetCustomBattleParties(
-                playerChar, playerSideGeneralCharacter: null, enemyChar,
-                playerCulture, playerCounts, playerSelections,
-                enemyCulture, enemyCounts, enemySelections,
-                isPlayerAttacker);
+            var playerParty = BuildParty(om, "Player Party", playerCulture, enemyCulture,
+                playerChar, setGeneral: true, isPlayerAttacker ? BattleSideEnum.Attacker : BattleSideEnum.Defender,
+                playerSide, def.Player);
+            var enemyParty = BuildParty(om, "Enemy Party", enemyCulture, playerCulture,
+                enemyChar, setGeneral: false, isPlayerAttacker ? BattleSideEnum.Defender : BattleSideEnum.Attacker,
+                enemySide, def.Enemy);
 
             data = CustomBattleHelper.PrepareBattleData(
-                playerChar, playerSideGeneralCharacter: null, parties[0], parties[1],
+                playerChar, playerSideGeneralCharacter: null, playerParty, enemyParty,
                 isPlayerAttacker ? CustomBattlePlayerSide.Attacker : CustomBattlePlayerSide.Defender,
                 roleKind == PlayerRoleKind.Sergeant ? CustomBattlePlayerType.Sergeant : CustomBattlePlayerType.Commander,
                 p.GameType ?? CustomBattleHelper.DefaultBattleGameTypeStringId,
@@ -84,43 +84,139 @@ namespace ModDebugKit.Battles
             return true;
         }
 
-        /// <summary>
-        /// Maps per-class troop-id lists to the engine's
-        /// <see cref="List{T}"/>[4] selections. Null/empty input -> null, so
-        /// the helper fills every class with the culture's default troop.
-        /// Unknown ids are dropped (logged); a class left empty also falls back
-        /// to its default.
-        /// </summary>
-        private static List<BasicCharacterObject>[] ResolveSelections(MBObjectManager om, List<string>[] troopsByClass)
+        private static CustomBattleCombatant BuildParty(
+            MBObjectManager om, string name, BasicCultureObject culture, BasicCultureObject otherCulture,
+            BasicCharacterObject commander, bool setGeneral, BattleSideEnum side, SidePreset preset, SidePreset defaults)
         {
-            if (troopsByClass == null)
-                return null;
-
-            var selections = new List<BasicCharacterObject>[4];
-            var any = false;
-            for (var i = 0; i < 4; i++)
+            var banner = new Banner(culture.Banner, culture.Color, culture.Color2);
+            if (culture.StringId == otherCulture.StringId)
             {
-                selections[i] = new List<BasicCharacterObject>();
-                if (i >= troopsByClass.Length || troopsByClass[i] == null)
+                // Same-culture battle: recolour one banner so the sides are distinguishable
+                // (mirrors CustomBattleHelper.GetCustomBattleParties).
+                var primary = banner.GetPrimaryColor();
+                banner.ChangePrimaryColor(banner.GetFirstIconColor());
+                banner.ChangeIconColors(primary);
+            }
+
+            var party = new CustomBattleCombatant(new TextObject(name), culture, banner) { Side = side };
+            party.AddCharacter(commander, 1);
+            if (setGeneral)
+                party.SetGeneral(commander);
+
+            if (preset.HasExplicitRoster)
+                AddExplicitRoster(om, party, preset.Troops);
+            else
+                AddByCounts(om, party, (int[])(preset.Counts ?? defaults.Counts).Clone(), preset.TroopsByClass, culture);
+
+            AddHeroes(om, party, preset.Heroes);
+            return party;
+        }
+
+        private static void AddExplicitRoster(MBObjectManager om, CustomBattleCombatant party, List<TroopEntry> troops)
+        {
+            foreach (var entry in troops)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Troop) || entry.Count <= 0)
                     continue;
-                foreach (var id in troopsByClass[i])
+                var troop = om.GetObject<BasicCharacterObject>(entry.Troop);
+                if (troop != null)
+                    party.AddCharacter(troop, entry.Count);
+                else
+                    DbgLog.Warn($"dbg.battle: troop id '{entry.Troop}' not found; skipped {entry.Count} unit(s).");
+            }
+        }
+
+        private static void AddHeroes(MBObjectManager om, CustomBattleCombatant party, List<string> heroes)
+        {
+            if (heroes == null)
+                return;
+            foreach (var heroId in heroes)
+            {
+                if (string.IsNullOrWhiteSpace(heroId))
+                    continue;
+                var hero = om.GetObject<BasicCharacterObject>(heroId);
+                if (hero != null)
+                    party.AddCharacter(hero, 1);
+                else
+                    DbgLog.Warn($"dbg.battle: hero id '{heroId}' not found; skipped.");
+            }
+        }
+
+        /// <summary>
+        /// Per-class roster, mirroring CustomBattleHelper.PopulateListsWithDefaults:
+        /// each class bucket is the listed troop ids (or the culture default),
+        /// and the count is split evenly across that bucket's troops. If a
+        /// culture has no horse-archer troop, its HA count is redistributed to
+        /// the other classes (as the vanilla helper does).
+        /// </summary>
+        private static void AddByCounts(MBObjectManager om, CustomBattleCombatant party, int[] counts, List<string>[] troopsByClass, BasicCultureObject culture)
+        {
+            var lists = new List<BasicCharacterObject>[4];
+            for (var cls = 0; cls < 4; cls++)
+            {
+                lists[cls] = ResolveClassList(om, troopsByClass, cls, culture);
+            }
+
+            if (lists[3].Count == 0 || lists[3].All(t => t == null))
+            {
+                counts[2] += counts[3] / 3;
+                counts[1] += counts[3] / 3;
+                counts[0] += counts[3] / 3;
+                counts[0] += counts[3] - counts[3] / 3 * 3;
+                counts[3] = 0;
+            }
+
+            for (var cls = 0; cls < 4; cls++)
+            {
+                var list = lists[cls];
+                var remaining = counts[cls];
+                if (remaining <= 0 || list.Count == 0)
+                    continue;
+
+                var perTroop = (float)remaining / list.Count;
+                var carry = 0f;
+                for (var k = 0; k < list.Count; k++)
+                {
+                    var share = perTroop + carry;
+                    var floored = MathF.Floor(share);
+                    carry = share - floored;
+                    if (list[k] != null && floored > 0)
+                        party.AddCharacter(list[k], floored);
+                    remaining -= floored;
+                    if (k == list.Count - 1 && remaining > 0 && list[k] != null)
+                    {
+                        party.AddCharacter(list[k], remaining);
+                        remaining = 0;
+                    }
+                }
+            }
+        }
+
+        private static List<BasicCharacterObject> ResolveClassList(MBObjectManager om, List<string>[] troopsByClass, int cls, BasicCultureObject culture)
+        {
+            var list = new List<BasicCharacterObject>();
+            if (troopsByClass != null && cls < troopsByClass.Length && troopsByClass[cls] != null)
+            {
+                foreach (var id in troopsByClass[cls])
                 {
                     if (string.IsNullOrWhiteSpace(id))
                         continue;
                     var troop = om.GetObject<BasicCharacterObject>(id);
                     if (troop != null)
-                    {
-                        selections[i].Add(troop);
-                        any = true;
-                    }
+                        list.Add(troop);
                     else
-                    {
-                        DbgLog.Warn($"dbg.battle: troop id '{id}' not found; that class falls back to the culture default.");
-                    }
+                        DbgLog.Warn($"dbg.battle: troop id '{id}' not found; ignored for class {cls}.");
                 }
             }
 
-            return any ? selections : null;
+            if (list.Count == 0)
+            {
+                var def = CustomBattleHelper.GetDefaultTroopOfFormationForFaction(culture, (FormationClass)cls);
+                if (def != null)
+                    list.Add(def);
+            }
+
+            return list;
         }
     }
 }

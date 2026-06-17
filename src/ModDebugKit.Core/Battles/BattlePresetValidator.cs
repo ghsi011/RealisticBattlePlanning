@@ -64,7 +64,22 @@ namespace ModDebugKit.Battles
 
         private static void ValidateSide(SidePreset side, string which, List<string> errors)
         {
-            if (side?.Counts == null)
+            if (side == null)
+                return;
+
+            if (side.Troops != null)
+            {
+                for (var i = 0; i < side.Troops.Count; i++)
+                {
+                    var entry = side.Troops[i];
+                    if (entry == null || string.IsNullOrWhiteSpace(entry.Troop))
+                        errors.Add($"{which}.troops[{i}] has no troop id");
+                    else if (entry.Count <= 0)
+                        errors.Add($"{which}.troops[{i}] ('{entry.Troop}') count must be positive, got {entry.Count}");
+                }
+            }
+
+            if (side.Counts == null)
                 return; // null counts -> default roster, which is valid
             if (side.Counts.Length != 4)
             {

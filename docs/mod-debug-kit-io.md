@@ -145,7 +145,11 @@ Every field is optional; an omitted field falls back to the default, so a partia
 | `culture`       | string     | Culture string id (`empire`, `aserai`, `battania`, …). The +1 commander is added on top.            |
 | `commander`     | string     | Commander character id (e.g. `commander_1`); becomes the side's general.                            |
 | `counts`        | int[4]     | `[infantry, ranged, cavalry, horseArcher]`. Note: troops are sorted into formation slots by their *actual* class, so an "aserai cavalry" count can land in the HorseArcher slot — read the snapshot's `composition`, not the slot. |
-| `troopsByClass` | string[][] | Optional troop ids per class bucket (index 0–3). The bucket's count is split across the listed ids; an empty/missing bucket uses the culture's default troop. |
+| `troopsByClass` | string[][] | Optional troop ids per class bucket (index 0–3). The bucket's count is split across the listed ids; an empty/missing bucket uses the culture's default troop. Ignored when `troops` is set. |
+| `troops`        | object[]   | **Exact** roster: each `{ "troop": id, "count": n }` adds exactly `n` of that troop. Overrides `counts`/`troopsByClass`. Use this to reproduce a precise roster (e.g. 50 + 30 + 12), which the per-class split can't express. |
+| `heroes`        | string[]   | Named characters (companions, lords) added one each, on top of the roster. |
+
+Either `counts` (per-class, default-troop filled) **or** `troops` (exact per-troop) describes a side; the two sides are independent (one can use counts while the other uses an exact roster).
 
 ## `battle_state.json` — battle snapshot
 
