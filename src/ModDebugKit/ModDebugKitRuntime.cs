@@ -29,12 +29,14 @@ namespace ModDebugKit
             Directory.CreateDirectory(Paths.Root);
             Directory.CreateDirectory(Paths.IoDir);
             DbgLog.Init(Paths.Log);
+            DbgLog.ErrorSink = ErrorLog.FromLog; // every kit-caught fault also lands in errors.jsonl
 
             Dispatcher = new CommandDispatcher();
             CoreCommands.RegisterAll(Dispatcher);
             BattleCommands.RegisterAll(Dispatcher);
             FormationCommands.RegisterAll(Dispatcher);
             Telemetry.TelemetryCommands.RegisterAll(Dispatcher);
+            ErrorLog.RegisterCommands(Dispatcher);
 
             Initialized = true;
         }

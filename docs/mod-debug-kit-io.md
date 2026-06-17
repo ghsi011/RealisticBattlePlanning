@@ -98,6 +98,7 @@ Example:
 | `dbg.assign <sel> <N>` | `{ moved, formation, selector }`                        | Moves the player's units matching `<sel>` into formation `N` (1–8). `<sel>` ∈ `all`/`inf`/`ranged`/`cav`/`ha` (matched by live class — mounted × shoots). |
 | `dbg.layout <sel=N> …` | `{ assignments: [{selector, formation, moved}] }`       | Applies several `dbg.assign`s at once, e.g. `dbg.layout inf=1 ranged=3 cav=5 ha=7`. |
 | `dbg.telemetry [on\|off\|clear\|status]` | `{ enabled, path }` (status)                | Controls the flight recorder (`telemetry.jsonl`). On by default. `clear` truncates the file and resets the sequence. |
+| `dbg.errors [on\|off\|clear\|status]` | `{ enabled, path }` (status)                   | Controls fault capture (`errors.jsonl`). On by default. |
 
 Together these give a full mouse-free battle lifecycle: `dbg.battle` → (`dbg.assign`/`dbg.layout` to set the layout) → `dbg.ready` → `dbg.snapshot` → `dbg.restart` or `dbg.leave`.
 
@@ -192,6 +193,27 @@ changes within one sample window collapse to the latest.
 ```json
 {"seq":6,"ts":"2026-06-18T00:00:53.3Z","t":53.3,"kind":"agent_removed","data":{"agent":"Imperial Archer","team":0,"formation":2,"state":"Killed","killer":"Aserai Mamluke Cavalry","killerTeam":1}}
 ```
+
+## `errors.jsonl` — fault stream
+
+Append-only, one JSON object per fault. Captures the kit's own caught faults
+(every `DbgLog.Error`, including a command handler that throws — its stack is
+also echoed in the command's `out.jsonl` `error` field) and any unhandled
+AppDomain exception. On the **first** fault while a mission is live, an
+`error_snapshot.json` of the battle is written and its path recorded, so a crash
+leaves a state trail.
+
+| field           | type   | notes                                                       |
+|-----------------|--------|-------------------------------------------------------------|
+| `seq`           | int    | Monotonic per-session sequence number.                      |
+| `ts`            | string | Wall-clock time, ISO-8601 UTC.                             |
+| `t`             | float  | Mission time; omitted when no mission.                      |
+| `source`        | string | `modkit` (kit-caught) or `appdomain` (unhandled).           |
+| `message`       | string | Fault summary.                                              |
+| `exceptionType` | string | Exception type name; omitted when there is no exception.    |
+| `stack`         | string | Full stack trace; omitted when there is no exception.       |
+| `terminating`   | bool   | True when the runtime reported the exception process-fatal. |
+| `snapshot`      | string | Path of the auto-snapshot written for the first fault.      |
 
 ## `battle_state.json` — battle snapshot
 

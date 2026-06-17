@@ -35,6 +35,9 @@ namespace ModDebugKit
                 DbgLog.MirrorSink = message => Debug.Print(message);
                 ModDebugKitRuntime.Initialize(ResolveOutputRoot());
 
+                // Capture any unhandled exception (process-fatal) to errors.jsonl with its stack.
+                AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+
                 _channel = new FileCommandChannel(ModDebugKitRuntime.Paths, ModDebugKitRuntime.Dispatcher);
                 _channel.Start();
 
@@ -85,6 +88,12 @@ namespace ModDebugKit
             {
                 // A failed toast must never take the menu down.
             }
+        }
+
+        private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            var exception = e.ExceptionObject as Exception;
+            ErrorLog.Capture("appdomain", exception?.Message ?? "unhandled exception", exception, e.IsTerminating);
         }
 
         /// <summary>

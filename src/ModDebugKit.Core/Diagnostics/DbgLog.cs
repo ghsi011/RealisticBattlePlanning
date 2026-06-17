@@ -17,6 +17,9 @@ namespace ModDebugKit.Diagnostics
         /// <summary>Optional secondary channel for WRN/ERR lines (engine sets this to Debug.Print).</summary>
         public static Action<string> MirrorSink { get; set; }
 
+        /// <summary>Optional structured error channel (engine routes this to errors.jsonl).</summary>
+        public static Action<string, Exception> ErrorSink { get; set; }
+
         public static void Init(string logFilePath)
         {
             try
@@ -45,6 +48,14 @@ namespace ModDebugKit.Diagnostics
         {
             Write("ERR", e == null ? message : $"{message}{Environment.NewLine}{e}");
             Mirror($"[MDK][ERR] {message}");
+            try
+            {
+                ErrorSink?.Invoke(message, e);
+            }
+            catch (Exception)
+            {
+                // The structured error channel must never take the game down (or recurse).
+            }
         }
 
         private static void Write(string level, string message)
