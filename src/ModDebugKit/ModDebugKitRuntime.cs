@@ -34,6 +34,7 @@ namespace ModDebugKit
             CoreCommands.RegisterAll(Dispatcher);
             BattleCommands.RegisterAll(Dispatcher);
             FormationCommands.RegisterAll(Dispatcher);
+            Telemetry.TelemetryCommands.RegisterAll(Dispatcher);
 
             Initialized = true;
         }

@@ -97,6 +97,7 @@ Example:
 | `dbg.restart`      | —                                                           | Ends the current battle and relaunches the same preset (the relaunch is deferred until the game is back at the custom-battle menu). |
 | `dbg.assign <sel> <N>` | `{ moved, formation, selector }`                        | Moves the player's units matching `<sel>` into formation `N` (1–8). `<sel>` ∈ `all`/`inf`/`ranged`/`cav`/`ha` (matched by live class — mounted × shoots). |
 | `dbg.layout <sel=N> …` | `{ assignments: [{selector, formation, moved}] }`       | Applies several `dbg.assign`s at once, e.g. `dbg.layout inf=1 ranged=3 cav=5 ha=7`. |
+| `dbg.telemetry [on\|off\|clear\|status]` | `{ enabled, path }` (status)                | Controls the flight recorder (`telemetry.jsonl`). On by default. `clear` truncates the file and resets the sequence. |
 
 Together these give a full mouse-free battle lifecycle: `dbg.battle` → (`dbg.assign`/`dbg.layout` to set the layout) → `dbg.ready` → `dbg.snapshot` → `dbg.restart` or `dbg.leave`.
 
@@ -159,6 +160,30 @@ Every field is optional; an omitted field falls back to the default, so a partia
 | `heroes`        | string[]   | Named characters (companions, lords) added one each, on top of the roster. |
 
 Either `counts` (per-class, default-troop filled) **or** `troops` (exact per-troop) describes a side; the two sides are independent (one can use counts while the other uses an exact roster).
+
+## `telemetry.jsonl` — flight recorder
+
+A continuous, append-only event stream for a mission, one JSON object per line.
+On by default; toggle/clear with `dbg.telemetry`. Each event:
+
+| field  | type   | notes                                              |
+|--------|--------|----------------------------------------------------|
+| `seq`  | int    | Monotonic per-session sequence number.             |
+| `ts`   | string | Wall-clock time, ISO-8601 UTC.                    |
+| `t`    | float  | Mission time in seconds; omitted when no mission.  |
+| `kind` | string | Event kind (below).                                |
+| `msg`  | string | Optional human-readable detail.                    |
+| `data` | object | Optional structured payload (per kind).            |
+
+Kinds emitted so far: `mission_start` (msg = scene), `deployment_finished`,
+`mode_change` (msg = `OldMode -> NewMode`), `agent_removed`
+(`data: { agent, team, formation, state, killer, killerTeam }` — `state` ∈
+Killed/Routed/Unconscious/…), `mission_result` (msg = PlayerVictory/…),
+`mission_end`. Order capture (`order`, cross-mod) lands in M2.2.
+
+```json
+{"seq":6,"ts":"2026-06-18T00:00:53.3Z","t":53.3,"kind":"agent_removed","data":{"agent":"Imperial Archer","team":0,"formation":2,"state":"Killed","killer":"Aserai Mamluke Cavalry","killerTeam":1}}
+```
 
 ## `battle_state.json` — battle snapshot
 

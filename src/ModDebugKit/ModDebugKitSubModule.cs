@@ -63,10 +63,11 @@ namespace ModDebugKit
             try
             {
                 mission.AddMissionBehavior(new DebugMissionObserver());
+                mission.AddMissionBehavior(new TelemetryRecorder());
             }
             catch (Exception e)
             {
-                DbgLog.Error("Attaching the mission observer failed; snapshots will lack a casualty baseline this mission.", e);
+                DbgLog.Error("Attaching the mission observer/recorder failed; snapshots/telemetry may be degraded this mission.", e);
             }
         }
 

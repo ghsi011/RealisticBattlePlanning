@@ -38,6 +38,9 @@ namespace ModDebugKit.Commands
         [CommandLineFunctionality.CommandLineArgumentFunction("layout", "dbg")]
         public static string Layout(List<string> args) => Run("dbg.layout", args);
 
+        [CommandLineFunctionality.CommandLineArgumentFunction("telemetry", "dbg")]
+        public static string Telemetry(List<string> args) => Run("dbg.telemetry", args);
+
         private static string Run(string fullName, List<string> args)
         {
             var dispatcher = ModDebugKitRuntime.Dispatcher;
