@@ -92,6 +92,11 @@ Example:
 | `dbg.help`         | `{ commands: string[] }`                                    | Lists every registered command's usage.                            |
 | `dbg.snapshot [path]` | `{ path, formations, battleStarted }`                    | Writes the full battle state to `path` (default `battle_state.json`) and acks with a summary. Requires an active mission. |
 | `dbg.battle [preset]` | `{ preset, mode }` (`mode`: `load` from menu, `direct` from the custom-battle menu) | Launches a custom field battle from a preset, no menu navigation. No arg = the default Empire-vs-Aserai battle. Refuses when already in a mission. |
+| `dbg.ready`        | —                                                           | Finishes deployment and starts the battle (no Ready click). After this, `battleStarted` is true and the snapshot reports casualties against the deployment baseline. |
+| `dbg.leave`        | —                                                           | Ends the current mission and returns to the menu.                  |
+| `dbg.restart`      | —                                                           | Ends the current battle and relaunches the same preset (the relaunch is deferred until the game is back at the custom-battle menu). |
+
+Together these give a full mouse-free battle lifecycle: `dbg.battle` → `dbg.ready` → `dbg.snapshot` → `dbg.restart` or `dbg.leave`.
 
 ### `dbg.battle` preset resolution
 

@@ -86,7 +86,7 @@ namespace ModDebugKit.Observability
 
             float? casualties = null;
             var initial = observer?.InitialCount(team, formation);
-            if (initial is > 0)
+            if (initial.HasValue && initial.Value > 0)
                 casualties = 100f * (initial.Value - count) / initial.Value;
 
             return new FormationStateDto

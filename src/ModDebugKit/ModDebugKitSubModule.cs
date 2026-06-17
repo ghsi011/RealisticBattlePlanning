@@ -54,6 +54,7 @@ namespace ModDebugKit
         {
             base.OnApplicationTick(dt);
             _channel?.Tick(dt);
+            Battles.BattleCommands.TickRestart();
         }
 
         public override void OnMissionBehaviorInitialize(Mission mission)

@@ -23,6 +23,15 @@ namespace ModDebugKit.Commands
         [CommandLineFunctionality.CommandLineArgumentFunction("battle", "dbg")]
         public static string Battle(List<string> args) => Run("dbg.battle", args);
 
+        [CommandLineFunctionality.CommandLineArgumentFunction("ready", "dbg")]
+        public static string Ready(List<string> args) => Run("dbg.ready", args);
+
+        [CommandLineFunctionality.CommandLineArgumentFunction("leave", "dbg")]
+        public static string Leave(List<string> args) => Run("dbg.leave", args);
+
+        [CommandLineFunctionality.CommandLineArgumentFunction("restart", "dbg")]
+        public static string Restart(List<string> args) => Run("dbg.restart", args);
+
         private static string Run(string fullName, List<string> args)
         {
             var dispatcher = ModDebugKitRuntime.Dispatcher;
