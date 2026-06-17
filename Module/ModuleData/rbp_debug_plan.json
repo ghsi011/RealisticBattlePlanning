@@ -1,60 +1,57 @@
 {
-  // RealisticBattlePlanning debug plan — I7 + I8 verification round.
-  // A player-CONDUCTED assault: both formations hold until YOU call the
-  // moment, then act. This exercises the Signal Palette (I8) directly, and
-  // the override/resume/abort surfaces (I7) work on either formation.
-  //
-  // SIGNAL PALETTE (I8):
-  //   Numpad1 = "advance"  -> archers move up to the volley line
-  //   Numpad2 = "charge"   -> infantry charge
-  //   (or console: rbp.signal advance / rbp.signal charge)
-  //
-  // OVERRIDE / RESUME (I7): mid-battle, manually order Infantry somewhere.
-  //   Its plan suspends (watch for the battle message + rbp.log line naming
-  //   the captain). Bring it back with:  rbp.resume Infantry   (or all)
-  //   rbp.plan_status shows each formation's mode (Active/Suspended/Aborted).
-  //
-  // ABORT (I7): get the Infantry captain killed (or console-kill them).
-  //   The formation reverts to vanilla AI with a notification; the rest of
-  //   the plan keeps running.
+  // RealisticBattlePlanning debug plan — PLAYTEST-FIX verification round.
+  // Exercises the three behaviours fixed from the 8-formation playtest:
+  //   * Cavalry: hold, then FlankArc (charge allowed) — must work AROUND to the
+  //     enemy flank and CHARGE IN (not circle forever at standoff).
+  //   * HorseArcher: Skirmish at a set standoff — kite-and-shoot.
+  //   * LightCavalry: Screen the RANGED formation (a non-player target).
+  // Infantry/Ranged anchor the line so there's something to flank around.
   //
   // Edit this file in the deployed module to iterate without rebuilding.
 
-  "playerSignals": [ "advance", "charge" ],
+  "playerSignals": [ "charge" ],
 
   "anchors": [
-    { "id": "volley-line", "basis": "OwnStart", "forward": 40.0, "right": 0.0 }
+    { "id": "hold", "basis": "OwnStart", "forward": 0.0, "right": 0.0 }
   ],
 
   "formations": [
     {
       "formation": "Infantry",
       "stages": [
-        {
-          "name": "hold until the call",
-          "do": { "type": "Hold", "arrangement": "ShieldWall" }
-        },
-        {
-          "name": "charge on signal",
-          "when": [ { "type": "PlayerSignal", "signal": "charge" } ],
-          "do": { "type": "Charge" }
-        }
+        { "name": "hold the line", "do": { "type": "Hold", "arrangement": "ShieldWall" } }
       ],
-      "abort": { "casualtiesAbovePercent": 50 }
+      "abort": { "casualtiesAbovePercent": 70 }
     },
     {
       "formation": "Ranged",
       "stages": [
-        {
-          "name": "hold loose",
-          "do": { "type": "Hold", "arrangement": "Loose" }
-        },
-        {
-          "name": "advance on signal",
-          "when": [ { "type": "PlayerSignal", "signal": "advance" } ],
-          "do": { "type": "MoveTo", "anchor": "volley-line" }
-        }
+        { "name": "loose at will", "do": { "type": "Hold", "arrangement": "Loose", "fire": "Free" } }
       ]
+    },
+    {
+      "formation": "HorseArcher",
+      "stages": [
+        { "name": "skirmish at 70 m", "do": { "type": "Skirmish", "target": "Nearest", "standoffMeters": 70.0 } }
+      ]
+    },
+    {
+      "formation": "LightCavalry",
+      "stages": [
+        { "name": "screen the archers", "do": { "type": "Screen", "target": "Ranged", "gapMeters": 30.0 } }
+      ]
+    },
+    {
+      "formation": "Cavalry",
+      "stages": [
+        { "name": "wait for it", "do": { "type": "Hold", "arrangement": "Line" } },
+        {
+          "name": "flank left and charge",
+          "when": [ { "type": "TimerElapsed", "seconds": 12 } ],
+          "do": { "type": "FlankArc", "side": "Left", "standoffMeters": 50.0 }
+        }
+      ],
+      "abort": { "casualtiesAbovePercent": 80 }
     }
   ]
 }

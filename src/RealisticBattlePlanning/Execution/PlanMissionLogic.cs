@@ -138,7 +138,7 @@ namespace RealisticBattlePlanning.Execution
                 _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), FidelityConfig.NextBattleSeed());
                 if (_fidelityActive)
                     RbpLog.Info($"Fidelity: {FidelityConfig.Describe()}.");
-                _executor = new FormationOrderExecutor(Mission);
+                _executor = new FormationOrderExecutor();
             }
             catch (Exception e)
             {

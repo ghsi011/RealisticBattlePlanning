@@ -18,11 +18,8 @@ namespace RealisticBattlePlanning.Execution
     /// </summary>
     internal sealed class FormationOrderExecutor
     {
-        private readonly Mission _mission;
-
-        public FormationOrderExecutor(Mission mission)
+        public FormationOrderExecutor()
         {
-            _mission = mission;
         }
 
         /// <summary>
@@ -130,7 +127,13 @@ namespace RealisticBattlePlanning.Execution
 
         public void Move(Formation formation, MapVec target)
         {
-            var position = new WorldPosition(_mission.Scene, UIntPtr.Zero, new Vec3(target.X, target.Y), hasValidZ: false);
+            // Issue the move exactly the way the vanilla OrderController does: take a
+            // world position the formation can already resolve a nav-mesh face from,
+            // then slide it to the target. A raw WorldPosition built with no nav-mesh
+            // face (UIntPtr.Zero) can't be pathed to, so the formation silently
+            // ignores the order and never moves (the playtest's stuck cavalry / HA).
+            var position = formation.CreateNewOrderWorldPosition(WorldPosition.WorldPositionEnforcedCache.None);
+            position.SetVec2(new Vec2(target.X, target.Y));
             formation.SetMovementOrder(MovementOrder.MovementOrderMove(position));
         }
 
