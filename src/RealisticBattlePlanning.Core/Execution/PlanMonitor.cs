@@ -563,6 +563,14 @@ namespace RealisticBattlePlanning.Execution
             // the stage; BeginStage takes the finished directive and clears the
             // per-stage scratch (waypoint, steering target, pending reaction).
             var directive = ApplyPositionError(ResolveDirective(state.Plan.Formation, stage.Do), state.ActiveFidelity);
+
+            // Advancing off an earlier stage to a later one completes that stage
+            // (forward progress only — re-activation/resume of the same index, or a
+            // skip-to-hold, doesn't count; skipped stages get StageSkipped instead).
+            if (state.ActiveStageIndex >= 0 && stageIndex > state.ActiveStageIndex)
+                events.Add(new StageCompleted(state.Plan.Formation, state.ActiveStageIndex,
+                    state.Plan.Stages[state.ActiveStageIndex]));
+
             state.BeginStage(stageIndex, snapshot.TimeSeconds, directive);
 
             events.Add(new StageActivated(state.Plan.Formation, stageIndex, stage, state.ActiveDirective));

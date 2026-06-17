@@ -156,6 +156,21 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void AdvancingForwardEmitsStageCompletedForTheStageLeft()
+        {
+            var monitor = Monitor(
+                StageOf(null, Hold()),                                                                  // 1: battle start
+                StageOf(new[] { new TriggerSpec { Type = TriggerType.TimerElapsed, Seconds = 5f } }, Charge()),   // 2
+                StageOf(new[] { new TriggerSpec { Type = TriggerType.TimerElapsed, Seconds = 5f } }, Hold()));     // 3
+
+            monitor.Tick(Field(0));                       // stage 1 activates; nothing completed yet
+            var toStage2 = monitor.Tick(Field(6));        // 5s after stage 1 -> stage 2; stage 1 completed
+            Assert.Contains(toStage2.OfType<StageCompleted>(), e => e.StageIndex == 0);
+            var toStage3 = monitor.Tick(Field(12));       // 5s after stage 2 -> stage 3; stage 2 completed
+            Assert.Contains(toStage3.OfType<StageCompleted>(), e => e.StageIndex == 1);
+        }
+
+        [Fact]
         public void EnemyBrokenFiresOnRouting()
         {
             var monitor = Monitor(StageOf(null, Hold()), StageOf(

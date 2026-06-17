@@ -154,6 +154,28 @@ namespace RealisticBattlePlanning.Execution
         public override string Describe() => $"[{Formation}] stage {StageIndex + 1} skipped: {Reason}";
     }
 
+    /// <summary>A stage was carried out and the formation advanced off it to a later
+    /// stage (forward progress). Feeds Plan Familiarity / XP (D4): a completed stage
+    /// is one the commander actually executed, as distinct from a skipped one.</summary>
+    public sealed class StageCompleted : PlanEvent
+    {
+        public StageCompleted(PlannedFormationClass formation, int stageIndex, Stage stage)
+            : base(formation)
+        {
+            StageIndex = stageIndex;
+            Stage = stage;
+        }
+
+        public int StageIndex { get; }
+        public Stage Stage { get; }
+
+        public override string Describe()
+        {
+            var name = string.IsNullOrEmpty(Stage?.Name) ? "" : $" \"{Stage.Name}\"";
+            return $"[{Formation}] stage {StageIndex + 1}{name} completed";
+        }
+    }
+
     /// <summary>No remaining stage was evaluable; the formation holds (B6).</summary>
     public sealed class PlanHolding : PlanEvent
     {
