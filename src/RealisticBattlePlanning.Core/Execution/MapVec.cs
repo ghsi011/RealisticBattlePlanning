@@ -35,6 +35,8 @@ namespace RealisticBattlePlanning.Execution
         /// <summary>Perpendicular pointing to the right when facing along this direction.</summary>
         public MapVec Right() => new(Y, -X);
 
+        public float Dot(MapVec other) => X * other.X + Y * other.Y;
+
         public float DistanceTo(MapVec other) => (other - this).Length;
 
         public bool Equals(MapVec other) => X.Equals(other.X) && Y.Equals(other.Y);
