@@ -6,6 +6,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RealisticBattlePlanning.Cor
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RealisticBattlePlanning.Core.Tests", "src\RealisticBattlePlanning.Core.Tests\RealisticBattlePlanning.Core.Tests.csproj", "{B53C19D8-6A0E-47C4-8F1B-7E94A0D6C3F5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModDebugKit", "src\ModDebugKit\ModDebugKit.csproj", "{C7A1F2E0-1111-4B22-9C33-000000000010}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModDebugKit.Core", "src\ModDebugKit.Core\ModDebugKit.Core.csproj", "{C7A1F2E0-2222-4B22-9C33-000000000020}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModDebugKit.Core.Tests", "src\ModDebugKit.Core.Tests\ModDebugKit.Core.Tests.csproj", "{C7A1F2E0-3333-4B22-9C33-000000000030}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -24,5 +30,17 @@ Global
 		{B53C19D8-6A0E-47C4-8F1B-7E94A0D6C3F5}.Debug|x64.Build.0 = Debug|Any CPU
 		{B53C19D8-6A0E-47C4-8F1B-7E94A0D6C3F5}.Release|x64.ActiveCfg = Release|Any CPU
 		{B53C19D8-6A0E-47C4-8F1B-7E94A0D6C3F5}.Release|x64.Build.0 = Release|Any CPU
+		{C7A1F2E0-1111-4B22-9C33-000000000010}.Debug|x64.ActiveCfg = Debug|x64
+		{C7A1F2E0-1111-4B22-9C33-000000000010}.Debug|x64.Build.0 = Debug|x64
+		{C7A1F2E0-1111-4B22-9C33-000000000010}.Release|x64.ActiveCfg = Release|x64
+		{C7A1F2E0-1111-4B22-9C33-000000000010}.Release|x64.Build.0 = Release|x64
+		{C7A1F2E0-2222-4B22-9C33-000000000020}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C7A1F2E0-2222-4B22-9C33-000000000020}.Debug|x64.Build.0 = Debug|Any CPU
+		{C7A1F2E0-2222-4B22-9C33-000000000020}.Release|x64.ActiveCfg = Release|Any CPU
+		{C7A1F2E0-2222-4B22-9C33-000000000020}.Release|x64.Build.0 = Release|Any CPU
+		{C7A1F2E0-3333-4B22-9C33-000000000030}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C7A1F2E0-3333-4B22-9C33-000000000030}.Debug|x64.Build.0 = Debug|Any CPU
+		{C7A1F2E0-3333-4B22-9C33-000000000030}.Release|x64.ActiveCfg = Release|Any CPU
+		{C7A1F2E0-3333-4B22-9C33-000000000030}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

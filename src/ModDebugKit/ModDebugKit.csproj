@@ -1,0 +1,122 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      net472, NOT net6.0: the Steam build of Bannerlord runs on the .NET
+      Framework CLR. A net6.0 assembly crashes the game on load trying to
+      resolve System.Runtime 6.0. (Same constraint as RBP, AGENTS.md.)
+    -->
+    <TargetFramework>net472</TargetFramework>
+    <Platforms>x64</Platforms>
+    <LangVersion>10</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>ModDebugKit</AssemblyName>
+    <RootNamespace>ModDebugKit</RootNamespace>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <!--
+    A sibling Bannerlord module, deployed alongside RBP but to its OWN module
+    folder. Directory.Build.props sets ModuleId=RealisticBattlePlanning by
+    default; override both here so this project deploys to Modules\ModDebugKit
+    without touching RBP's identity.
+  -->
+  <PropertyGroup>
+    <ModuleId>ModDebugKit</ModuleId>
+    <ModuleDeployDir>$(BannerlordGameDir)\Modules\ModDebugKit</ModuleDeployDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ModDebugKit.Core\ModDebugKit.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    Hermetic-build fallback (HasBannerlordInstall comes from
+    Directory.Build.props): with no Bannerlord install (CI, cloud sessions),
+    compile against the BUTR reference assemblies and skip deploy. A real
+    install always wins.
+  -->
+  <ItemGroup Condition="'$(HasBannerlordInstall)' != 'true'">
+    <PackageReference Include="Bannerlord.ReferenceAssemblies" Version="1.4.6.115439" IncludeAssets="compile" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lets dotnet build target net472 without a locally installed targeting pack. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <!-- Harmony: cross-mod order/exception hooks land in M2; the runtime DLL ships in the Bannerlord.Harmony module. -->
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" IncludeAssets="compile" />
+  </ItemGroup>
+
+  <!--
+    TaleWorlds + SandBox/StoryMode/CustomBattle assemblies live in the game
+    install. Private=False so we never copy these next to the mod DLL (the
+    game already loads them). Same set the module depends on in SubModule.xml.
+  -->
+  <ItemGroup Condition="'$(HasBannerlordInstall)' == 'true'">
+    <Reference Include="$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.*.dll"
+               Exclude="$(BannerlordGameDir)\bin\Win64_Shipping_Client\TaleWorlds.Native.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(BannerlordGameDir)\Modules\Native\bin\Win64_Shipping_Client\*.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(BannerlordGameDir)\Modules\SandBox\bin\Win64_Shipping_Client\*.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(BannerlordGameDir)\Modules\SandBoxCore\bin\Win64_Shipping_Client\*.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="$(BannerlordGameDir)\Modules\StoryMode\bin\Win64_Shipping_Client\*.dll">
+      <HintPath>%(Identity)</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <!-- Custom-battle launch API (battle factory, M1): ships in the CustomBattle module, not the core bin. -->
+    <Reference Include="$(BannerlordGameDir)\Modules\CustomBattle\bin\Win64_Shipping_Client\TaleWorlds.MountAndBlade.CustomBattle.dll">
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!--
+    A configured-but-invalid path fails fast (a typo'd local.props must not
+    silently build-without-deploy); only the unconfigured default falls back.
+  -->
+  <Target Name="ValidateBannerlordGameDir" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(BannerlordGameDirConfigured)' == 'true' and '$(HasBannerlordInstall)' != 'true'"
+           Text="BannerlordGameDir is configured (local.props or BANNERLORD_GAME_DIR) but does not point at a valid Bannerlord install: '$(BannerlordGameDir)'. Fix the path, or remove the setting to build against reference assemblies without deploying." />
+    <Message Importance="high" Condition="'$(HasBannerlordInstall)' != 'true'"
+             Text="No Bannerlord install at '$(BannerlordGameDir)'; compiling against reference assemblies, deploy skipped." />
+  </Target>
+
+  <!--
+    Deploy: copy the built DLLs + everything under this project's Module\ to
+    $(BannerlordGameDir)\Modules\ModDebugKit. Whitelist binaries — NuGet/runtime
+    DLLs the game already ships (Newtonsoft, Harmony) must not be copied.
+  -->
+  <ItemGroup>
+    <ModuleFiles Include="$(MSBuildThisFileDirectory)Module\**\*.*" />
+  </ItemGroup>
+
+  <Target Name="DeployToBannerlord" AfterTargets="Build" Condition="'$(HasBannerlordInstall)' == 'true'">
+    <ItemGroup>
+      <DeployBinaries Include="$(TargetDir)$(AssemblyName).dll;$(TargetDir)$(AssemblyName).pdb" />
+      <DeployBinaries Include="$(TargetDir)ModDebugKit.Core.dll;$(TargetDir)ModDebugKit.Core.pdb" />
+    </ItemGroup>
+    <MakeDir Directories="$(ModuleDeployDir)\bin\Win64_Shipping_Client" />
+    <Copy SourceFiles="@(DeployBinaries)"
+          DestinationFolder="$(ModuleDeployDir)\bin\Win64_Shipping_Client"
+          SkipUnchangedFiles="true"
+          Condition="Exists('%(Identity)')" />
+    <Copy SourceFiles="@(ModuleFiles)"
+          DestinationFiles="@(ModuleFiles->'$(ModuleDeployDir)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Deployed $(ModuleId) -&gt; $(ModuleDeployDir)" />
+  </Target>
+
+</Project>
