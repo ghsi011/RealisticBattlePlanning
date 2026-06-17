@@ -245,7 +245,7 @@ namespace RealisticBattlePlanning.UI
                     StatusText = $"Formation {SlotNumber(cls)} stage {stageIndex + 1}: When → {Spaced(type.ToString())}.";
                     ClosePicker();
                     Refresh();
-                }));
+                }, TriggerHelp(type)));
             }
             PickerTitle = $"Formation {SlotNumber(cls)}  ·  Stage {stageIndex + 1}  ·  When"
                           + (stage.When.Count > 1 ? $" (condition {condIndex + 1})" : "");
@@ -270,7 +270,7 @@ namespace RealisticBattlePlanning.UI
                     StatusText = $"Formation {SlotNumber(cls)} stage {stageIndex + 1}: Do → {Spaced(type.ToString())}.";
                     ClosePicker();
                     Refresh();
-                }));
+                }, DirectiveHelp(type)));
             }
             PickerTitle = $"Formation {SlotNumber(cls)}  ·  Stage {stageIndex + 1}  ·  Do";
             PickerOpen = true;
@@ -694,6 +694,44 @@ namespace RealisticBattlePlanning.UI
         private static string Spaced(string pascal)
             => string.Concat(pascal.Select((c, i) => i > 0 && char.IsUpper(c) ? " " + c : c.ToString()));
 
+        /// <summary>One-line inline help shown under each trigger type in the picker.</summary>
+        private static string TriggerHelp(TriggerType t)
+        {
+            switch (t)
+            {
+                case TriggerType.BattleStart: return "Fires the moment the battle begins.";
+                case TriggerType.EnemyCommits: return "Fires when the enemy advances into engagement range.";
+                case TriggerType.EnemyWithinDistance: return "Fires when an enemy closes within a set distance.";
+                case TriggerType.FriendlyWithinDistance: return "Fires when a friendly formation is within range.";
+                case TriggerType.PositionReached: return "Fires when this formation reaches a map anchor.";
+                case TriggerType.CasualtiesAbove: return "Fires once casualties pass a set percentage.";
+                case TriggerType.TimerElapsed: return "Fires a set time after the stage began.";
+                case TriggerType.SignalReceived: return "Fires when another stage emits the named signal.";
+                case TriggerType.PlayerSignal: return "Fires when you press the signal in the palette.";
+                case TriggerType.EnemyBroken: return "Fires when the targeted enemy formation routs.";
+                default: return "";
+            }
+        }
+
+        /// <summary>One-line inline help shown under each directive type in the picker.</summary>
+        private static string DirectiveHelp(DirectiveType d)
+        {
+            switch (d)
+            {
+                case DirectiveType.Hold: return "Hold position in the chosen arrangement.";
+                case DirectiveType.MoveTo: return "Advance to a map anchor and hold there.";
+                case DirectiveType.Skirmish: return "Harass at range, keeping a standoff distance.";
+                case DirectiveType.FeignRetreat: return "Withdraw to bait the enemy, then re-engage.";
+                case DirectiveType.Charge: return "Charge the target straight into melee.";
+                case DirectiveType.FlankArc: return "Sweep around a flank onto the target.";
+                case DirectiveType.PullBack: return "Withdraw to an anchor, keeping order.";
+                case DirectiveType.Screen: return "Shield a friendly formation, holding a gap.";
+                case DirectiveType.Follow: return "Move with a friendly formation at an offset.";
+                case DirectiveType.FireControl: return "Set ranged troops to hold fire or fire at will.";
+                default: return "";
+            }
+        }
+
         public void ExecuteApply()
         {
             var plan = _draft.Build();
@@ -730,22 +768,27 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public MBBindingList<PickerOptionVM> PickerOptions { get => _pickerOptions; set { if (value != _pickerOptions) { _pickerOptions = value; OnPropertyChangedWithValue(value, "PickerOptions"); } } }
     }
 
-    /// <summary>One selectable row in the trigger/directive picker menu.</summary>
+    /// <summary>One selectable row in a picker menu. Type pickers carry a one-line
+    /// description (inline help); value pickers leave it blank.</summary>
     public sealed class PickerOptionVM : ViewModel
     {
         private readonly Action _onSelect;
 
-        public PickerOptionVM(string label, bool isCurrent, Action onSelect)
+        public PickerOptionVM(string label, bool isCurrent, Action onSelect, string description = null)
         {
             _onSelect = onSelect;
             Label = label;
             IsCurrent = isCurrent;
+            Description = description ?? "";
+            HasDescription = !string.IsNullOrEmpty(Description);
         }
 
         public void ExecuteSelect() => _onSelect?.Invoke();
 
         [DataSourceProperty] public string Label { get; }
         [DataSourceProperty] public bool IsCurrent { get; }
+        [DataSourceProperty] public string Description { get; }
+        [DataSourceProperty] public bool HasDescription { get; }
     }
 
     /// <summary>One formation's card: name, abort rule, its stage rows, and add/remove-stage controls.</summary>
