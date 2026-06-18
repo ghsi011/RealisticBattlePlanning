@@ -59,6 +59,9 @@ namespace ModDebugKit.Commands
         [CommandLineFunctionality.CommandLineArgumentFunction("freeze", "dbg")]
         public static string Freeze(List<string> args) => Run("dbg.freeze", args);
 
+        [CommandLineFunctionality.CommandLineArgumentFunction("shot", "dbg")]
+        public static string Shot(List<string> args) => Run("dbg.shot", args);
+
         private static string Run(string fullName, List<string> args)
         {
             var dispatcher = ModDebugKitRuntime.Dispatcher;

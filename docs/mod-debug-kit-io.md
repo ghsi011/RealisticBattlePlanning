@@ -104,6 +104,7 @@ Example:
 | `dbg.timescale <x>` | `{ timeSpeed }` or `{ fastForward }`                       | `0` = pause, `<1` = slow-mo, `1` = normal, `>1` = fast-forward (engine's fixed fast speed, not an exact multiplier). |
 | `dbg.step [seconds]` | `{ seconds }`                                             | Advance ~N mission-seconds at normal speed, then auto-pause (default 0.5). Pause → step → snapshot → step is the deterministic inspection loop. |
 | `dbg.freeze <enemy\|all\|player\|none>` | `{ frozen, count, who }`                       | Pause a side's AI and stop its formations. Reliable for the **player** side; the **enemy** general AI keeps re-commanding, so for a hard freeze of everything use `dbg.pause`. `none` unfreezes all. |
+| `dbg.shot [name]`  | `{ image, sidecar, inMission }`                             | Clean game-only screenshot to `shots/<name>.bmp` (written next frame) + `shots/<name>.json` sidecar with the battle state at capture. Convert to PNG with `tools/mdk-shot.ps1`. |
 
 The time controls work through the engine's time-speed **request** system (`Scene.TimeSpeed` is overwritten each tick to the minimum request), which is why `dbg.pause` sticks where a raw `TimeSpeed = 0` would not.
 
@@ -221,6 +222,15 @@ leaves a state trail.
 | `stack`         | string | Full stack trace; omitted when there is no exception.       |
 | `terminating`   | bool   | True when the runtime reported the exception process-fatal. |
 | `snapshot`      | string | Path of the auto-snapshot written for the first fault.      |
+
+## `shots/` — screenshots + sidecars
+
+`dbg.shot [name]` writes `shots/<name>.bmp` (a clean game-only frame, written by
+the engine on the next frame) and `shots/<name>.json` — the full
+`battle_state.json` shape captured at the same moment, so the image is
+self-describing. The engine writes BMP regardless of extension;
+`tools/mdk-shot.ps1 [name]` converts the newest (or named) BMP to a PNG that the
+Read tool renders.
 
 ## `battle_state.json` — battle snapshot
 
