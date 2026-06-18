@@ -21,3 +21,17 @@ Noted / not actioned:
 - **#7** rtk token optimizer — **blocked**: no Rust/`cargo` on the machine. Revisit if `cargo` is installed later.
 
 Next-time candidates: once the usage log has data, re-run for usage-based skill/permission/friction insights.
+
+## 2026-06-19 — run #2 (delta, post block-1; score 8/10 =)
+
+Usage-log-driven (the log now has data). Applied to `.claude/settings.local.json`
++ `.claude/hooks/track-usage.ps1` (machine-local, gitignored):
+- **Usage hook missed the PowerShell tool** — on Windows that's the dominant path
+  (dotnet build/test, dev-relaunch, file-channel driving), so the log was blind to
+  it. Added `PowerShell` to the PostToolUse matcher and the script's tool list +
+  detail handling. Verified it now logs PowerShell commands.
+- **git workflow not in permissions** — full-auto mode commits/pushes constantly;
+  added `Bash(git add/commit/push:*)` to project-local permissions to smooth the loop.
+
+Still pending (carry-over, needs the user): `csharp-lsp` requires a Claude Code
+restart to load; after that, create `.claude/rules/tooling/lsp-fallbacks.md`.
