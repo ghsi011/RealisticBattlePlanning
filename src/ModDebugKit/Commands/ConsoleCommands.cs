@@ -68,6 +68,9 @@ namespace ModDebugKit.Commands
         [CommandLineFunctionality.CommandLineArgumentFunction("stop", "dbg")]
         public static string Stop(List<string> args) => Run("dbg.stop", args);
 
+        [CommandLineFunctionality.CommandLineArgumentFunction("hud", "dbg")]
+        public static string Hud(List<string> args) => Run("dbg.hud", args);
+
         private static string Run(string fullName, List<string> args)
         {
             var dispatcher = ModDebugKitRuntime.Dispatcher;

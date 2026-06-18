@@ -41,6 +41,7 @@ namespace ModDebugKit
             Capture.CaptureCommands.RegisterAll(Dispatcher);
             Scripting.ScriptCommands.RegisterAll(Dispatcher);
             CampaignControl.CampaignCommands.RegisterAll(Dispatcher);
+            Overlay.HudCommands.RegisterAll(Dispatcher);
 
             Initialized = true;
         }
