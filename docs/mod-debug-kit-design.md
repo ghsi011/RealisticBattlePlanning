@@ -209,12 +209,23 @@ dispatcher.
 through the file channel):** M0 spine · M1 battle factory (`dbg.battle` presets,
 exact rosters + heroes, `dbg.assign`/`dbg.layout`, `dbg.ready`/`leave`/`restart`)
 · M2 flight recorder (`telemetry.jsonl`: phases/deaths/orders incl. the nav-mesh
-verdict; `errors.jsonl` + auto-snapshot; `dbg.telemetry`/`dbg.errors`) · the
-determinism time controls (`dbg.pause`/`resume`/`step`/`timescale`/`freeze`),
-pulled forward from M5.
+verdict; `errors.jsonl` + auto-snapshot; `dbg.telemetry`/`dbg.errors`) ·
+determinism (`dbg.pause`/`resume`/`step`/`timescale`/`freeze`) · M3 capture
+(`dbg.shot` clean PNG + state sidecar) · M6 scripting (`dbg.run`/`dbg.stop`) +
+**dogfood** scenarios (`formation-mismatch`, `move-watch` prove the kit catches
+the slot≠contents and nav-mesh-move bugs) · M4 campaign control
+(`dbg.camp.load`/`status`/`gold`/`party`/`time`, save-safe) · the `dbg.hud`
+on-screen text channel.
 
-**Remaining (revised order):** Capture → HUD overlay → Campaign control →
-Scripting & dogfood. (The remaining M2 *overlay HUD* moved to sit after Capture.)
+**The whole-kit acceptance test passes:** an agent sets up a specific battle,
+runs it, and reports exactly what each formation did — through the filesystem,
+no screenshots, no mouse.
+
+**Deferred (one item):** the *persistent* Gauntlet HUD overlay (formation
+numbers/orders/gizmos drawn on-screen). It is the lowest-agent-value, highest-
+effort piece — the agent reads `battle_state.json`/`telemetry.jsonl`, which
+already hold everything it would show — so it's left as a human-convenience
+stretch. The text-channel part (`dbg.hud`) is done.
 
 **Lessons that reshaped the plan:**
 
