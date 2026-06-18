@@ -188,7 +188,7 @@ dispatcher.
 - Gauntlet input layers: the DoNotPassEventsToChildren / focus-layer pitfalls
   from `gauntlet-ui-patterns`.
 
-## Milestones (suggested build order)
+## Milestones (original build order)
 - **M0 — Spine.** Module skeleton (both projects + tests + deploy) · `dbg.ping` ·
   output dir · **file command channel** · `dbg.snapshot` MVP. *This alone
   transforms the agent loop.*
@@ -202,6 +202,63 @@ dispatcher.
 - **M6 — Scripting & polish.** Script runner · preset/scenario library · IO-schema
   docs · **dogfood**: reproduce RBP's move-bug and formation-mismatch as canned
   demo scenarios proving the kit catches them.
+
+## Build progress & revised plan (learned during development)
+
+**Shipped (committed + pushed, each build-clean / unit-tested / verified in-game
+through the file channel):** M0 spine · M1 battle factory (`dbg.battle` presets,
+exact rosters + heroes, `dbg.assign`/`dbg.layout`, `dbg.ready`/`leave`/`restart`)
+· M2 flight recorder (`telemetry.jsonl`: phases/deaths/orders incl. the nav-mesh
+verdict; `errors.jsonl` + auto-snapshot; `dbg.telemetry`/`dbg.errors`) · the
+determinism time controls (`dbg.pause`/`resume`/`step`/`timescale`/`freeze`),
+pulled forward from M5.
+
+**Remaining (revised order):** Capture → HUD overlay → Campaign control →
+Scripting & dogfood. (The remaining M2 *overlay HUD* moved to sit after Capture.)
+
+**Lessons that reshaped the plan:**
+
+1. **The file channel is not just the spine — it's the dominant interface.**
+   Every feature so far is fully drivable and verifiable by appending a line and
+   reading a JSON(L) file. Build each capability *file-first*; the console and
+   any UI are secondary front-ends. Prioritise features by (agent value ×
+   file-channel verifiability).
+2. **Verify visual features only where you can see them — so order by
+   verifiability.** Anything whose correctness lives on-screen (the HUD overlay,
+   gizmos) can't be confirmed in a headless/autonomous run (the computer-use
+   grant for the game window times out with no human present). **Capture
+   (`dbg.shot`) is self-verifiable** — the agent writes a PNG and reads it back —
+   so it now comes *before* the HUD, and is the tool that makes the HUD
+   verifiable. This is why determinism (pure file-channel) was done before the
+   visual M2.4/M3 work.
+3. **Vanilla-first over Harmony, hard.** Patching `Formation.SetMovementOrder`
+   to capture orders **crashed the game** (it runs on worker threads and
+   destabilised `MovementOrder`'s static init). Polling each formation's
+   effective order on the main thread catches orders from *any* source, is safe,
+   and needs no patch. Prefer observing engine state on the main thread to
+   intercepting engine calls.
+4. **All engine reads on the main thread.** The file-channel pump and all
+   mission reads run on the main thread (`OnApplicationTick` / mission ticks);
+   never touch engine objects from a callback that may fire off-thread.
+5. **Resolve "current X" by lookup, not by caching a lifecycle static.**
+   `OnBehaviorInitialize` is not reliably called for an added behavior; a static
+   assigned there silently stays null. Use `Mission.Current.GetMissionBehavior<T>()`
+   (cost the casualties bug a session).
+6. **Engine APIs are leads, not gospel — read the decompiled source.** Time
+   control is a *request* system (engine sets `Scene.TimeSpeed` to the min
+   request each tick; a raw set is reverted), and `RemoveTimeSpeedRequest` does
+   an unguarded `RemoveAt(-1)` when the id is absent. Both only became clear from
+   the source after the naïve approach failed in-game.
+7. **Some state resists external control — document the limit, don't fake it.**
+   The enemy general AI keeps re-commanding its formations, so per-side
+   `dbg.freeze enemy` is best-effort; `dbg.pause` (time = 0) is the hard freeze.
+   Surface such limits in the command help and docs rather than shipping a
+   silent half-feature.
+8. **Iterate in small committed slices with an in-game check each.** Splitting
+   milestones into sub-iterations (M1.1–M1.4, M2.1–M2.3) and verifying each
+   through the file channel caught real bugs early (the order-capture crash, the
+   casualties static, the pause request system) — each would have been far
+   costlier found later.
 
 ## Definition of done (per milestone)
 Builds clean; Core logic unit-tested; deploys to the game; the new commands work
