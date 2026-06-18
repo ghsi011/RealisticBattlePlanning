@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using ModDebugKit.Io;
@@ -22,6 +23,7 @@ namespace ModDebugKit.Commands
             dispatcher.Register("dbg.ping", "dbg.ping - liveness check; reports where the game is and the output root", Ping);
             dispatcher.Register("dbg.help", "dbg.help - list every registered command", _ => Help(dispatcher));
             dispatcher.Register("dbg.snapshot", "dbg.snapshot [path] [all|player|enemy] - write battle state to JSON (default Debug/battle_state.json, all teams)", Snapshot);
+            dispatcher.Register("dbg.track", "dbg.track <seconds> [interval=1] [all|player|enemy] - sample formations over time to Debug/track.jsonl", Track);
         }
 
         private static DbgOutcome Ping(DbgCommand command)
@@ -86,5 +88,40 @@ namespace ModDebugKit.Commands
                 $"snapshot: {dto.Formations.Count} {filter} formation(s) @ t={dto.MissionTime:0.0}s -> {target}",
                 new { path = target, formations = dto.Formations.Count, team = filter, battleStarted = dto.BattleStarted });
         }
+
+        private static DbgOutcome Track(DbgCommand command)
+        {
+            if (Mission.Current == null)
+                return DbgOutcome.Failure("no active mission to track");
+            var observer = DebugMissionObserver.Active;
+            if (observer == null)
+                return DbgOutcome.Failure("no observer on this mission");
+            if (command.Args.Count < 1 || !TryFloat(command.Arg(0), out var duration) || duration <= 0)
+                return DbgOutcome.Failure("usage: dbg.track <seconds> [interval=1] [all|player|enemy]");
+
+            var interval = 1f;
+            var filter = "player";
+            foreach (var arg in command.Args.Skip(1))
+            {
+                if (SideFilters.Contains(arg, StringComparer.OrdinalIgnoreCase))
+                    filter = arg.ToLowerInvariant();
+                else if (TryFloat(arg, out var iv) && iv > 0)
+                    interval = iv;
+            }
+
+            var path = ModDebugKitRuntime.Paths.Resolve("track.jsonl");
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(path, string.Empty);   // truncate any previous track
+            observer.StartTrack(duration, interval, filter, path);
+
+            return DbgOutcome.Success(
+                $"tracking {filter} formations every {interval:0.#}s for {duration:0.#}s -> {path}",
+                new { durationSeconds = duration, intervalSeconds = interval, team = filter, path });
+        }
+
+        private static bool TryFloat(string text, out float value)
+            => float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
 }

@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using ModDebugKit.Battles;
 using ModDebugKit.Diagnostics;
+using ModDebugKit.Io;
 using TaleWorlds.MountAndBlade;
 
 namespace ModDebugKit.Observability
@@ -67,6 +70,70 @@ namespace ModDebugKit.Observability
             {
                 _pendingLayout.Clear();
             }
+        }
+
+        // dbg.track: sample formations into a time-series (track.jsonl) over a window, so a
+        // whole maneuver (move -> flank -> charge, or an orbit) is captured in one command
+        // instead of a manual wait+snapshot loop. Sampling is best-effort; any fault stops it.
+        private bool _tracking;
+        private float _trackEndsAt, _trackInterval, _trackNextSampleAt;
+        private string _trackFilter = "player", _trackPath;
+
+        public void StartTrack(float duration, float interval, string filter, string path)
+        {
+            _trackInterval = interval < 0.1f ? 0.1f : interval;
+            _trackFilter = filter;
+            _trackPath = path;
+            _trackEndsAt = Mission.CurrentTime + duration;
+            _trackNextSampleAt = Mission.CurrentTime;  // first sample on the next tick
+            _tracking = true;
+        }
+
+        public override void OnMissionTick(float dt)
+        {
+            base.OnMissionTick(dt);
+            if (!_tracking)
+                return;
+            try
+            {
+                var now = Mission.CurrentTime;
+                if (now >= _trackNextSampleAt)
+                {
+                    SampleTrack(now);
+                    _trackNextSampleAt += _trackInterval;
+                }
+                if (now >= _trackEndsAt)
+                    _tracking = false;
+            }
+            catch (Exception e)
+            {
+                _tracking = false;
+                DbgLog.Error("Track: sampling failed; tracking stopped.", e);
+            }
+        }
+
+        private void SampleTrack(float now)
+        {
+            var dto = BattleSnapshotReader.Capture(Mission);
+            var sb = new StringBuilder();
+            foreach (var f in dto.Formations)
+            {
+                if (_trackFilter != "all" && !string.Equals(f.Side, _trackFilter, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                sb.AppendLine(DbgJson.Line(new
+                {
+                    t = now,
+                    n = f.Number,
+                    side = f.Side,
+                    comp = f.Composition?.Label,
+                    order = f.Order?.Type,
+                    x = f.Position?.X,
+                    y = f.Position?.Y,
+                    cas = f.CasualtiesPercent,
+                }));
+            }
+            if (sb.Length > 0)
+                File.AppendAllText(_trackPath, sb.ToString());
         }
 
         public int? InitialCount(Team team, Formation formation)
