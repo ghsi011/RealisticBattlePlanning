@@ -26,14 +26,20 @@ namespace ModDebugKit.Scripting
 
         public bool Done => _cursor >= _ordered.Count;
 
-        /// <summary>Yields the steps now due at <paramref name="elapsedSeconds"/>, advancing the cursor.</summary>
-        public IEnumerable<DbgScriptStep> Due(float elapsedSeconds)
+        /// <summary>
+        /// Returns the steps now due at <paramref name="elapsedSeconds"/>, advancing the cursor
+        /// past them. Materialized (not lazy) so the cursor advances fully even if the caller
+        /// only partially enumerates the result.
+        /// </summary>
+        public IReadOnlyList<DbgScriptStep> Due(float elapsedSeconds)
         {
+            var due = new List<DbgScriptStep>();
             while (_cursor < _ordered.Count && _ordered[_cursor].At <= elapsedSeconds)
             {
-                yield return _ordered[_cursor];
+                due.Add(_ordered[_cursor]);
                 _cursor++;
             }
+            return due;
         }
     }
 }

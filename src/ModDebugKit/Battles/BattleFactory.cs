@@ -1,8 +1,6 @@
 using System.Collections.Generic;
-using System.Linq;
 using ModDebugKit.Diagnostics;
 using TaleWorlds.Core;
-using TaleWorlds.Library;
 using TaleWorlds.Localization;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.MountAndBlade.CustomBattle.CustomBattle;
@@ -106,7 +104,7 @@ namespace ModDebugKit.Battles
             if (preset.HasExplicitRoster)
                 AddExplicitRoster(om, party, preset.Troops);
             else
-                AddByCounts(om, party, (int[])(preset.Counts ?? defaults.Counts).Clone(), preset.TroopsByClass, culture);
+                AddByCounts(om, party, preset.Counts ?? defaults.Counts, preset.TroopsByClass, culture);
 
             AddHeroes(om, party, preset.Heroes);
             return party;
@@ -143,53 +141,27 @@ namespace ModDebugKit.Battles
         }
 
         /// <summary>
-        /// Per-class roster, mirroring CustomBattleHelper.PopulateListsWithDefaults:
-        /// each class bucket is the listed troop ids (or the culture default),
-        /// and the count is split evenly across that bucket's troops. If a
-        /// culture has no horse-archer troop, its HA count is redistributed to
-        /// the other classes (as the vanilla helper does).
+        /// Per-class roster: resolve each class's troop list, then place the
+        /// counts via the engine-free <see cref="RosterDistribution"/> (even
+        /// split + horse-archer redistribution, mirroring vanilla
+        /// PopulateListsWithDefaults). A class with a count but no resolvable
+        /// troop is warned about rather than silently dropped.
         /// </summary>
         private static void AddByCounts(MBObjectManager om, CustomBattleCombatant party, int[] counts, List<string>[] troopsByClass, BasicCultureObject culture)
         {
             var lists = new List<BasicCharacterObject>[4];
+            var troopsPerClass = new int[4];
             for (var cls = 0; cls < 4; cls++)
             {
                 lists[cls] = ResolveClassList(om, troopsByClass, cls, culture);
+                troopsPerClass[cls] = lists[cls].Count;
             }
 
-            if (lists[3].Count == 0 || lists[3].All(t => t == null))
-            {
-                counts[2] += counts[3] / 3;
-                counts[1] += counts[3] / 3;
-                counts[0] += counts[3] / 3;
-                counts[0] += counts[3] - counts[3] / 3 * 3;
-                counts[3] = 0;
-            }
-
-            for (var cls = 0; cls < 4; cls++)
-            {
-                var list = lists[cls];
-                var remaining = counts[cls];
-                if (remaining <= 0 || list.Count == 0)
-                    continue;
-
-                var perTroop = (float)remaining / list.Count;
-                var carry = 0f;
-                for (var k = 0; k < list.Count; k++)
-                {
-                    var share = perTroop + carry;
-                    var floored = MathF.Floor(share);
-                    carry = share - floored;
-                    if (list[k] != null && floored > 0)
-                        party.AddCharacter(list[k], floored);
-                    remaining -= floored;
-                    if (k == list.Count - 1 && remaining > 0 && list[k] != null)
-                    {
-                        party.AddCharacter(list[k], remaining);
-                        remaining = 0;
-                    }
-                }
-            }
+            var distribution = RosterDistribution.Distribute(counts, troopsPerClass);
+            foreach (var assignment in distribution.Assignments)
+                party.AddCharacter(lists[assignment.ClassIndex][assignment.TroopIndex], assignment.Count);
+            foreach (var dropped in distribution.Dropped)
+                DbgLog.Warn($"dbg.battle: no troop resolved for class {dropped.ClassIndex} ({(FormationClass)dropped.ClassIndex}) of culture '{culture.StringId}'; {dropped.Count} unit(s) dropped.");
         }
 
         private static List<BasicCharacterObject> ResolveClassList(MBObjectManager om, List<string>[] troopsByClass, int cls, BasicCultureObject culture)

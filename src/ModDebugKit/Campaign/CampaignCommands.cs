@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using ModDebugKit.Battles;
 using ModDebugKit.Commands;
 using ModDebugKit.Diagnostics;
 using ModDebugKit.Io;
@@ -108,13 +109,10 @@ namespace ModDebugKit.CampaignControl
         {
             if (Campaign.Current == null || Hero.MainHero == null)
                 return DbgOutcome.Failure("no active campaign");
-            var arg = command.Arg(0);
-            if (string.IsNullOrWhiteSpace(arg) || !int.TryParse(arg, out var value))
+            var current = Hero.MainHero.Gold;
+            if (!GoldArg.TryResolveDelta(command.Arg(0), current, out var delta))
                 return DbgOutcome.Failure("usage: dbg.camp.gold <n|+n|-n>");
 
-            var relative = arg[0] == '+' || arg[0] == '-';
-            var current = Hero.MainHero.Gold;
-            var delta = relative ? value : value - current;
             Hero.MainHero.ChangeHeroGold(delta);
             return DbgOutcome.Success($"gold {current} -> {Hero.MainHero.Gold}", new { from = current, to = Hero.MainHero.Gold });
         }
