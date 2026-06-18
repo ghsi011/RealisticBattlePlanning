@@ -92,7 +92,7 @@ namespace ModDebugKit.Determinism
             if (mission?.Scene == null)
                 return DbgOutcome.Failure("no active mission");
             if (!float.TryParse(command.Arg(0), NumberStyles.Float, CultureInfo.InvariantCulture, out var scale) || scale < 0f)
-                return DbgOutcome.Failure("usage: dbg.timescale <x>=0  (0=pause, <1 slow-mo, 1 normal, >1 fast-forward)");
+                return DbgOutcome.Failure("usage: dbg.timescale <x>  (x >= 0; 0=pause, <1 slow-mo, 1 normal, >1 fast-forward)");
 
             _stepping = false;
             if (scale > 1f)

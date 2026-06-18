@@ -36,5 +36,23 @@ namespace ModDebugKit.Tests
             Assert.Null(token["stack"]);    // not set -> omitted
             Assert.Null(token["snapshot"]); // not set -> omitted
         }
+
+        [Fact]
+        public void Snapshot_path_is_emitted_when_set()
+        {
+            var rec = new ErrorRecord { Seq = 1, TimestampUtc = "x", Source = "modkit", Message = "boom", Snapshot = "error_snapshot.json" };
+            var token = JObject.Parse(DbgJson.Line(rec));
+            Assert.Equal("error_snapshot.json", (string)token["snapshot"]);
+        }
+
+        [Fact]
+        public void False_terminating_is_present_not_omitted()
+        {
+            // Only null is omitted; a false nullable bool must still serialize as false.
+            var rec = new ErrorRecord { Seq = 1, TimestampUtc = "x", Source = "appdomain", Message = "m", Terminating = false };
+            var token = JObject.Parse(DbgJson.Line(rec));
+            Assert.NotNull(token["terminating"]);
+            Assert.False((bool)token["terminating"]);
+        }
     }
 }

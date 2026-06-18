@@ -17,6 +17,9 @@ namespace ModDebugKit.Tests
             Assert.Equal(Path.Combine(Root, "io", "out.jsonl"), p.CommandOut);
             Assert.Equal(Path.Combine(Root, "battle_state.json"), p.BattleState);
             Assert.Equal(Path.Combine(Root, "telemetry.jsonl"), p.Telemetry);
+            Assert.Equal(Path.Combine(Root, "errors.jsonl"), p.Errors);
+            Assert.Equal(Path.Combine(Root, "error_snapshot.json"), p.ErrorSnapshot);
+            Assert.Equal(Path.Combine(Root, "campaign_state.json"), p.CampaignState);
             Assert.Equal(Path.Combine(Root, "moddebugkit.log"), p.Log);
         }
 

@@ -154,7 +154,7 @@ namespace ModDebugKit.Diagnostics
                 if (mission == null)
                     return null;
                 var dto = BattleSnapshotReader.Capture(mission);
-                var path = Path.Combine(ModDebugKitRuntime.Paths.Root, "error_snapshot.json");
+                var path = ModDebugKitRuntime.Paths.ErrorSnapshot;
                 File.WriteAllText(path, DbgJson.Pretty(dto));
                 return path;
             }

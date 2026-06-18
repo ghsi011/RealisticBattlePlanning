@@ -35,11 +35,15 @@ namespace ModDebugKit.Io
         /// <summary>Captured exceptions with stack traces (M2).</summary>
         public string Errors => Path.Combine(Root, "errors.jsonl");
 
+        /// <summary>Battle snapshot auto-written on the first captured fault.</summary>
+        public string ErrorSnapshot => Path.Combine(Root, "error_snapshot.json");
+
+        /// <summary>Default destination for <c>dbg.camp.status</c>.</summary>
+        public string CampaignState => Path.Combine(Root, "campaign_state.json");
+
         public string Log => Path.Combine(Root, "moddebugkit.log");
 
         public string ShotsDir => Path.Combine(Root, "shots");
-
-        public string RecDir => Path.Combine(Root, "rec");
 
         /// <summary>Battle/scenario preset library; <c>dbg.battle &lt;name&gt;</c> reads <c>presets/&lt;name&gt;.json</c>.</summary>
         public string PresetsDir => Path.Combine(Root, "presets");

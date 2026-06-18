@@ -85,5 +85,31 @@ namespace ModDebugKit.Tests
             Assert.True(DbgCommandParser.TryParse("dbg.ping", out var cmd, out _));
             Assert.Null(cmd.Arg(0));
         }
+
+        [Fact]
+        public void Trailing_dot_head_yields_empty_name()
+        {
+            Assert.True(DbgCommandParser.TryParse("dbg.", out var cmd, out _));
+            Assert.Equal("dbg", cmd.Namespace);
+            Assert.Equal(string.Empty, cmd.Name);
+            Assert.Equal("dbg.", cmd.Full);
+        }
+
+        [Fact]
+        public void Leading_dot_head_yields_empty_namespace()
+        {
+            Assert.True(DbgCommandParser.TryParse(".ping", out var cmd, out _));
+            Assert.Equal(string.Empty, cmd.Namespace);
+            Assert.Equal("ping", cmd.Name);
+            Assert.Equal("ping", cmd.Full); // empty namespace -> Full is just the name
+        }
+
+        [Fact]
+        public void Trailing_escape_at_end_of_line_is_kept_as_a_literal()
+        {
+            // A backslash with no following char degrades to a literal (documented behavior).
+            Assert.True(DbgCommandParser.TryParse("dbg.x a\\", out var cmd, out _));
+            Assert.Equal(new[] { "a\\" }, cmd.Args);
+        }
     }
 }

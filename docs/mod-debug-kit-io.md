@@ -18,11 +18,14 @@ environment variable (set before launch) to redirect output anywhere.
     in.txt          # append commands here
     out.jsonl       # one result object per line
   battle_state.json # last dbg.snapshot
+  campaign_state.json # last dbg.camp.status
+  error_snapshot.json # battle state auto-captured on the first fault
   moddebugkit.log   # session log
   telemetry.jsonl   # (M2) flight recorder
   errors.jsonl      # (M2) captured exceptions
   shots/            # (M3) screenshots
-  rec/              # (M3) frame recordings
+  presets/          # dbg.battle <name> reads presets/<name>.json
+  scripts/          # dbg.run <name> reads scripts/<name>.json
 ```
 
 ## The command channel

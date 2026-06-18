@@ -30,10 +30,10 @@ namespace ModDebugKit.Scripting
             if (ScriptRunner.Running)
                 return DbgOutcome.Failure("a script is already running (dbg.stop first)");
 
-            if (!TryLoad(command.Arg(0), out var script, out var name, out var error))
+            if (!JsonFileLibrary.TryLoad<DbgScript>("script", command.Arg(0), ModDebugKitRuntime.Paths.ScriptsDir, out var script, out var path, out var error))
                 return DbgOutcome.Failure(error);
 
-            return ScriptRunner.Start(script, name);
+            return ScriptRunner.Start(script, System.IO.Path.GetFileNameWithoutExtension(path));
         }
 
         private static DbgOutcome Stop(DbgCommand command)
@@ -41,44 +41,6 @@ namespace ModDebugKit.Scripting
             var wasRunning = ScriptRunner.Running;
             ScriptRunner.Stop();
             return DbgOutcome.Success(wasRunning ? "script stopped" : "no script running");
-        }
-
-        private static bool TryLoad(string arg, out DbgScript script, out string name, out string error)
-        {
-            script = null;
-            name = null;
-            error = null;
-
-            var paths = ModDebugKitRuntime.Paths;
-            var looksLikePath = arg.IndexOf('/') >= 0 || arg.IndexOf('\\') >= 0 ||
-                                arg.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
-            var path = looksLikePath ? paths.Resolve(arg) : Path.Combine(paths.ScriptsDir, arg + ".json");
-            name = Path.GetFileNameWithoutExtension(path);
-
-            if (!File.Exists(path))
-            {
-                error = $"script not found: {path}";
-                return false;
-            }
-
-            string json;
-            try
-            {
-                json = File.ReadAllText(path);
-            }
-            catch (Exception e)
-            {
-                error = $"could not read script '{path}': {e.Message}";
-                return false;
-            }
-
-            if (!DbgJson.TryDeserialize<DbgScript>(json, out script, out var parseError))
-            {
-                error = $"script parse error in '{path}': {parseError}";
-                return false;
-            }
-
-            return true;
         }
     }
 }

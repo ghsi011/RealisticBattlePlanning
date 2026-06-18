@@ -34,6 +34,9 @@ namespace ModDebugKit.Battles
             if (preset.TimeOfDay is { } tod && (tod < 0f || tod > 24f))
                 errors.Add($"timeOfDay {tod} is outside 0-24");
 
+            // GameType and Season are intentionally not validated here — they pass straight through
+            // to the engine's PrepareBattleData, which is the authority on the valid values.
+
             ValidateSide(preset.Player, "player", errors);
             ValidateSide(preset.Enemy, "enemy", errors);
             return errors;

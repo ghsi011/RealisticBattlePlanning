@@ -54,7 +54,7 @@ namespace ModDebugKit.Battles
             string source;
             if (command.Arg(0) != null)
             {
-                if (!TryLoadPreset(command.Arg(0), out preset, out var loadError))
+                if (!JsonFileLibrary.TryLoad<BattlePreset>("preset", command.Arg(0), ModDebugKitRuntime.Paths.PresetsDir, out preset, out _, out var loadError))
                     return DbgOutcome.Failure(loadError);
                 source = command.Arg(0);
             }
@@ -197,48 +197,6 @@ namespace ModDebugKit.Battles
                     DbgLog.Error("dbg.restart: relaunch threw.", e);
                 }
             }
-        }
-
-        /// <summary>
-        /// Resolve a preset argument: a bare name -> <c>presets/&lt;name&gt;.json</c>;
-        /// anything with a separator or a .json suffix -> a path relative to the
-        /// output root (or absolute).
-        /// </summary>
-        private static bool TryLoadPreset(string arg, out BattlePreset preset, out string error)
-        {
-            preset = null;
-            error = null;
-
-            var paths = ModDebugKitRuntime.Paths;
-            string path;
-            var looksLikePath = arg.IndexOf('/') >= 0 || arg.IndexOf('\\') >= 0 ||
-                                arg.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
-            path = looksLikePath ? paths.Resolve(arg) : Path.Combine(paths.PresetsDir, arg + ".json");
-
-            if (!File.Exists(path))
-            {
-                error = $"preset not found: {path}";
-                return false;
-            }
-
-            string json;
-            try
-            {
-                json = File.ReadAllText(path);
-            }
-            catch (Exception e)
-            {
-                error = $"could not read preset '{path}': {e.Message}";
-                return false;
-            }
-
-            if (!DbgJson.TryDeserialize<BattlePreset>(json, out preset, out var parseError))
-            {
-                error = $"preset parse error in '{path}': {parseError}";
-                return false;
-            }
-
-            return true;
         }
     }
 }

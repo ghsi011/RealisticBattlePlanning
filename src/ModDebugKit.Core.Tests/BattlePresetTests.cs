@@ -29,6 +29,19 @@ namespace ModDebugKit.Tests
         }
 
         [Fact]
+        public void Full_round_trip_preserves_both_rosters_and_commanders()
+        {
+            var json = DbgJson.Pretty(BattlePreset.CreateDefault());
+            Assert.True(DbgJson.TryDeserialize<BattlePreset>(json, out var p, out var error), error);
+            Assert.Equal(new[] { 150, 49, 0, 0 }, p.Player.Counts);
+            Assert.Equal(new[] { 120, 40, 40, 0 }, p.Enemy.Counts);
+            Assert.Equal("commander_1", p.Player.Commander);
+            Assert.Equal("commander_11", p.Enemy.Commander);
+            Assert.Equal("empire", p.Player.Culture);
+            Assert.Equal("aserai", p.Enemy.Culture);
+        }
+
+        [Fact]
         public void Empty_preset_is_valid_all_fields_default()
         {
             // A bare {} preset is legal — every field falls back to a default at build time.

@@ -46,6 +46,22 @@ namespace ModDebugKit.Tests
         }
 
         [Fact]
+        public void Exactly_at_the_dominant_threshold_reads_mostly()
+        {
+            // 7/10 = exactly 0.70 -> "Mostly" (boundary is inclusive).
+            var c = CompositionClassifier.Classify(infantry: 7, ranged: 3, cavalry: 0, horseArcher: 0);
+            Assert.Equal("Mostly Infantry", c.Label);
+        }
+
+        [Fact]
+        public void A_tie_for_max_picks_the_earlier_class_deterministically()
+        {
+            // 50/50 infantry/ranged: max is a tie; the scan keeps the first (Infantry), under threshold -> Mixed.
+            var c = CompositionClassifier.Classify(infantry: 50, ranged: 50, cavalry: 0, horseArcher: 0);
+            Assert.Equal("Mixed (mostly Infantry)", c.Label);
+        }
+
+        [Fact]
         public void Counts_are_preserved_on_the_dto()
         {
             var c = CompositionClassifier.Classify(1, 2, 3, 4);

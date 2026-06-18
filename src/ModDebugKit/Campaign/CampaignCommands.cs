@@ -95,7 +95,7 @@ namespace ModDebugKit.CampaignControl
 
             var target = command.Arg(0) != null
                 ? ModDebugKitRuntime.Paths.Resolve(command.Arg(0))
-                : Path.Combine(ModDebugKitRuntime.Paths.Root, "campaign_state.json");
+                : ModDebugKitRuntime.Paths.CampaignState;
             var dir = Path.GetDirectoryName(target);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
