@@ -139,6 +139,21 @@ menu). Each step's result is journaled to `out.jsonl` like any command.
 
 (A nested `dbg.run`/`dbg.stop` inside a script is ignored.)
 
+### Shipped scenarios (`scripts/` ships with the module)
+
+- **`demo`** — full lifecycle: build → ready → snapshot → screenshot → leave.
+- **`formation-mismatch`** — dogfood: builds a battle, relayouts infantry/ranged/
+  cavalry into the Skirmisher/HeavyInfantry/LightCavalry *slots*, and snapshots
+  `dogfood-mismatch.json` — where `slotClass` reads "Skirmisher" but
+  `composition.label` reads "Infantry". Proof the kit catches the
+  slot ≠ class ≠ contents bug (read `composition`, never the slot).
+- **`move-watch`** — dogfood: builds a battle, readies, and lets the formations
+  advance; `telemetry.jsonl` then carries `order` events with
+  `targetHasNavMeshFace` for every Move. A `false` there is the silent-ignore
+  move bug RBP hit; healthy moves read `true`.
+
+Run any with `dbg.run <name>`.
+
 The time controls work through the engine's time-speed **request** system (`Scene.TimeSpeed` is overwritten each tick to the minimum request), which is why `dbg.pause` sticks where a raw `TimeSpeed = 0` would not.
 
 Together these give a full mouse-free battle lifecycle: `dbg.battle` → (`dbg.assign`/`dbg.layout` to set the layout) → `dbg.ready` → `dbg.snapshot` → `dbg.restart` or `dbg.leave`.
