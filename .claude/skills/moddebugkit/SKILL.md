@@ -88,7 +88,8 @@ dbg.leave             # back to the menu   (or dbg.restart to re-run the same pr
 
 **Liveness / channel:** `dbg.ping` · `dbg.help` (lists every command)
 
-**Snapshot** — `dbg.snapshot [path]` → `battle_state.json`. Per formation:
+**Snapshot** — `dbg.snapshot [path] [all|player|enemy]` → `battle_state.json` (filter
+the teams; default all). Per formation:
 `number` (1–8), `slotClass`, `representativeClass`, **`composition` {counts+label}**,
 `count`, `position`, `facing`, `order` {`type`, `moveTarget`, **`targetHasNavMeshFace`**},
 `captain`, `casualtiesPercent`, `broken`. **Always trust `composition`, not the slot
@@ -100,6 +101,14 @@ name** — a formation's slot ≠ its contents.
 - `dbg.ready` · `dbg.leave` · `dbg.restart`
 - `dbg.assign <all|inf|ranged|cav|ha> <1-8>` — move the player's matching units into a formation
 - `dbg.layout inf=1 ranged=3 cav=5 ha=7` — several assigns at once
+- assign/layout work **any time**: during deployment they queue and auto-apply at
+  `dbg.ready` (the engine auto-sort reverts an immediate move; the kit handles the
+  timing), and casualties resolve correctly against the laid-out slots.
+
+**Time-series** — `dbg.track <seconds> [interval=1] [all|player|enemy]` → `track.jsonl`
+(append-only, truncated per run): samples each formation every interval for the window
+(`t`, `n`, `side`, `comp`, `order`, `x`, `y`, `cas`). One command captures a whole
+maneuver (move→flank→charge, an orbit) instead of a manual wait+snapshot loop.
 
 **Flight recorder:** `dbg.telemetry [on|off|clear|status]` → `telemetry.jsonl`
 (phases, `agent_removed` with killer, `order` events with the nav-mesh verdict).
