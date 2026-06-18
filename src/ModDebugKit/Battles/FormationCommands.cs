@@ -39,10 +39,18 @@ namespace ModDebugKit.Battles
             if (!TryParseFormation(command.Arg(1), out var number))
                 return DbgOutcome.Failure($"formation must be 1-8, got '{command.Arg(1)}'");
 
+            if (InDeployment())
+            {
+                Observability.DebugMissionObserver.Active?.EnqueueLayout(selector, number);
+                return DbgOutcome.Success(
+                    $"queued {selector} -> formation {number} ({(FormationClass)(number - 1)}); applies at battle start (dbg.ready)",
+                    new { deferred = true, formation = number, selector = selector.ToString() });
+            }
+
             var moved = MoveToFormation(team, selector, number);
             return DbgOutcome.Success(
-                $"assigned {moved} {selector} unit(s) to formation {number} ({(FormationClass)(number - 1)}){DeploymentHint()}",
-                new { moved, formation = number, selector = selector.ToString(), deploymentMayRevert = InDeployment() });
+                $"assigned {moved} {selector} unit(s) to formation {number} ({(FormationClass)(number - 1)})",
+                new { moved, formation = number, selector = selector.ToString() });
         }
 
         private static DbgOutcome Layout(DbgCommand command)
@@ -53,6 +61,7 @@ namespace ModDebugKit.Battles
             if (command.Args.Count == 0)
                 return DbgOutcome.Failure("usage: dbg.layout <sel=N> [sel=N ...]  e.g. dbg.layout inf=1 ranged=3 cav=5 ha=7");
 
+            var deferring = InDeployment();
             var applied = new List<object>();
             foreach (var pair in command.Args)
             {
@@ -64,25 +73,33 @@ namespace ModDebugKit.Battles
                 if (!TryParseFormation(pair.Substring(eq + 1), out var number))
                     return DbgOutcome.Failure($"formation must be 1-8 in '{pair}'");
 
-                var moved = MoveToFormation(team, selector, number);
-                applied.Add(new { selector = selector.ToString(), formation = number, moved });
+                if (deferring)
+                {
+                    Observability.DebugMissionObserver.Active?.EnqueueLayout(selector, number);
+                    applied.Add(new { selector = selector.ToString(), formation = number, deferred = true });
+                }
+                else
+                {
+                    var moved = MoveToFormation(team, selector, number);
+                    applied.Add(new { selector = selector.ToString(), formation = number, moved });
+                }
             }
 
-            return DbgOutcome.Success($"applied layout: {applied.Count} assignment(s){DeploymentHint()}",
-                new { assignments = applied, deploymentMayRevert = InDeployment() });
+            return DbgOutcome.Success(
+                deferring
+                    ? $"queued layout: {applied.Count} assignment(s); applies at battle start (dbg.ready)"
+                    : $"applied layout: {applied.Count} assignment(s)",
+                new { assignments = applied, deferred = deferring });
         }
 
         /// <summary>True while the mission is still in the deployment phase, where the
-        /// engine's auto-sort reverts programmatic formation reassignment on a later tick.</summary>
+        /// engine's auto-sort reverts programmatic formation reassignment on a later tick —
+        /// so a deployment-time assign/layout is queued and re-applied at OnDeploymentFinished
+        /// (see <see cref="Observability.DebugMissionObserver"/>) instead of fighting the sort.</summary>
         private static bool InDeployment()
             => Mission.Current != null && Mission.Current.Mode == MissionMode.Deployment;
 
-        private static string DeploymentHint()
-            => InDeployment()
-                ? " - WARNING: ran during deployment; the auto-sort will revert this. Call dbg.assign/dbg.layout AFTER dbg.ready so it sticks."
-                : string.Empty;
-
-        private static int MoveToFormation(Team team, AgentSelector selector, int number)
+        internal static int MoveToFormation(Team team, AgentSelector selector, int number)
         {
             var target = team.GetFormation((FormationClass)(number - 1));
             if (target == null)

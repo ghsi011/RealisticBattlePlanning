@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ModDebugKit.Battles;
 using ModDebugKit.Diagnostics;
 using TaleWorlds.MountAndBlade;
 
@@ -26,11 +27,46 @@ namespace ModDebugKit.Observability
         /// <summary>True once deployment has finished and the battle proper is running.</summary>
         public bool Deployed { get; private set; }
 
+        // Mission-scoped queue of formation assignments requested during the deployment
+        // phase, where the engine's auto-sort reverts an immediate reassignment. They are
+        // applied here at OnDeploymentFinished (before the baseline capture, so casualties
+        // resolve against the laid-out slots), so dbg.assign/dbg.layout "just work" without
+        // the caller having to sequence them after dbg.ready.
+        private readonly List<(AgentSelector Selector, int Number)> _pendingLayout = new();
+
+        public void EnqueueLayout(AgentSelector selector, int number) => _pendingLayout.Add((selector, number));
+
         public override void OnDeploymentFinished()
         {
             base.OnDeploymentFinished();
             Deployed = true;
+            ApplyPendingLayout();
             CaptureBaseline();
+        }
+
+        private void ApplyPendingLayout()
+        {
+            if (_pendingLayout.Count == 0)
+                return;
+            try
+            {
+                var team = Mission.PlayerTeam;
+                if (team != null)
+                {
+                    var moves = 0;
+                    foreach (var (selector, number) in _pendingLayout)
+                        moves += FormationCommands.MoveToFormation(team, selector, number);
+                    DbgLog.Info($"Observer: applied {_pendingLayout.Count} deferred layout assignment(s) at deployment finish ({moves} unit-move(s)).");
+                }
+            }
+            catch (Exception e)
+            {
+                DbgLog.Error("Observer: applying the deferred layout failed.", e);
+            }
+            finally
+            {
+                _pendingLayout.Clear();
+            }
         }
 
         public int? InitialCount(Team team, Formation formation)
