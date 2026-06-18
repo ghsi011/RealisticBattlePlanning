@@ -140,6 +140,10 @@ namespace ModDebugKit.CampaignControl
         {
             if (Campaign.Current == null)
                 return DbgOutcome.Failure("no active campaign");
+            // The engine's TimeControlMode setter silently no-ops while locked (camera move, popups,
+            // menus), so reporting success would be misleading.
+            if (Campaign.Current.TimeControlModeLock)
+                return DbgOutcome.Failure("campaign time control is locked (popup/camera/menu active); cannot change mode now");
             switch (command.Arg(0)?.Trim().ToLowerInvariant())
             {
                 case "stop":

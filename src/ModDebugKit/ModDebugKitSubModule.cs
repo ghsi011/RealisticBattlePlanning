@@ -56,10 +56,19 @@ namespace ModDebugKit
         protected override void OnApplicationTick(float dt)
         {
             base.OnApplicationTick(dt);
-            _channel?.Tick(dt);
-            Battles.BattleCommands.TickRestart();
-            Determinism.DeterminismControls.Tick();
-            Scripting.ScriptRunner.Tick(dt);
+            _channel?.Tick(dt); // self-guarding
+            // The one top-level pump: keep the kit's "never throw into the game" invariant even
+            // as the sub-Ticks evolve (Module.OnApplicationTick has no catch around its submodule loop).
+            try
+            {
+                Battles.BattleCommands.TickRestart();
+                Determinism.DeterminismControls.Tick();
+                Scripting.ScriptRunner.Tick(dt);
+            }
+            catch (Exception e)
+            {
+                DbgLog.Error("OnApplicationTick pump failed (will retry next frame).", e);
+            }
         }
 
         public override void OnMissionBehaviorInitialize(Mission mission)

@@ -53,6 +53,11 @@ namespace ModDebugKit.Determinism
                 _stepping = false;
                 return;
             }
+            // A mission swap cancels an in-progress step explicitly, rather than relying on the
+            // teardown null-Scene window to clear it (SyncMission no-ops when the mission is the same).
+            SyncMission(mission);
+            if (!_stepping)
+                return;
             if (mission.CurrentTime >= _stepUntilMissionTime)
             {
                 ApplyRequest(mission, 0f); // re-pause

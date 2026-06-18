@@ -75,7 +75,10 @@ namespace ModDebugKit.Io
             }
             catch (Exception e)
             {
-                DbgLog.Error("File channel pump failed (will retry next poll).", e);
+                // Transient file contention with the external writer (or a mid-read truncation) is
+                // expected and self-recovers next poll; log at Warn so the kit's own retryable IO
+                // doesn't pollute the fault stream (errors.jsonl) or trip the auto-snapshot.
+                DbgLog.Warn($"File channel pump failed (will retry next poll): {e.Message}");
             }
         }
 
@@ -104,6 +107,9 @@ namespace ModDebugKit.Io
                         break;
                     read += n;
                 }
+
+                if (read <= 0)
+                    return; // truncated/recreated mid-read; the next poll's length check recovers
 
                 var lastNewline = Array.LastIndexOf(buffer, (byte)'\n', read - 1);
                 if (lastNewline < 0)

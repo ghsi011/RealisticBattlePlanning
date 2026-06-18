@@ -16,6 +16,11 @@ namespace ModDebugKit.Diagnostics
     /// <c>error_snapshot.json</c> of the live battle, so a crash leaves a trail.
     /// Reentrancy-guarded and self-contained — it never calls back into
     /// <see cref="DbgLog"/> (which would recurse).
+    ///
+    /// AppDomain.UnhandledException can fire on ANY thread, so the file write is
+    /// serialized under <see cref="Sync"/> (shared with <see cref="Clear"/>) and
+    /// the live-battle auto-snapshot only runs on the main thread (engine
+    /// collections aren't safe to read off it).
     /// </summary>
     public static class ErrorLog
     {
@@ -26,6 +31,9 @@ namespace ModDebugKit.Diagnostics
 
         public static bool Enabled { get; set; } = true;
 
+        /// <summary>Set once at load (on the main thread); -1 until then. Gates the auto-snapshot.</summary>
+        public static int MainThreadId { get; set; } = -1;
+
         /// <summary>Adapter for <see cref="DbgLog.ErrorSink"/>.</summary>
         public static void FromLog(string message, Exception exception) =>
             Capture("modkit", message, exception, terminating: null);
@@ -35,25 +43,25 @@ namespace ModDebugKit.Diagnostics
             if (!Enabled)
                 return;
 
+            bool reentrant;
             lock (Sync)
             {
-                if (_capturing)
-                    return; // a fault while capturing a fault — drop it rather than recurse
-                _capturing = true;
+                reentrant = _capturing;
+                if (!reentrant)
+                    _capturing = true;
+            }
+
+            // A fault raised WHILE capturing another (e.g. the auto-snapshot itself faulting):
+            // leave a breadcrumb but do NOT re-enter the snapshot/DbgLog path.
+            if (reentrant)
+            {
+                WriteRecord(BuildRecord(source, "[suppressed-during-capture] " + message, exception, terminating));
+                return;
             }
 
             try
             {
-                var record = new ErrorRecord
-                {
-                    Seq = Interlocked.Increment(ref _seq),
-                    TimestampUtc = DateTime.UtcNow.ToString("o"),
-                    Source = source,
-                    Message = message,
-                    ExceptionType = exception?.GetType().FullName,
-                    Stack = exception?.ToString(),
-                    Terminating = terminating,
-                };
+                var record = BuildRecord(source, message, exception, terminating);
 
                 try
                 {
@@ -72,8 +80,7 @@ namespace ModDebugKit.Diagnostics
                     record.Snapshot = TryAutoSnapshot();
                 }
 
-                var line = DbgJson.Line(record);
-                File.AppendAllText(ModDebugKitRuntime.Paths.Errors, line + Environment.NewLine);
+                WriteRecord(record);
             }
             catch (Exception)
             {
@@ -109,10 +116,40 @@ namespace ModDebugKit.Diagnostics
                 Errors);
         }
 
+        private static ErrorRecord BuildRecord(string source, string message, Exception exception, bool? terminating) => new()
+        {
+            Seq = Interlocked.Increment(ref _seq),
+            TimestampUtc = DateTime.UtcNow.ToString("o"),
+            Source = source,
+            Message = message,
+            ExceptionType = exception?.GetType().FullName,
+            Stack = exception?.ToString(),
+            Terminating = terminating,
+        };
+
+        // Serialized against Clear so a concurrent append/truncate can't collide on errors.jsonl.
+        private static void WriteRecord(ErrorRecord record)
+        {
+            try
+            {
+                var line = DbgJson.Line(record);
+                lock (Sync)
+                    File.AppendAllText(ModDebugKitRuntime.Paths.Errors, line + Environment.NewLine);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         private static string TryAutoSnapshot()
         {
             try
             {
+                // Reading live engine collections off the main thread can crash; the AppDomain
+                // hook may run on a worker thread, so only snapshot when we know we're on it.
+                if (MainThreadId > 0 && Thread.CurrentThread.ManagedThreadId != MainThreadId)
+                    return null;
+
                 var mission = Mission.Current;
                 if (mission == null)
                     return null;

@@ -1,4 +1,5 @@
 using System.IO;
+using System.Threading;
 using ModDebugKit.Battles;
 using ModDebugKit.Commands;
 using ModDebugKit.Diagnostics;
@@ -30,6 +31,7 @@ namespace ModDebugKit
             Directory.CreateDirectory(Paths.IoDir);
             DbgLog.Init(Paths.Log);
             DbgLog.ErrorSink = ErrorLog.FromLog; // every kit-caught fault also lands in errors.jsonl
+            ErrorLog.MainThreadId = Thread.CurrentThread.ManagedThreadId; // Initialize runs on the main thread
 
             Dispatcher = new CommandDispatcher();
             CoreCommands.RegisterAll(Dispatcher);
