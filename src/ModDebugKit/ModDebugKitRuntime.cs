@@ -40,6 +40,7 @@ namespace ModDebugKit
             Determinism.DeterminismControls.RegisterAll(Dispatcher);
             Capture.CaptureCommands.RegisterAll(Dispatcher);
             Scripting.ScriptCommands.RegisterAll(Dispatcher);
+            CampaignControl.CampaignCommands.RegisterAll(Dispatcher);
 
             Initialized = true;
         }

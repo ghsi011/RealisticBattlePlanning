@@ -109,6 +109,14 @@ Example:
 | `dbg.shot [name]`  | `{ image, sidecar, inMission }`                             | Clean game-only screenshot to `shots/<name>.bmp` (written next frame) + `shots/<name>.json` sidecar with the battle state at capture. Convert to PNG with `tools/mdk-shot.ps1`. |
 | `dbg.run <name\|path>` | `{ name, steps }`                                       | Run a timed script of dbg commands from `scripts/<name>.json`. Steps fire by elapsed wall-clock time, so one script spans menu → battle → result. |
 | `dbg.stop`         | —                                                           | Stop the running script.                                           |
+| `dbg.camp.saves`   | `{ saves: string[] }`                                       | List save names, newest first.                                     |
+| `dbg.camp.load [save]` | `{ save }`                                              | Load a campaign save (no arg = newest, i.e. Continue). Read-only on the save file. |
+| `dbg.camp.status [path]` | `{ path, day, gold, partySize }`                      | Write the campaign state (day, gold, hero, position, settlement, party roster) to `campaign_state.json`. |
+| `dbg.camp.gold <n\|+n\|-n>` | `{ from, to }`                                      | Set (`n`) or adjust (`+n`/`-n`) the player's gold.                 |
+| `dbg.camp.party <troopId> <count>` | `{ troop, count, partySize }`              | Add (or remove, negative) troops in the main party.                |
+| `dbg.camp.time <stop\|play\|fast>` | —                                          | Set the campaign time-control mode.                                |
+
+Campaign commands change only in-memory state — **none of them writes a save file**, so the player's saves are never modified.
 
 ## Scripts — `scripts/*.json`
 
@@ -270,6 +278,12 @@ leaves a state trail.
 | `stack`         | string | Full stack trace; omitted when there is no exception.       |
 | `terminating`   | bool   | True when the runtime reported the exception process-fatal. |
 | `snapshot`      | string | Path of the auto-snapshot written for the first fault.      |
+
+## `campaign_state.json` — campaign snapshot
+
+Written by `dbg.camp.status`: `{ capturedAtUtc, day, gold, hero, position {x,y},
+currentSettlement, partySize, members: [{ troop, name, count }] }`. The campaign
+analogue of `battle_state.json`.
 
 ## `shots/` — screenshots + sidecars
 
