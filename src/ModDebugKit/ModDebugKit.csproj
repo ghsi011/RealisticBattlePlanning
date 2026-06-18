@@ -101,6 +101,14 @@
   -->
   <ItemGroup>
     <ModuleFiles Include="$(MSBuildThisFileDirectory)Module\**\*.*" />
+    <!--
+      Shipped sample scenarios. Sourced from Scenarios\ (not Debug\, which the
+      generic [Dd]ebug/ .gitignore rule would hide) and deployed into the
+      runtime Debug\scripts / Debug\presets so `dbg.run <name>` / `dbg.battle
+      <name>` find them out of the box.
+    -->
+    <ScenarioScripts Include="$(MSBuildThisFileDirectory)Scenarios\scripts\**\*.*" />
+    <ScenarioPresets Include="$(MSBuildThisFileDirectory)Scenarios\presets\**\*.*" />
   </ItemGroup>
 
   <Target Name="DeployToBannerlord" AfterTargets="Build" Condition="'$(HasBannerlordInstall)' == 'true'">
@@ -115,6 +123,12 @@
           Condition="Exists('%(Identity)')" />
     <Copy SourceFiles="@(ModuleFiles)"
           DestinationFiles="@(ModuleFiles->'$(ModuleDeployDir)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ScenarioScripts)"
+          DestinationFiles="@(ScenarioScripts->'$(ModuleDeployDir)\Debug\scripts\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ScenarioPresets)"
+          DestinationFiles="@(ScenarioPresets->'$(ModuleDeployDir)\Debug\presets\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
     <Message Importance="high" Text="Deployed $(ModuleId) -&gt; $(ModuleDeployDir)" />
   </Target>
