@@ -44,6 +44,9 @@ namespace ModDebugKit.Io
         /// <summary>Battle/scenario preset library; <c>dbg.battle &lt;name&gt;</c> reads <c>presets/&lt;name&gt;.json</c>.</summary>
         public string PresetsDir => Path.Combine(Root, "presets");
 
+        /// <summary>Script library; <c>dbg.run &lt;name&gt;</c> reads <c>scripts/&lt;name&gt;.json</c>.</summary>
+        public string ScriptsDir => Path.Combine(Root, "scripts");
+
         /// <summary>Resolve a caller-supplied path: absolute as-is, otherwise relative to the root.</summary>
         public string Resolve(string maybeRelative)
         {

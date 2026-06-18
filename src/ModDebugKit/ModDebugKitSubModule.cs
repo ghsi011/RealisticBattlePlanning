@@ -59,6 +59,7 @@ namespace ModDebugKit
             _channel?.Tick(dt);
             Battles.BattleCommands.TickRestart();
             Determinism.DeterminismControls.Tick();
+            Scripting.ScriptRunner.Tick(dt);
         }
 
         public override void OnMissionBehaviorInitialize(Mission mission)

@@ -41,11 +41,13 @@ namespace.command arg1 arg2 "an arg with spaces"
 - Only the **first** `.` splits namespace from name, so `dbg.camp.goto` parses
   as namespace `dbg`, name `camp.goto`.
 
-**Append, don't overwrite.** The channel tracks a byte cursor and executes only
-*newly appended* complete lines (a line without a trailing newline waits until
-its newline arrives). Lines already present when the module loads are **skipped**
-— a stale file never re-runs last session's commands. If the file is truncated
-or replaced (length shrinks), the channel resets and re-reads from the top.
+**Append, don't overwrite.** The channel **truncates `in.txt` to empty when the
+module loads**, then executes each *newly appended* complete line (a line without
+a trailing newline waits until its newline arrives). So the file only ever holds
+the current session's commands — no stale file re-runs last session's commands,
+and there's no ambiguity about lines appended during load. Wait for `dbg.ping` to
+respond before driving, to be sure the channel is up. If the file is later
+truncated/replaced (length shrinks), the channel resets and re-reads from the top.
 
 Drive it from a shell, e.g.:
 
@@ -105,6 +107,37 @@ Example:
 | `dbg.step [seconds]` | `{ seconds }`                                             | Advance ~N mission-seconds at normal speed, then auto-pause (default 0.5). Pause → step → snapshot → step is the deterministic inspection loop. |
 | `dbg.freeze <enemy\|all\|player\|none>` | `{ frozen, count, who }`                       | Pause a side's AI and stop its formations. Reliable for the **player** side; the **enemy** general AI keeps re-commanding, so for a hard freeze of everything use `dbg.pause`. `none` unfreezes all. |
 | `dbg.shot [name]`  | `{ image, sidecar, inMission }`                             | Clean game-only screenshot to `shots/<name>.bmp` (written next frame) + `shots/<name>.json` sidecar with the battle state at capture. Convert to PNG with `tools/mdk-shot.ps1`. |
+| `dbg.run <name\|path>` | `{ name, steps }`                                       | Run a timed script of dbg commands from `scripts/<name>.json`. Steps fire by elapsed wall-clock time, so one script spans menu → battle → result. |
+| `dbg.stop`         | —                                                           | Stop the running script.                                           |
+
+## Scripts — `scripts/*.json`
+
+A `dbg.run` script is a named, timed sequence — the whole command set as one
+repeatable scenario. Each step runs its `do` command line once `at` seconds have
+elapsed since the script started (wall-clock, so it works across loads and at the
+menu). Each step's result is journaled to `out.jsonl` like any command.
+
+```json
+{
+  "name": "demo",
+  "steps": [
+    { "at": 0.0,  "do": "dbg.telemetry clear" },
+    { "at": 0.3,  "do": "dbg.battle" },
+    { "at": 18.0, "do": "dbg.ready" },
+    { "at": 22.0, "do": "dbg.snapshot t22.json" },
+    { "at": 24.0, "do": "dbg.layout inf=5 ranged=6" },
+    { "at": 27.0, "do": "dbg.leave" }
+  ]
+}
+```
+
+| field        | type   | notes                                                    |
+|--------------|--------|----------------------------------------------------------|
+| `name`       | string | Label (informational).                                   |
+| `steps[].at` | float  | Seconds since the script started before the step fires.  |
+| `steps[].do` | string | A command line, parsed and dispatched like any command. |
+
+(A nested `dbg.run`/`dbg.stop` inside a script is ignored.)
 
 The time controls work through the engine's time-speed **request** system (`Scene.TimeSpeed` is overwritten each tick to the minimum request), which is why `dbg.pause` sticks where a raw `TimeSpeed = 0` would not.
 

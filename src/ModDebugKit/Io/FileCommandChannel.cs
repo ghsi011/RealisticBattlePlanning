@@ -27,7 +27,6 @@ namespace ModDebugKit.Io
 
         private readonly DbgPaths _paths;
         private readonly CommandDispatcher _dispatcher;
-        private readonly object _outLock = new();
 
         private long _offset;
         private float _accum;
@@ -44,12 +43,14 @@ namespace ModDebugKit.Io
             try
             {
                 Directory.CreateDirectory(_paths.IoDir);
-                if (!File.Exists(_paths.CommandIn))
-                    File.WriteAllText(_paths.CommandIn, string.Empty);
-
-                _offset = new FileInfo(_paths.CommandIn).Length; // skip backlog
+                // Truncate to a fresh command file each session: no stale backlog from a prior
+                // session re-runs, and no ambiguity about commands appended during module load
+                // (an offset-skip silently dropped those). The file then only ever holds
+                // this-session commands, processed from byte 0.
+                File.WriteAllText(_paths.CommandIn, string.Empty);
+                _offset = 0;
                 _started = true;
-                DbgLog.Info($"File channel: watching '{_paths.CommandIn}' from byte {_offset}; results -> '{_paths.CommandOut}'.");
+                DbgLog.Info($"File channel: watching '{_paths.CommandIn}' (fresh); results -> '{_paths.CommandOut}'.");
             }
             catch (Exception e)
             {
@@ -122,23 +123,7 @@ namespace ModDebugKit.Io
                 return;
 
             var result = _dispatcher.Execute(command);
-            AppendResult(result);
-        }
-
-        private void AppendResult(DbgResult result)
-        {
-            try
-            {
-                var json = DbgJson.Line(result);
-                lock (_outLock)
-                {
-                    File.AppendAllText(_paths.CommandOut, json + Environment.NewLine);
-                }
-            }
-            catch (Exception e)
-            {
-                DbgLog.Error("File channel failed to write a result line.", e);
-            }
+            CommandJournal.Append(result);
         }
     }
 }

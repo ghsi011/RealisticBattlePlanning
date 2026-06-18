@@ -62,6 +62,12 @@ namespace ModDebugKit.Commands
         [CommandLineFunctionality.CommandLineArgumentFunction("shot", "dbg")]
         public static string Shot(List<string> args) => Run("dbg.shot", args);
 
+        [CommandLineFunctionality.CommandLineArgumentFunction("run", "dbg")]
+        public static string RunScript(List<string> args) => Run("dbg.run", args);
+
+        [CommandLineFunctionality.CommandLineArgumentFunction("stop", "dbg")]
+        public static string Stop(List<string> args) => Run("dbg.stop", args);
+
         private static string Run(string fullName, List<string> args)
         {
             var dispatcher = ModDebugKitRuntime.Dispatcher;
