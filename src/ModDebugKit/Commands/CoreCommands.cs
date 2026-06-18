@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using ModDebugKit.Io;
@@ -14,11 +15,13 @@ namespace ModDebugKit.Commands
     /// </summary>
     public static class CoreCommands
     {
+        private static readonly string[] SideFilters = { "all", "player", "enemy" };
+
         public static void RegisterAll(CommandDispatcher dispatcher)
         {
             dispatcher.Register("dbg.ping", "dbg.ping - liveness check; reports where the game is and the output root", Ping);
             dispatcher.Register("dbg.help", "dbg.help - list every registered command", _ => Help(dispatcher));
-            dispatcher.Register("dbg.snapshot", "dbg.snapshot [path] - write the full battle state to JSON (default Debug/battle_state.json)", Snapshot);
+            dispatcher.Register("dbg.snapshot", "dbg.snapshot [path] [all|player|enemy] - write battle state to JSON (default Debug/battle_state.json, all teams)", Snapshot);
         }
 
         private static DbgOutcome Ping(DbgCommand command)
@@ -53,10 +56,24 @@ namespace ModDebugKit.Commands
             if (mission == null)
                 return DbgOutcome.Failure("no active mission to snapshot");
 
-            var dto = BattleSnapshotReader.Capture(mission);
+            // Args are an optional path and an optional team filter (all|player|enemy),
+            // in either order, so `dbg.snapshot player` and `dbg.snapshot foo.json enemy`
+            // both work without a positional clash.
+            string path = null, filter = "all";
+            foreach (var arg in command.Args)
+            {
+                if (SideFilters.Contains(arg, StringComparer.OrdinalIgnoreCase))
+                    filter = arg.ToLowerInvariant();
+                else
+                    path = path ?? arg;
+            }
 
-            var target = command.Arg(0) != null
-                ? ModDebugKitRuntime.Paths.Resolve(command.Arg(0))
+            var dto = BattleSnapshotReader.Capture(mission);
+            if (filter != "all")
+                dto.Formations.RemoveAll(f => !string.Equals(f.Side, filter, StringComparison.OrdinalIgnoreCase));
+
+            var target = path != null
+                ? ModDebugKitRuntime.Paths.Resolve(path)
                 : ModDebugKitRuntime.Paths.BattleState;
 
             var dir = Path.GetDirectoryName(target);
@@ -66,8 +83,8 @@ namespace ModDebugKit.Commands
 
             // The out.jsonl line is a small ack; the full picture is in the file the agent then reads.
             return DbgOutcome.Success(
-                $"snapshot: {dto.Formations.Count} formation(s) @ t={dto.MissionTime:0.0}s -> {target}",
-                new { path = target, formations = dto.Formations.Count, battleStarted = dto.BattleStarted });
+                $"snapshot: {dto.Formations.Count} {filter} formation(s) @ t={dto.MissionTime:0.0}s -> {target}",
+                new { path = target, formations = dto.Formations.Count, team = filter, battleStarted = dto.BattleStarted });
         }
     }
 }
