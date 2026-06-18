@@ -1,0 +1,12 @@
+{
+  "name": "formation-mismatch",
+  "steps": [
+    { "at": 0.0,  "do": "dbg.telemetry clear" },
+    { "at": 0.3,  "do": "dbg.battle" },
+    { "at": 18.0, "do": "dbg.ready" },
+    { "at": 20.0, "do": "dbg.pause" },
+    { "at": 20.5, "do": "dbg.layout inf=5 ranged=6 cav=7" },
+    { "at": 21.5, "do": "dbg.snapshot dogfood-mismatch.json" },
+    { "at": 23.0, "do": "dbg.leave" }
+  ]
+}

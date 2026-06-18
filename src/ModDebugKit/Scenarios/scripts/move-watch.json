@@ -1,0 +1,10 @@
+{
+  "name": "move-watch",
+  "steps": [
+    { "at": 0.0,  "do": "dbg.telemetry clear" },
+    { "at": 0.3,  "do": "dbg.battle" },
+    { "at": 18.0, "do": "dbg.ready" },
+    { "at": 30.0, "do": "dbg.snapshot dogfood-orders.json" },
+    { "at": 31.0, "do": "dbg.leave" }
+  ]
+}

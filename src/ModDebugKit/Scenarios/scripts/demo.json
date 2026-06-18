@@ -1,0 +1,11 @@
+{
+  "name": "demo",
+  "steps": [
+    { "at": 0.0,  "do": "dbg.telemetry clear" },
+    { "at": 0.3,  "do": "dbg.battle" },
+    { "at": 18.0, "do": "dbg.ready" },
+    { "at": 22.0, "do": "dbg.snapshot demo_t22.json" },
+    { "at": 24.0, "do": "dbg.shot demo" },
+    { "at": 27.0, "do": "dbg.leave" }
+  ]
+}

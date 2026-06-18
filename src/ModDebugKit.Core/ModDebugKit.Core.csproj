@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Engine-free logic layer: command parsing/dispatch model, the IO-channel
+      protocol, preset/snapshot/telemetry DTOs + JSON. netstandard2.0 so it is
+      consumable from the net472 engine assembly AND testable from net8.0 with
+      plain dotnet test. No TaleWorlds types in this assembly, ever
+      (three-assembly split, AGENTS.md "Repo layout").
+    -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>10</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>ModDebugKit.Core</AssemblyName>
+    <RootNamespace>ModDebugKit</RootNamespace>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The game ships Newtonsoft 13.0.1 (assembly identity 13.0.0.0); any 13.x compiles to the same binding. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>

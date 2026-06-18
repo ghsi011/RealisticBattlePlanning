@@ -1,0 +1,8 @@
+{
+  "scene": "battle_terrain_029",
+  "season": "summer",
+  "timeOfDay": 9.0,
+  "playerSide": "Attacker",
+  "player": { "culture": "khuzait", "commander": "commander_1", "counts": [40, 20, 60, 40] },
+  "enemy":  { "culture": "vlandia", "commander": "commander_11", "counts": [80, 30, 40, 0] }
+}
