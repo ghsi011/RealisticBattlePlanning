@@ -339,6 +339,11 @@ namespace RealisticBattlePlanning.Planning
             if (directive.Speed is { } speed)
                 result.Warnings.Add($"{where}: {speed.ToString().ToLowerInvariant()} speed is recorded but not yet applied; the formation moves at the vanilla default.");
 
+            // Circle (the mounted caracole orbit) is a Skirmish sub-option; on any
+            // other directive it round-trips but the executor ignores it (A3.8).
+            if (directive.Circle == true && directive.Type != DirectiveType.Skirmish)
+                result.Warnings.Add($"{where}: circle is set but only applies to Skirmish; it is ignored on {directive.Type}.");
+
             // Contradictory-but-executable parameters (A3.8 warnings): a standoff
             // beyond any weapon range means the formation holds too far back to
             // ever engage.

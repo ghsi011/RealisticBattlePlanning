@@ -32,6 +32,22 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void CircleAdvisesOnlyOnNonSkirmishDirectives()
+        {
+            var plan = TestPlans.SimpleValid();
+
+            // Skirmish + circle is the legitimate caracole use — no advisory.
+            plan.Formations[0].Stages[0].Do =
+                new DirectiveSpec { Type = DirectiveType.Skirmish, Target = "Nearest", StandoffMeters = 70f, Circle = true };
+            Assert.DoesNotContain(PlanValidator.Validate(plan).Warnings, w => w.Contains("circle"));
+
+            // circle on anything else round-trips but the executor ignores it.
+            plan.Formations[0].Stages[0].Do =
+                new DirectiveSpec { Type = DirectiveType.Hold, Arrangement = Arrangement.Line, Circle = true };
+            Assert.Contains(PlanValidator.Validate(plan).Warnings, w => w.Contains("circle is set but only applies to Skirmish"));
+        }
+
+        [Fact]
         public void EveryEnumPlanIsValid()
         {
             var result = PlanValidator.Validate(TestPlans.EveryEnumValue());
