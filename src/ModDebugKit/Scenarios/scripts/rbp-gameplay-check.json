@@ -1,0 +1,14 @@
+{
+  "name": "rbp-gameplay-check",
+  "comment": "Dogfood: drive a ModDebugKit custom battle while RealisticBattlePlanning's debug plan governs it, then snapshot to confirm the three playtest fixes deterministically: (1) Infantry holds (nav-mesh move orders land), (2) cavalry flank-arcs then charges home, (3) horse archers circle at standoff. Layout puts cav in the Skirmisher slot (5, FlankArc) and HA in the LightCavalry slot (7, circle) to match the committed rbp_debug_plan.json. Read rbp-check-*.json: formation 1 order=Hold, formation 5 order Move->Charge with targetHasNavMeshFace=true, formation 7 orbiting the enemy.",
+  "steps": [
+    { "at": 0.0,  "do": "dbg.telemetry clear" },
+    { "at": 0.3,  "do": "dbg.battle cav-clash" },
+    { "at": 14.0, "do": "dbg.layout inf=1 cav=5 ha=7" },
+    { "at": 16.5, "do": "dbg.snapshot rbp-check-deploy.json" },
+    { "at": 18.0, "do": "dbg.ready" },
+    { "at": 28.0, "do": "dbg.snapshot rbp-check-early.json" },
+    { "at": 48.0, "do": "dbg.snapshot rbp-check-late.json" },
+    { "at": 50.0, "do": "dbg.leave" }
+  ]
+}

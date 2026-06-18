@@ -10,8 +10,10 @@ namespace ModDebugKit.Battles
     /// Programmatic formation assignment (M1.4): move the player's units into
     /// specific numbered formations (1-8) by live class, so a battle reproduces
     /// an exact layout regardless of the deployment auto-sort. This is the
-    /// controllable side of the "formation slot != class != contents" lesson —
-    /// run during deployment, then dbg.ready.
+    /// controllable side of the "formation slot != class != contents" lesson.
+    /// IMPORTANT: call this AFTER dbg.ready — during the deployment phase the
+    /// engine's auto-sort reverts the reassignment on a later tick (the move is
+    /// made but does not persist), so a deployment-time call is warned about.
     /// </summary>
     public static class FormationCommands
     {
@@ -39,8 +41,8 @@ namespace ModDebugKit.Battles
 
             var moved = MoveToFormation(team, selector, number);
             return DbgOutcome.Success(
-                $"assigned {moved} {selector} unit(s) to formation {number} ({(FormationClass)(number - 1)})",
-                new { moved, formation = number, selector = selector.ToString() });
+                $"assigned {moved} {selector} unit(s) to formation {number} ({(FormationClass)(number - 1)}){DeploymentHint()}",
+                new { moved, formation = number, selector = selector.ToString(), deploymentMayRevert = InDeployment() });
         }
 
         private static DbgOutcome Layout(DbgCommand command)
@@ -66,8 +68,19 @@ namespace ModDebugKit.Battles
                 applied.Add(new { selector = selector.ToString(), formation = number, moved });
             }
 
-            return DbgOutcome.Success($"applied layout: {applied.Count} assignment(s)", new { assignments = applied });
+            return DbgOutcome.Success($"applied layout: {applied.Count} assignment(s){DeploymentHint()}",
+                new { assignments = applied, deploymentMayRevert = InDeployment() });
         }
+
+        /// <summary>True while the mission is still in the deployment phase, where the
+        /// engine's auto-sort reverts programmatic formation reassignment on a later tick.</summary>
+        private static bool InDeployment()
+            => Mission.Current != null && Mission.Current.Mode == MissionMode.Deployment;
+
+        private static string DeploymentHint()
+            => InDeployment()
+                ? " - WARNING: ran during deployment; the auto-sort will revert this. Call dbg.assign/dbg.layout AFTER dbg.ready so it sticks."
+                : string.Empty;
 
         private static int MoveToFormation(Team team, AgentSelector selector, int number)
         {
