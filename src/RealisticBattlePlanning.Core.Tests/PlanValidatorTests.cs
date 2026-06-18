@@ -48,10 +48,29 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void StrayTypeSpecificParametersAdvise()
+        {
+            var plan = TestPlans.SimpleValid();
+
+            // missileOnly belongs to FlankArc; left on a Hold it is ignored -> advisory.
+            plan.Formations[0].Stages[0].Do =
+                new DirectiveSpec { Type = DirectiveType.Hold, Arrangement = Arrangement.Line, MissileOnly = true };
+            Assert.Contains(PlanValidator.Validate(plan).Warnings, w => w.Contains("missileOnly is set but only applies to FlankArc"));
+
+            // on its owning type the same flag is clean.
+            plan.Formations[0].Stages[0].Do =
+                new DirectiveSpec { Type = DirectiveType.FlankArc, Side = FlankSide.Left, Target = "Nearest", MissileOnly = true };
+            Assert.DoesNotContain(PlanValidator.Validate(plan).Warnings, w => w.Contains("missileOnly"));
+        }
+
+        [Fact]
         public void EveryEnumPlanIsValid()
         {
             var result = PlanValidator.Validate(TestPlans.EveryEnumValue());
             Assert.Empty(result.Errors);
+            // every directive's sub-parameters sit on their owning type here, so the
+            // stray-parameter pass must produce no false positives.
+            Assert.DoesNotContain(result.Warnings, w => w.Contains("is ignored on"));
         }
 
         [Fact]

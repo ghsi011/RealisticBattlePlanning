@@ -339,10 +339,22 @@ namespace RealisticBattlePlanning.Planning
             if (directive.Speed is { } speed)
                 result.Warnings.Add($"{where}: {speed.ToString().ToLowerInvariant()} speed is recorded but not yet applied; the formation moves at the vanilla default.");
 
-            // Circle (the mounted caracole orbit) is a Skirmish sub-option; on any
-            // other directive it round-trips but the executor ignores it (A3.8).
-            if (directive.Circle == true && directive.Type != DirectiveType.Skirmish)
-                result.Warnings.Add($"{where}: circle is set but only applies to Skirmish; it is ignored on {directive.Type}.");
+            // Type-specific sub-parameters that round-trip but the executor ignores on the
+            // wrong directive — usually a leftover after a stage's directive type was changed
+            // in the editor (A3.8). Only flag parameters exclusive to one directive type;
+            // shared ones (anchor, target, standoff, arrangement, fire) are validated per type.
+            void StrayOn(bool isSet, string name, DirectiveType owner)
+            {
+                if (isSet && directive.Type != owner)
+                    result.Warnings.Add($"{where}: {name} is set but only applies to {owner}; it is ignored on {directive.Type}.");
+            }
+            StrayOn(directive.Circle == true, "circle", DirectiveType.Skirmish);
+            StrayOn(directive.FireWhileWithdrawing == true, "fireWhileWithdrawing", DirectiveType.FeignRetreat);
+            StrayOn(directive.MissileOnly == true, "missileOnly", DirectiveType.FlankArc);
+            StrayOn(directive.MaintainFacing == true, "maintainFacing", DirectiveType.PullBack);
+            StrayOn(directive.Side != null, "side", DirectiveType.FlankArc);
+            StrayOn(directive.GapMeters != null, "gapMeters", DirectiveType.Screen);
+            StrayOn(directive.OffsetForwardMeters != null || directive.OffsetRightMeters != null, "offset", DirectiveType.Follow);
 
             // Contradictory-but-executable parameters (A3.8 warnings): a standoff
             // beyond any weapon range means the formation holds too far back to
