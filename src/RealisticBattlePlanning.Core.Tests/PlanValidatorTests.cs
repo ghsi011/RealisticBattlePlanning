@@ -9,12 +9,26 @@ namespace RealisticBattlePlanning.Tests
     public class PlanValidatorTests
     {
         [Fact]
-        public void ValidPlanHasNoErrorsOrWarnings()
+        public void ValidPlanHasNoErrors()
         {
             var result = PlanValidator.Validate(TestPlans.SimpleValid());
             Assert.Empty(result.Errors);
-            Assert.Empty(result.Warnings);
             Assert.True(result.IsValid);
+            // SimpleValid's MoveTo marches at walk, which the executor drops — the
+            // only advisory it carries is the not-yet-applied speed note.
+            Assert.All(result.Warnings, w => Assert.Contains("not yet applied", w));
+        }
+
+        [Fact]
+        public void WalkRunSpeedIsRecordedButWarnsItIsNotApplied()
+        {
+            var plan = TestPlans.SimpleValid();  // stage 2 already moves at walk
+            var withSpeed = PlanValidator.Validate(plan);
+            Assert.True(withSpeed.IsValid);
+            Assert.Contains(withSpeed.Warnings, w => w.Contains("walk speed is recorded but not yet applied"));
+
+            plan.Formations[0].Stages[1].Do.Speed = null;
+            Assert.DoesNotContain(PlanValidator.Validate(plan).Warnings, w => w.Contains("not yet applied"));
         }
 
         [Fact]

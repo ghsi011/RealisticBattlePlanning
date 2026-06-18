@@ -333,6 +333,12 @@ namespace RealisticBattlePlanning.Planning
             if (directive.WidthMeters is <= 0)
                 result.Errors.Add($"{where}: widthMeters must be > 0 when given.");
 
+            // Walk/Run speed round-trips through the model and prints in the summary,
+            // but the executor drops it (vanilla movement orders don't expose a march
+            // speed) — warn so the author isn't surprised it has no effect (A3.8).
+            if (directive.Speed is { } speed)
+                result.Warnings.Add($"{where}: {speed.ToString().ToLowerInvariant()} speed is recorded but not yet applied; the formation moves at the vanilla default.");
+
             // Contradictory-but-executable parameters (A3.8 warnings): a standoff
             // beyond any weapon range means the formation holds too far back to
             // ever engage.
