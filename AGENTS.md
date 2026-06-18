@@ -39,6 +39,18 @@ parallel one.
 - `docs/implementation-plan.md` — phased implementation plan (3 phases;
   Phase 1 MVP broken into iterations). Check the current iteration before
   starting work.
+- `graphify-out/` (gitignored, generated) — a **queryable knowledge graph of
+  the whole repo** (code + docs) built by the `/graphify` skill: `graph.json`
+  (GraphRAG-ready), `graph.html` (interactive), `GRAPH_REPORT.md` (god nodes,
+  communities, surprising cross-file links). For fast cross-file orientation,
+  query it instead of grepping blind: `/graphify query "<question>"`. **Keep it
+  fresh** — re-run `/graphify . --update` (incremental; re-extracts only changed
+  files) after a substantial change, e.g. at the end of an iteration block.
+
+There is also a sibling debugging module, **ModDebugKit** (`src/ModDebugKit/`),
+for driving Bannerlord mods through the filesystem (no mouse/screenshots) — see
+the `moddebugkit` skill and `docs/mod-debug-kit-design.md`. Prefer its file
+command channel for in-game verification of RBP behaviour.
 
 The build's post-build target copies the DLL into
 `$(BannerlordGameDir)\Modules\RealisticBattlePlanning\bin\Win64_Shipping_Client\`
