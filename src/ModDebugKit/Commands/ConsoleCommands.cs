@@ -44,6 +44,21 @@ namespace ModDebugKit.Commands
         [CommandLineFunctionality.CommandLineArgumentFunction("errors", "dbg")]
         public static string Errors(List<string> args) => Run("dbg.errors", args);
 
+        [CommandLineFunctionality.CommandLineArgumentFunction("pause", "dbg")]
+        public static string Pause(List<string> args) => Run("dbg.pause", args);
+
+        [CommandLineFunctionality.CommandLineArgumentFunction("resume", "dbg")]
+        public static string Resume(List<string> args) => Run("dbg.resume", args);
+
+        [CommandLineFunctionality.CommandLineArgumentFunction("timescale", "dbg")]
+        public static string Timescale(List<string> args) => Run("dbg.timescale", args);
+
+        [CommandLineFunctionality.CommandLineArgumentFunction("step", "dbg")]
+        public static string Step(List<string> args) => Run("dbg.step", args);
+
+        [CommandLineFunctionality.CommandLineArgumentFunction("freeze", "dbg")]
+        public static string Freeze(List<string> args) => Run("dbg.freeze", args);
+
         private static string Run(string fullName, List<string> args)
         {
             var dispatcher = ModDebugKitRuntime.Dispatcher;

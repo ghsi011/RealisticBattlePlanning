@@ -37,6 +37,7 @@ namespace ModDebugKit
             FormationCommands.RegisterAll(Dispatcher);
             Telemetry.TelemetryCommands.RegisterAll(Dispatcher);
             ErrorLog.RegisterCommands(Dispatcher);
+            Determinism.DeterminismControls.RegisterAll(Dispatcher);
 
             Initialized = true;
         }

@@ -99,6 +99,13 @@ Example:
 | `dbg.layout <sel=N> …` | `{ assignments: [{selector, formation, moved}] }`       | Applies several `dbg.assign`s at once, e.g. `dbg.layout inf=1 ranged=3 cav=5 ha=7`. |
 | `dbg.telemetry [on\|off\|clear\|status]` | `{ enabled, path }` (status)                | Controls the flight recorder (`telemetry.jsonl`). On by default. `clear` truncates the file and resets the sequence. |
 | `dbg.errors [on\|off\|clear\|status]` | `{ enabled, path }` (status)                   | Controls fault capture (`errors.jsonl`). On by default. |
+| `dbg.pause`        | —                                                           | Freeze mission time (everything stops — agents, projectiles, clock). The hard freeze. |
+| `dbg.resume`       | —                                                           | Resume normal mission time.                                        |
+| `dbg.timescale <x>` | `{ timeSpeed }` or `{ fastForward }`                       | `0` = pause, `<1` = slow-mo, `1` = normal, `>1` = fast-forward (engine's fixed fast speed, not an exact multiplier). |
+| `dbg.step [seconds]` | `{ seconds }`                                             | Advance ~N mission-seconds at normal speed, then auto-pause (default 0.5). Pause → step → snapshot → step is the deterministic inspection loop. |
+| `dbg.freeze <enemy\|all\|player\|none>` | `{ frozen, count, who }`                       | Pause a side's AI and stop its formations. Reliable for the **player** side; the **enemy** general AI keeps re-commanding, so for a hard freeze of everything use `dbg.pause`. `none` unfreezes all. |
+
+The time controls work through the engine's time-speed **request** system (`Scene.TimeSpeed` is overwritten each tick to the minimum request), which is why `dbg.pause` sticks where a raw `TimeSpeed = 0` would not.
 
 Together these give a full mouse-free battle lifecycle: `dbg.battle` → (`dbg.assign`/`dbg.layout` to set the layout) → `dbg.ready` → `dbg.snapshot` → `dbg.restart` or `dbg.leave`.
 
