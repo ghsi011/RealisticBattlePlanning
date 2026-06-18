@@ -66,3 +66,10 @@ nunit-*.xml
 local.props
 
 COMMIT_MSG.tmp
+
+# Claude Code machine-local settings + hook scripts (not for the team)
+.claude/settings.local.json
+.claude/hooks/
+
+# graphify knowledge-graph output (generated artifact)
+graphify-out/
