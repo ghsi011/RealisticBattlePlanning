@@ -7,6 +7,7 @@ using TaleWorlds.Engine.GauntletUI;
 using TaleWorlds.GauntletUI.Data;
 using TaleWorlds.InputSystem;
 using TaleWorlds.Library;
+using TaleWorlds.ModuleManager;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.MountAndBlade.View.MissionViews;
 using TaleWorlds.MountAndBlade.View.Screens;
@@ -96,6 +97,78 @@ namespace RealisticBattlePlanning.UI
             catch (Exception e)
             {
                 RbpLog.Error("[FAULT] Planning Mode key poll failed.", e);
+            }
+            PollDevCommand(dt);
+        }
+
+        // --- Dev loop (no keyboard) -------------------------------------------------
+        // The in-game keyboard is unreliable when the game is driven over automation/
+        // remote, so the visual-iteration loop can't depend on the toggle key. Instead a
+        // sentinel file (<module>\Debug\planner.cmd) is polled here: an external script
+        // writes one verb and RBP acts on the next tick, then truncates the file. Inert in
+        // normal play — the file never exists, so the poll is a cheap File.Exists miss.
+        // Verbs: open | close | toggle | reopen | shot <name> | reshot <name>. 'reopen'
+        // tears down and rebuilds the movie, so a prefab/brush edit hot-reloaded via
+        // tools\deploy-ui.ps1 shows immediately; 'reshot' reopens then screenshots.
+        private float _devPollAccum;
+        private string _devCmdPath;
+        private bool _devPathResolved;
+
+        private string DevCmdPath
+        {
+            get
+            {
+                if (!_devPathResolved)
+                {
+                    _devPathResolved = true;
+                    try { _devCmdPath = System.IO.Path.Combine(ModuleHelper.GetModuleFullPath(SubModule.ModId), "Debug", "planner.cmd"); }
+                    catch { _devCmdPath = null; }
+                }
+                return _devCmdPath;
+            }
+        }
+
+        private void PollDevCommand(float dt)
+        {
+            _devPollAccum += dt;
+            if (_devPollAccum < 0.2f)
+                return;
+            _devPollAccum = 0f;
+
+            var path = DevCmdPath;
+            if (path == null || !System.IO.File.Exists(path))
+                return;
+
+            string cmd;
+            try
+            {
+                cmd = System.IO.File.ReadAllText(path).Trim();
+                System.IO.File.WriteAllText(path, ""); // consume so it runs once
+            }
+            catch { return; } // writer may still hold it — retry next poll
+            if (string.IsNullOrEmpty(cmd))
+                return;
+
+            try
+            {
+                var space = cmd.IndexOf(' ');
+                var verb = (space < 0 ? cmd : cmd.Substring(0, space)).ToLowerInvariant();
+                var arg = space < 0 ? null : cmd.Substring(space + 1).Trim();
+                switch (verb)
+                {
+                    case "open": Show(); break;
+                    case "close": Hide(); break;
+                    case "toggle": Toggle(); break;
+                    case "reopen": Hide(); Show(); break;
+                    case "shot": Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
+                    case "reshot": Hide(); Show(); Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
+                    default: RbpLog.Info($"[DEV] planner.cmd: unknown verb '{verb}'."); return;
+                }
+                RbpLog.Info($"[DEV] planner.cmd '{cmd}' handled (shown={_shown}).");
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error($"[DEV] planner.cmd '{cmd}' failed.", e);
             }
         }
 

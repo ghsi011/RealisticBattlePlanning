@@ -17,18 +17,21 @@ namespace RealisticBattlePlanning.Diagnostics
         [CommandLineFunctionality.CommandLineArgumentFunction("screenshot", "rbp")]
         public static string Capture(List<string> args)
         {
+            var name = args != null && args.Count > 0 && !string.IsNullOrWhiteSpace(args[0]) ? args[0] : "shot";
+            return CaptureNamed(name);
+        }
+
+        /// <summary>Captures a screenshot to Logs\Screenshots\&lt;name&gt;.bmp (the engine writes
+        /// BMP regardless of extension; tools\view-screenshot.ps1 converts it to PNG). Shared by
+        /// the rbp.screenshot console command and the dev sentinel loop. Returns a status string.</summary>
+        public static string CaptureNamed(string name)
+        {
             try
             {
-                var name = args != null && args.Count > 0 && !string.IsNullOrWhiteSpace(args[0])
-                    ? Sanitize(args[0])
-                    : "shot";
-
-                // The engine writes BMP regardless of extension, so name it
-                // honestly; tools\view-screenshot.ps1 converts it to a PNG the
-                // dev/test loop can read.
+                var safe = Sanitize(string.IsNullOrWhiteSpace(name) ? "shot" : name);
                 var dir = Path.Combine(ModuleHelper.GetModuleFullPath(SubModule.ModId), "Logs", "Screenshots");
                 Directory.CreateDirectory(dir);
-                var path = Path.Combine(dir, name + ".bmp");
+                var path = Path.Combine(dir, safe + ".bmp");
 
                 TaleWorlds.Engine.Utilities.TakeScreenshot(path);
                 RbpLog.Info($"Screenshot requested -> {path}");
