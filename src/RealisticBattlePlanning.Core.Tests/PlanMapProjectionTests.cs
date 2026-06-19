@@ -16,6 +16,19 @@ namespace RealisticBattlePlanning.Tests
         private static readonly MapVec North = new(0f, 1f); // attack direction "up"
 
         [Fact]
+        public void UnprojectInvertsProject()
+        {
+            // off-origin team centre + a non-trivial bounding box, so scale/centre matter.
+            var proj = PlanMapProjection.Build(new MapVec(100f, 200f), North,
+                new[] { new MapVec(70f, 160f), new MapVec(140f, 260f) });
+            foreach (var world in new[] { new MapVec(100f, 200f), new MapVec(120f, 240f), new MapVec(85f, 175f) })
+            {
+                var back = proj.Unproject(proj.Project(world));
+                Assert.True(world.DistanceTo(back) < 0.5f, $"round-trip drifted: ({world.X},{world.Y}) -> ({back.X},{back.Y})");
+            }
+        }
+
+        [Fact]
         public void ForwardPointMapsHigherAndOnTheCentreColumn()
         {
             var proj = PlanMapProjection.Build(Origin, North,

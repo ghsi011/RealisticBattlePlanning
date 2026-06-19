@@ -100,5 +100,16 @@ namespace RealisticBattlePlanning.Planning
             var f = d.Dot(_forward) - _center.Y;
             return new MapPoint(0.5f + r * _scale, 0.5f + f * _scale);
         }
+
+        /// <summary>The inverse of <see cref="Project"/>: a normalized map point (Y up)
+        /// back to a world position. Round-trips with Project within float error, so a
+        /// click on the map resolves to the world point the renderer drew there — the
+        /// basis for point-and-click move authoring (A2.6.2).</summary>
+        public MapVec Unproject(MapPoint p)
+        {
+            var r = (p.X - 0.5f) / _scale + _center.X;
+            var f = (p.Y - 0.5f) / _scale + _center.Y;
+            return TeamCenter + _right * r + _forward * f;
+        }
     }
 }

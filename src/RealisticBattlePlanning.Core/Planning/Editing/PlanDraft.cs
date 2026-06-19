@@ -41,6 +41,12 @@ namespace RealisticBattlePlanning.Planning.Editing
         public IReadOnlyList<PlannedFormationClass> Formations
             => _plan.Formations.Select(f => f.Formation).ToList();
 
+        /// <summary>A formation's stages in order (a snapshot list; the Stage objects are
+        /// live — read them for display/the stage rail, but mutate only through this
+        /// draft's methods). Empty if the formation has no plan.</summary>
+        public IReadOnlyList<Stage> StagesOf(PlannedFormationClass formation)
+            => Find(formation)?.Stages.ToList() ?? new List<Stage>();
+
         // Snapshots, not the live backing lists (matches Formations): callers can't
         // cast back to List and bypass the dedup/cap/blank-id invariants.
         public IReadOnlyList<string> PlayerSignals => _plan.PlayerSignals.ToList();
