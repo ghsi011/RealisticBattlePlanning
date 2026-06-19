@@ -792,5 +792,51 @@ deliberate re-accepts (I15, I18).
 **Cross-cutting:** EngineContract grows in I13 (done), I21 (save/campaign),
 I23 (drill menu), I27/I28 (UI). Fold the opportunistic audit hardening
 (`MissionSnapshot` enemy-id `team*16+index` → key by tuple or assert ≤16; the
-`Speed` walk/run dropped-at-execution validator warning) into whichever
-iteration touches those files.
+`Speed` walk/run dropped-at-execution validator warning — DONE 6cb032f) into
+whichever iteration touches those files.
+
+---
+
+## Interactive Map Planner (IMP) — the map-first editor (spec A2.6)
+
+User-directed 2026-06-19 (with a reference image): make the map the primary
+authoring surface — click a formation number to select, point-and-click to add
+move stages (default trigger = previous stage completed), multi-select + drag to
+form a line, and a **KSP-style vertical stage rail** on the right that follows the
+selection, expands a box on click to edit its command/trigger/target/distance,
+reorders by drag, and (multi-select) colors only the stages identical across the
+selected formations. **Principle:** all interaction logic lives in engine-free
+Core (`PlanDraft` + new map-interaction helpers, unit-tested); the Gauntlet map +
+rail are a thin direct-manipulation front-end verified visually via
+`rbp.screenshot`/`dbg.shot`. Builds on the existing `PlanMapProjection`,
+`PlanningModeVM` map scaffolding (`BuildMap`, `MapMarkerVM`), and `PlanDraft`.
+
+Front-load Core (dotnet-test-verified), then Gauntlet (screenshot-verified):
+
+- **IMP-1 (Core) — map inverse + click-to-march.** Add `PlanMapProjection.Unproject`
+  (map point → world) with a round-trip test; a `MapAuthoring` helper that turns
+  "click at world point with formation F selected" into a `PlanDraft` op (append a
+  MoveTo scene-anchor at the point, trigger defaulting to previous-stage-completed).
+- **IMP-2 (Core) — shared-stage detection.** Given N formations' stage lists, compute
+  which stage indices are *identical* across all (command + trigger + params), for
+  the multi-select rail coloring. Stage value-equality via the serializer.
+- **IMP-3 (Core) — drag-to-line geometry.** Drag A→B + N formations → per-formation
+  target world positions evenly along the line + the shared facing; one shared move
+  stage cloned per formation.
+- **IMP-4 (Core) — rail view-model.** An ordered, engine-free descriptor of a
+  selection's stages (label, expanded state, shared flag, editable params) that the
+  Gauntlet rail binds to; reorder maps to `PlanDraft.MoveStage`.
+- **IMP-5 (Gauntlet) — map widget.** Custom full-bounds `Widget` (overrides
+  `OnMousePressed`/`GetLocalPoint`; zero-size item wrappers fail hit-test descent —
+  the 2026-06-12 review's diagnosis) rendering the A2.5 overlay map with formation
+  markers at projected positions. Screenshot-verify it renders + reports clicks.
+- **IMP-6 (Gauntlet) — select + highlight.** Click a number/block → select +
+  highlight; box-drag / modifier multi-select.
+- **IMP-7 (Gauntlet) — click-to-place wired.** Map click → IMP-1 → adds a move stage +
+  draws the waypoint marker; in-game: the formation actually marches there.
+- **IMP-8 (Gauntlet) — drag-to-line wired** (IMP-3): multi-select drag → line.
+- **IMP-9 (Gauntlet) — the stage rail** (IMP-4): vertical boxes, per selection,
+  click-to-expand inline editing.
+- **IMP-10 (Gauntlet) — rail drag-reorder + multi-select shared-stage coloring** (IMP-2).
+- **IMP-11+ — polish & stylized art** (A2.1/A2.2 target): terrain-matched relief,
+  faction colors, troop glyphs; onboarding.

@@ -64,6 +64,13 @@ When the spec below names a capability with a clear vanilla relative, the implem
 - **A2.3** Dragging a block sets the formation's initial deployment position and facing (mirrored to the vanilla deployment system).
 - **A2.4** The player can draw movement paths (waypoint arrows) on the map; paths attach to stages as movement directives.
 - **A2.5 (v1 fallback permitted):** If the stylized map render is high-risk, v1 may reuse the existing top-down deployment camera with the planning UI overlaid. The stylized map is the target presentation, fallback is acceptable for first release.
+- **A2.6 Map-first interactive authoring (target editor UX).** The map is the primary authoring surface — the player does as much as possible by direct manipulation on it, not through nested menus. The reference aesthetic is a historical staff map: terrain-matched relief, faction-colored formation blocks with troop-type glyphs and a number badge (cf. the Marj Ayyun reference).
+  - **A2.6.1 Select by number/block.** Clicking a formation's number badge (or its block) highlights and selects it; a box-drag or modifier-click selects several.
+  - **A2.6.2 Point-and-click march.** With a formation selected, clicking a map point appends a *move* stage to that point whose trigger defaults to "previous stage completed," so a chain of clicks builds a waypoint march with no menu trips.
+  - **A2.6.3 Multi-select drag-to-line.** With several formations selected, click-dragging forms a line: the drag sets the line's span and facing and the formations array along it and move together (one shared move stage cloned per formation, cf. A3.6).
+  - **A2.6.4 The stage rail (KSP-style staging).** A vertical stack of stage boxes pinned to the right edge of the map shows the selected formation's stages in execution order and follows the current selection. Drag a box to reorder; click a box to expand it in place, revealing only the controls its command needs (command, trigger, target, distance, arrangement…).
+  - **A2.6.5 Multi-formation rail.** When several formations are selected, the rail aligns their stages; a box renders in full color only where that stage is *identical* across all selected formations (same command + trigger + parameters) and dimmed/striped where they diverge — so shared stages are edited once and divergences are visible at a glance.
+  - **A2.6.6** Every map/rail action maps onto the engine-free `PlanDraft` + `PlanValidator`; the map and rail are a thin, tested-logic-backed direct-manipulation front-end (A2.5's overlay fallback stays acceptable for the first cut; the stylized art of A2.1/A2.2 is the visual target).
 
 ### A3. The Plan Editor
 - **A3.1** Selecting a unit block opens that formation's Stage List: an ordered, editable list of Stages.
