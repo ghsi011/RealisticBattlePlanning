@@ -163,6 +163,7 @@ namespace RealisticBattlePlanning.UI
                     case "brushes": ReloadBrushes(); break;
                     case "click": DevClick(arg, rightClick: false); break;
                     case "rightclick": DevClick(arg, rightClick: true); break;
+                    case "drag": DevDrag(arg); break;
                     case "shot": Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     case "reshot": Hide(); Show(); Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     default: RbpLog.Info($"[DEV] planner.cmd: unknown verb '{verb}'."); return;
@@ -196,6 +197,25 @@ namespace RealisticBattlePlanning.UI
             else _dataSource.OnMapClicked(nx, ny);
             RbpLog.Info($"[DEV] {(rightClick ? "rightclick" : "click")} ({nx:0.00},{ny:0.00}) dispatched.");
         }
+
+        // Dev only: dispatch a normalized map DRAG (box-select / drag-to-line) into the VM.
+        // arg = "nx0 ny0 nx1 ny1" in [0,1].
+        private void DevDrag(string arg)
+        {
+            if (_dataSource == null) { RbpLog.Info("[DEV] drag: planner not open."); return; }
+            var p = (arg ?? "").Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+            var f = new float[4];
+            if (p.Length < 4 || !TryF(p[0], out f[0]) || !TryF(p[1], out f[1]) || !TryF(p[2], out f[2]) || !TryF(p[3], out f[3]))
+            {
+                RbpLog.Info($"[DEV] drag: bad args '{arg}' (want: nx0 ny0 nx1 ny1).");
+                return;
+            }
+            _dataSource.OnMapDragged(f[0], f[1], f[2], f[3]);
+            RbpLog.Info($"[DEV] drag ({f[0]:0.00},{f[1]:0.00})->({f[2]:0.00},{f[3]:0.00}) dispatched.");
+        }
+
+        private static bool TryF(string s, out float v)
+            => float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v);
 
         private static void ReloadBrushes()
         {
@@ -250,6 +270,7 @@ namespace RealisticBattlePlanning.UI
                 // point-and-click move authoring. Cleared in Hide so a stale closure can't fire.
                 MapCanvasWidget.Clicked = (x, y) => _dataSource?.OnMapClicked(x, y);
                 MapCanvasWidget.RightClicked = (x, y) => _dataSource?.OnMapRightClicked(x, y);
+                MapCanvasWidget.Dragged = (x0, y0, x1, y1) => _dataSource?.OnMapDragged(x0, y0, x1, y1);
                 // High local order so the layer sits above the deployment UI for
                 // both rendering and input (the deployment HUD/order layers are
                 // low-order; a focus layer underneath them never gets clicks).
@@ -297,6 +318,7 @@ namespace RealisticBattlePlanning.UI
                 return;
             Guard(() => MapCanvasWidget.Clicked = null);
             Guard(() => MapCanvasWidget.RightClicked = null);
+            Guard(() => MapCanvasWidget.Dragged = null);
             if (_layer != null)
             {
                 // Each release step is guarded on its own: if one throws (e.g.

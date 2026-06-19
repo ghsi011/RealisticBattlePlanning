@@ -423,6 +423,43 @@ namespace RealisticBattlePlanning.UI
             }
         }
 
+        // A drag on the map (A2.6.3). With nothing selected it's a box-select: pick every
+        // formation whose block falls inside the dragged rectangle. With a selection it's a
+        // drag-to-line: the selected formations array evenly along the drag A→B and march there
+        // together (one move stage each), so you can pull a battle line out with one gesture.
+        internal void OnMapDragged(float nx0, float ny0, float nx1, float ny1)
+        {
+            if (_projection == null)
+                return;
+            var dx0 = nx0 * MapWidth; var dy0 = ny0 * MapHeight;
+            var dx1 = nx1 * MapWidth; var dy1 = ny1 * MapHeight;
+
+            if (_selectedFormations.Count == 0)
+            {
+                var x0 = System.Math.Min(dx0, dx1); var x1 = System.Math.Max(dx0, dx1);
+                var y0 = System.Math.Min(dy0, dy1); var y1 = System.Math.Max(dy0, dy1);
+                var changed = false;
+                foreach (var hit in _markerHits)
+                {
+                    var cx = hit.X + hit.Size / 2f; var cy = hit.Y + hit.Size / 2f;
+                    if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) { _selectedFormations.Add(hit.Cls); changed = true; }
+                }
+                if (changed)
+                {
+                    StatusText = $"Selected {_selectedFormations.Count} formation(s).";
+                    Refresh();
+                }
+                return;
+            }
+
+            var a = _projection.Unproject(new MapPoint((dx0 - MapOffsetX) / MapScale, 1f - ny0));
+            var b = _projection.Unproject(new MapPoint((dx1 - MapOffsetX) / MapScale, 1f - ny1));
+            var selection = _selectedFormations.OrderBy(c => (int)c).ToList();
+            MapAuthoring.AppendLineFormation(_draft, selection, a, b, _ => $"{WaypointAnchorPrefix}{++_waypointCounter}");
+            StatusText = $"Arrayed {selection.Count} formation(s) along a line.";
+            Refresh();
+        }
+
         /// <summary>Prefix for the Scene anchors a map click auto-creates (A2.6.2): "wp1",
         /// "wp2", … These are owned by the map, not the player, so a removed waypoint's
         /// anchor is pruned silently rather than left to warn (unlike user-named anchors).</summary>

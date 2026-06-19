@@ -34,45 +34,91 @@ namespace RealisticBattlePlanning.UI
         /// to remove the nearest click-placed waypoint (A2.6.2).</summary>
         public static Action<float, float> RightClicked { get; set; }
 
+        /// <summary>A drag from press→release (both normalized): box-select with nothing selected,
+        /// or array the selected formations along the line (A2.6.3).</summary>
+        public static Action<float, float, float, float> Dragged { get; set; }
+
+        // A press+release within this normalized distance is a click; beyond it, a drag. Left
+        // actions fire on RELEASE so a drag can be told from a click (right-click fires on press).
+        private const float DragThreshold = 0.03f;
+        private bool _pressed;
+        private float _pressX, _pressY;
+
         protected override void OnMousePressed()
         {
             base.OnMousePressed();
-            Dispatch(Clicked, "click");
+            if (TryGetNormalized(out var nx, out var ny))
+            {
+                _pressed = true;
+                _pressX = nx;
+                _pressY = ny;
+            }
+        }
+
+        protected override void OnMouseReleased(bool isFromInput)
+        {
+            base.OnMouseReleased(isFromInput);
+            if (!_pressed)
+                return;
+            _pressed = false;
+            try
+            {
+                if (!TryGetNormalized(out var nx, out var ny))
+                {
+                    Clicked?.Invoke(_pressX, _pressY); // fall back to the press point
+                    return;
+                }
+                var dx = nx - _pressX;
+                var dy = ny - _pressY;
+                if (dx * dx + dy * dy < DragThreshold * DragThreshold)
+                {
+                    Diagnostics.RbpLog.Info($"[MAP] click n=({nx:0.00},{ny:0.00})");
+                    Clicked?.Invoke(nx, ny);
+                }
+                else
+                {
+                    Diagnostics.RbpLog.Info($"[MAP] drag ({_pressX:0.00},{_pressY:0.00})->({nx:0.00},{ny:0.00})");
+                    Dragged?.Invoke(_pressX, _pressY, nx, ny);
+                }
+            }
+            catch (Exception e)
+            {
+                Diagnostics.RbpLog.Error("[MAP] canvas release handler failed.", e);
+            }
         }
 
         protected override void OnMouseAlternatePressed()
         {
             base.OnMouseAlternatePressed();
-            Dispatch(RightClicked, "rightclick");
-        }
-
-        // Reads the canvas geometry (by reflection — see the class summary) and hands the
-        // handler a normalized point. Shared by left/right press so both stay in sync.
-        private void Dispatch(Action<float, float> handler, string what)
-        {
             try
             {
-                if (handler == null)
-                    return;
-                var okSize = TryXY(this, "Size", out var sw, out var sh);
-                var okGp = TryXY(this, "GlobalPosition", out var gx, out var gy);
-                var em = EventManager;
-                float mx = 0f, my = 0f;
-                var okMouse = em != null && TryXY(em, "MousePosition", out mx, out my);
-                if (!okSize || !okGp || !okMouse || sw <= 0f || sh <= 0f)
+                if (RightClicked != null && TryGetNormalized(out var nx, out var ny))
                 {
-                    Diagnostics.RbpLog.Info($"[MAP] {what}: geometry read failed okSize={okSize} okGp={okGp} okMouse={okMouse}.");
-                    return;
+                    Diagnostics.RbpLog.Info($"[MAP] rightclick n=({nx:0.00},{ny:0.00})");
+                    RightClicked(nx, ny);
                 }
-                var nx = Clamp01((mx - gx) / sw);
-                var ny = Clamp01((my - gy) / sh);
-                Diagnostics.RbpLog.Info($"[MAP] {what} n=({nx:0.00},{ny:0.00})");
-                handler(nx, ny);
             }
             catch (Exception e)
             {
-                Diagnostics.RbpLog.Error($"[MAP] canvas {what} handler failed.", e);
+                Diagnostics.RbpLog.Error("[MAP] canvas rightclick handler failed.", e);
             }
+        }
+
+        // Reads the canvas geometry (by reflection — see the class summary) into a normalized
+        // [0,1] point. Returns false if any read failed (the runtime/compile Vector2 skew).
+        private bool TryGetNormalized(out float nx, out float ny)
+        {
+            nx = 0f; ny = 0f;
+            var okSize = TryXY(this, "Size", out var sw, out var sh);
+            var okGp = TryXY(this, "GlobalPosition", out var gx, out var gy);
+            var em = EventManager;
+            float mx = 0f, my = 0f;
+            var okMouse = em != null && TryXY(em, "MousePosition", out mx, out my);
+            if (!okSize || !okGp || !okMouse || sw <= 0f || sh <= 0f)
+                return false;
+            nx = Clamp01((mx - gx) / sw);
+            ny = Clamp01((my - gy) / sh);
+            return true;
         }
 
         /// <summary>Reads the X/Y of a Vector2-like value fetched from <paramref name="prop"/> on
