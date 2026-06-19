@@ -350,8 +350,20 @@
                         <Widget WidthSizePolicy="Fixed" SuggestedWidth="0" HeightSizePolicy="Fixed" SuggestedHeight="0">
                           <Children>
                             <Widget HorizontalAlignment="Left" VerticalAlignment="Top" PositionXOffset="@X" PositionYOffset="@Y"
-                                    WidthSizePolicy="Fixed" SuggestedWidth="26" HeightSizePolicy="Fixed" SuggestedHeight="26"
-                                    Sprite="BlankWhiteSquare_9" Color="#5A2422DD" />
+                                    WidthSizePolicy="Fixed" SuggestedWidth="28" HeightSizePolicy="Fixed" SuggestedHeight="28">
+                              <Children>
+                                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" PositionXOffset="1" PositionYOffset="2"
+                                        Sprite="BlankWhiteSquare_9" Color="#00000044" />
+                                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                        Sprite="BlankWhiteSquare_9" Color="#0E0B07FF" />
+                                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                        MarginLeft="2" MarginTop="2" MarginRight="2" MarginBottom="2"
+                                        Sprite="BlankWhiteSquare_9" Color="@Color" />
+                                <Widget IsVisible="@HasIcon" WidthSizePolicy="Fixed" SuggestedWidth="20" HeightSizePolicy="Fixed" SuggestedHeight="20"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Sprite="@ClassIcon" Color="#F0E0D0FF" />
+                              </Children>
+                            </Widget>
                           </Children>
                         </Widget>
                       </ItemTemplate>
@@ -383,12 +395,36 @@
                         <Widget WidthSizePolicy="Fixed" SuggestedWidth="0" HeightSizePolicy="Fixed" SuggestedHeight="0">
                           <Children>
                             <Widget HorizontalAlignment="Left" VerticalAlignment="Top" PositionXOffset="@X" PositionYOffset="@Y"
-                                    WidthSizePolicy="Fixed" SuggestedWidth="36" HeightSizePolicy="Fixed" SuggestedHeight="36"
-                                    Sprite="BlankWhiteSquare_9" Color="@Color">
+                                    WidthSizePolicy="Fixed" SuggestedWidth="36" HeightSizePolicy="Fixed" SuggestedHeight="36">
                               <Children>
-                                <TextWidget Text="@Label" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="19" Brush.FontColor="#E0B85EFF"
-                                            Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                <!-- drop shadow -->
+                                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" PositionXOffset="2" PositionYOffset="3"
+                                        Sprite="BlankWhiteSquare_9" Color="#00000055" />
+                                <!-- selection glow (only when selected) -->
+                                <Widget IsVisible="@IsSelected" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                        ExtendLeft="4" ExtendRight="4" ExtendTop="4" ExtendBottom="4"
+                                        Sprite="BlankWhiteSquare_9" Color="#FFE08CFF" />
+                                <!-- dark frame -->
+                                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                        Sprite="BlankWhiteSquare_9" Color="#0E0B07FF" />
+                                <!-- faction fill (inset 2px so the frame reads as a border) -->
+                                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                        MarginLeft="2" MarginTop="2" MarginRight="2" MarginBottom="2"
+                                        Sprite="BlankWhiteSquare_9" Color="@Color" />
+                                <!-- unit-type glyph -->
+                                <Widget IsVisible="@HasIcon" WidthSizePolicy="Fixed" SuggestedWidth="28" HeightSizePolicy="Fixed" SuggestedHeight="28"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Sprite="@ClassIcon" Color="#F4ECD8FF" />
+                                <!-- number badge (top-left corner) -->
+                                <Widget WidthSizePolicy="Fixed" SuggestedWidth="15" HeightSizePolicy="Fixed" SuggestedHeight="15"
+                                        HorizontalAlignment="Left" VerticalAlignment="Top" PositionXOffset="-2" PositionYOffset="-2"
+                                        Sprite="BlankWhiteSquare_9" Color="#13100AEE">
+                                  <Children>
+                                    <TextWidget Text="@Label" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="12" Brush.FontColor="#F2D98AFF"
+                                                Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                                  </Children>
+                                </Widget>
                               </Children>
                             </Widget>
                           </Children>

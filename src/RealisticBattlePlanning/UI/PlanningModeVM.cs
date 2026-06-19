@@ -106,6 +106,25 @@ namespace RealisticBattlePlanning.UI
         /// <summary>Formation slot number (1-8) — the deployment formation index + 1.</summary>
         private static int SlotNumber(PlannedFormationClass cls) => (int)cls + 1;
 
+        /// <summary>The unit-class glyph for a marker block — a mission-loaded compass
+        /// silhouette (infantry / archer / cavalry / horse-archer), so the block reads its
+        /// type at a glance like the reference staff map.</summary>
+        private static string ClassIconSprite(PlannedFormationClass cls)
+        {
+            switch (cls)
+            {
+                case PlannedFormationClass.Infantry:
+                case PlannedFormationClass.HeavyInfantry: return "General\\compass\\Infantry_Heavy";
+                case PlannedFormationClass.Ranged:        return "General\\compass\\Archer_Heavy";
+                case PlannedFormationClass.Skirmisher:    return "General\\compass\\Archer_Light";
+                case PlannedFormationClass.Cavalry:
+                case PlannedFormationClass.HeavyCavalry:  return "General\\compass\\Cavalry_Heavy";
+                case PlannedFormationClass.LightCavalry:  return "General\\compass\\Cavalry_Light";
+                case PlannedFormationClass.HorseArcher:   return "General\\compass\\HorseArcher_Heavy";
+                default:                                  return "General\\compass\\Infantry_Heavy";
+            }
+        }
+
         /// <summary>Header for a formation card: "3 — Ranged-Infantry" (composition label
         /// when troops are known, otherwise the slot's class name).</summary>
         private string HeaderFor(PlannedFormationClass cls)
@@ -186,8 +205,9 @@ namespace RealisticBattlePlanning.UI
             var anchors = _draft.Build().Anchors;
             var friendlyPoints = new List<MapVec>(_geometry.FormationPositions.Values);
             friendlyPoints.AddRange(anchors.Select(AnchorDisplayPosition));
+            var enemyPoints = _geometry.EnemyFormations.Select(e => e.Pos).ToList();
             var projection = PlanMapProjection.BuildForEngagement(
-                _geometry.TeamCenter, _geometry.AttackDirection, friendlyPoints, _geometry.EnemyPositions);
+                _geometry.TeamCenter, _geometry.AttackDirection, friendlyPoints, enemyPoints);
             _projection = projection;  // kept so a map click can un-project back to a world point
 
             foreach (var kv in _geometry.FormationPositions.OrderBy(p => (int)p.Key))
@@ -200,19 +220,22 @@ namespace RealisticBattlePlanning.UI
                     x: mx, y: my,
                     label: SlotNumber(cls).ToString(),
                     sub: _compositionLabels.TryGetValue(cls, out var l) ? l : cls.ToString(),
-                    baseColor: "#2C3C2CDD",
+                    baseColor: _geometry.FriendlyColor,
                     onSelect: () => SelectFormation(cls),
-                    isSelected: _selectedFormations.Contains(cls)));
+                    isSelected: _selectedFormations.Contains(cls),
+                    classIcon: ClassIconSprite(cls)));
                 _markerHits.Add((cls, mx, my, MarkerSize));
             }
 
-            foreach (var e in _geometry.EnemyPositions)
+            foreach (var (pos, cls) in _geometry.EnemyFormations)
             {
-                var p = projection.Project(e);
+                var p = projection.Project(pos);
                 _enemyMarkers.Add(new MapMarkerVM(
                     x: MapOffsetX + Clamp(p.X, 0.05f, 0.95f) * MapScale - EnemySize / 2f,
                     y: (1f - Clamp(p.Y, 0.05f, 0.95f)) * MapScale - EnemySize / 2f,
-                    label: "", sub: ""));
+                    label: "", sub: "",
+                    baseColor: _geometry.EnemyColor,
+                    classIcon: cls.HasValue ? ClassIconSprite(cls.Value) : ""));
             }
 
             foreach (var a in anchors)
@@ -1032,18 +1055,23 @@ namespace RealisticBattlePlanning.UI
         private string _color;
 
         public MapMarkerVM(float x, float y, string label, string sub,
-            string baseColor = "#2C3C2CDD", Action onSelect = null, bool isSelected = false)
+            string baseColor = "#2C3C2CDD", Action onSelect = null, bool isSelected = false,
+            string classIcon = null)
         {
             X = x;
             Y = y;
             Label = label;
             Sub = sub ?? "";
             HasSub = !string.IsNullOrEmpty(Sub);
+            ClassIcon = classIcon ?? "";
+            HasIcon = !string.IsNullOrEmpty(ClassIcon);
             _baseColor = baseColor;
             _selectedColor = "#6E9A3EFF";  // bright green highlight when selected
             _onSelect = onSelect;
             _isSelected = isSelected;
-            _color = isSelected ? _selectedColor : baseColor;
+            // The fill stays the faction colour; selection is shown by a glow ring bound to
+            // IsSelected in the prefab, not by recolouring the block.
+            _color = baseColor;
         }
 
         [DataSourceProperty] public float X { get; }
@@ -1051,6 +1079,9 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public string Label { get; }
         [DataSourceProperty] public string Sub { get; }
         [DataSourceProperty] public bool HasSub { get; }
+        /// <summary>Unit-class glyph sprite (compass silhouette) shown on the block; "" if none.</summary>
+        [DataSourceProperty] public string ClassIcon { get; }
+        [DataSourceProperty] public bool HasIcon { get; }
 
         /// <summary>Fill color (bound by the friendly-marker template), brightened when selected.</summary>
         [DataSourceProperty]
@@ -1060,7 +1091,7 @@ namespace RealisticBattlePlanning.UI
         public bool IsSelected
         {
             get => _isSelected;
-            set { if (value != _isSelected) { _isSelected = value; OnPropertyChangedWithValue(value, "IsSelected"); Color = value ? _selectedColor : _baseColor; } }
+            set { if (value != _isSelected) { _isSelected = value; OnPropertyChangedWithValue(value, "IsSelected"); } }
         }
 
         /// <summary>Marker click (A2.6.1): selects/toggles this formation. No-op for enemy/anchor markers.</summary>

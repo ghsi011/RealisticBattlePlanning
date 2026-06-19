@@ -20,7 +20,14 @@ namespace RealisticBattlePlanning.UI
         public MapVec TeamCenter;
         public MapVec AttackDirection = new(0f, 1f);
         public readonly Dictionary<PlannedFormationClass, MapVec> FormationPositions = new();
-        public readonly List<MapVec> EnemyPositions = new();
+        // Enemy formations: world position + representative class (for the map glyph; null
+        // if the class doesn't map to a plannable slot).
+        public readonly List<(MapVec Pos, PlannedFormationClass? Cls)> EnemyFormations = new();
+        // Faction colours (Gauntlet #RRGGBBAA) for the marker blocks — the live team banner
+        // colours, so the map reads like the army's own staff map. Defaults are a clear
+        // friend-blue / foe-red if the live colours can't be read.
+        public string FriendlyColor = "#2E4F8AFF";
+        public string EnemyColor = "#8C3A33FF";
 
         public bool HasFormations => FormationPositions.Count > 0;
     }
@@ -37,6 +44,8 @@ namespace RealisticBattlePlanning.UI
 
             try
             {
+                geo.FriendlyColor = HexFromColor(team.Color, geo.FriendlyColor);
+
                 var sum = new MapVec(0f, 0f);
                 var count = 0;
                 foreach (var (planned, engine) in FormationClassMap.All)
@@ -54,6 +63,7 @@ namespace RealisticBattlePlanning.UI
 
                 var enemySum = new MapVec(0f, 0f);
                 var enemyCount = 0;
+                var enemyColorSet = false;
                 var mission = Mission.Current;
                 if (mission != null)
                 {
@@ -61,12 +71,17 @@ namespace RealisticBattlePlanning.UI
                     {
                         if (!other.IsEnemyOf(team))
                             continue;
+                        if (!enemyColorSet)
+                        {
+                            geo.EnemyColor = HexFromColor(other.Color, geo.EnemyColor);
+                            enemyColorSet = true;
+                        }
                         foreach (var formation in other.FormationsIncludingEmpty)
                         {
                             if (formation.CountOfUnits == 0)
                                 continue;
                             var position = ToMapVec(formation.CurrentPosition);
-                            geo.EnemyPositions.Add(position);
+                            geo.EnemyFormations.Add((position, FormationClassMap.ToPlanned(formation.RepresentativeClass)));
                             enemySum += position;
                             enemyCount++;
                         }
@@ -89,5 +104,18 @@ namespace RealisticBattlePlanning.UI
         }
 
         private static MapVec ToMapVec(TaleWorlds.Library.Vec2 v) => new(v.x, v.y);
+
+        /// <summary>Converts a TaleWorlds team colour (uint, 0xAARRGGBB) to a Gauntlet
+        /// "#RRGGBBAA" string, forced fully opaque. Falls back to <paramref name="fallback"/>
+        /// when the colour is unset (0), so a colourless team still gets a clear marker.</summary>
+        private static string HexFromColor(uint c, string fallback)
+        {
+            if ((c & 0x00FFFFFF) == 0)
+                return fallback;
+            var r = (c >> 16) & 0xFF;
+            var g = (c >> 8) & 0xFF;
+            var b = c & 0xFF;
+            return $"#{r:X2}{g:X2}{b:X2}FF";
+        }
     }
 }
