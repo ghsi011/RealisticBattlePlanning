@@ -336,12 +336,17 @@
             <Widget IsVisible="@ShowMapBody" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
                     MarginTop="68" MarginBottom="146" MarginLeft="24" MarginRight="16">
               <Children>
+                <!-- framed-map border: a dark wooden edge behind the parchment (staff-map feel) -->
+                <Widget WidthSizePolicy="Fixed" SuggestedWidth="638" HeightSizePolicy="Fixed" SuggestedHeight="348"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Sprite="BlankWhiteSquare_9" Color="#231906FF" />
+                <Widget WidthSizePolicy="Fixed" SuggestedWidth="632" HeightSizePolicy="Fixed" SuggestedHeight="342"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Sprite="BlankWhiteSquare_9" Color="#5C4A28FF" />
                 <MapCanvasWidget DoNotPassEventsToChildren="true" Brush="Rbp.MapCanvas" WidthSizePolicy="Fixed" SuggestedWidth="620" HeightSizePolicy="Fixed" SuggestedHeight="330"
                         HorizontalAlignment="Center" VerticalAlignment="Center">
                   <Children>
-                    <TextWidget Text="↑  toward the enemy  ·  click a number to select, click the map to add a move" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="18"
-                                VerticalAlignment="Top" MarginTop="3"
-                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#7E8C98FF"
+                    <TextWidget Text="↑ enemy   ·   click a block to select   ·   click the map to march   ·   drag to box-select or form a line   ·   right-click a waypoint to remove" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="18"
+                                VerticalAlignment="Top" MarginTop="4"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="12" Brush.FontColor="#6B5A3CCC"
                                 Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                     <!-- enemy markers (drawn first, under the friendly ones) -->
                     <ListPanel DataSource="{EnemyMarkers}" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
