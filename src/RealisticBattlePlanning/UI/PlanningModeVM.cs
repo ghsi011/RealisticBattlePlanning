@@ -70,6 +70,11 @@ namespace RealisticBattlePlanning.UI
         private PlanMapProjection _projection;
         private int _waypointCounter;
         private string _selectedText;
+        // KSP-style stage rail (A2.6.4/A2.6.5): the selected formation(s) stages as a vertical
+        // list that follows the selection; multi-select shows shared stages in full colour.
+        private MBBindingList<StageRailRowVM> _stageRail;
+        private bool _hasStageRail;
+        private string _stageRailTitle;
 
         public PlanningModeVM(string title, string hint, PlanDraft draft, Action<BattlePlan> onApply, Action onClose,
             Dictionary<PlannedFormationClass, string> compositionLabels = null,
@@ -91,6 +96,7 @@ namespace RealisticBattlePlanning.UI
             _mapMarkers = new MBBindingList<MapMarkerVM>();
             _enemyMarkers = new MBBindingList<MapMarkerVM>();
             _anchorMarkers = new MBBindingList<MapMarkerVM>();
+            _stageRail = new MBBindingList<StageRailRowVM>();
             // Open on the map (the primary authoring surface, A2.6); falls back to the
             // list automatically when there's no live geometry (UpdateBodyVisibility).
             _showMap = true;
@@ -168,6 +174,7 @@ namespace RealisticBattlePlanning.UI
             EmptyText = HasPlan ? "" : "No formations with troops to command.";
 
             BuildMap();
+            BuildStageRail();
             UpdateBodyVisibility();
 
             SignalsText = plan.PlayerSignals.Count > 0
@@ -307,6 +314,57 @@ namespace RealisticBattlePlanning.UI
             if (!_selectedFormations.Remove(cls))
                 _selectedFormations.Add(cls);
             Refresh();
+        }
+
+        // Rebuilds the KSP-style stage rail (A2.6.4/A2.6.5): the selected formation(s) stages
+        // as a vertical list following the selection. With several formations selected the rail
+        // shows the stages they share in full colour and the divergent ones dimmed (StageRail).
+        private void BuildStageRail()
+        {
+            _stageRail.Clear();
+            var selection = _selectedFormations.OrderBy(c => (int)c).ToList();
+            HasStageRail = selection.Count > 0;
+            if (!HasStageRail)
+            {
+                StageRailTitle = "";
+                return;
+            }
+
+            var multi = selection.Count > 1;
+            StageRailTitle = multi
+                ? "Formations " + string.Join(", ", selection.Select(SlotNumber)) + "    ·    shared stages in colour"
+                : $"Formation {SlotNumber(selection[0])}    ·    stages";
+
+            var rows = StageRail.Build(_draft, selection);
+            foreach (var row in rows)
+            {
+                var index = row.Index;
+                _stageRail.Add(new StageRailRowVM(
+                    row, multi, rows.Count,
+                    moveUp: () => ReorderRailRow(index, index - 1),
+                    moveDown: () => ReorderRailRow(index, index + 1),
+                    edit: () => EditRailRow(index)));
+            }
+        }
+
+        // Drag/▲▼ a rail row to reorder that stage in every selected formation at once (A2.6.4).
+        private void ReorderRailRow(int from, int to)
+        {
+            var selection = _selectedFormations.OrderBy(c => (int)c).ToList();
+            if (selection.Count == 0)
+                return;
+            StageRail.ReorderRow(_draft, selection, from, to);
+            StatusText = $"Reordered stage {from + 1} → {to + 1}.";
+            Refresh();
+        }
+
+        // Clicking a rail row opens the directive picker for that stage on the first selected
+        // formation — quick edits without leaving the map (deeper edits use the list view).
+        private void EditRailRow(int index)
+        {
+            if (_selectedFormations.Count == 0)
+                return;
+            OpenDirectivePicker(_selectedFormations.OrderBy(c => (int)c).First(), index);
         }
 
         // A click on the map canvas (A2.6.1/A2.6.2). nx/ny are normalized canvas coords,
@@ -1098,6 +1156,9 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public bool ShowListBody { get => _showListBody; set { if (value != _showListBody) { _showListBody = value; OnPropertyChangedWithValue(value, "ShowListBody"); } } }
         [DataSourceProperty] public string MapToggleText { get => _mapToggleText; set { if (value != _mapToggleText) { _mapToggleText = value; OnPropertyChangedWithValue(value, "MapToggleText"); } } }
         [DataSourceProperty] public string SelectedText { get => _selectedText; set { if (value != _selectedText) { _selectedText = value; OnPropertyChangedWithValue(value, "SelectedText"); } } }
+        [DataSourceProperty] public MBBindingList<StageRailRowVM> StageRailRows { get => _stageRail; set { if (value != _stageRail) { _stageRail = value; OnPropertyChangedWithValue(value, "StageRailRows"); } } }
+        [DataSourceProperty] public bool HasStageRail { get => _hasStageRail; set { if (value != _hasStageRail) { _hasStageRail = value; OnPropertyChangedWithValue(value, "HasStageRail"); } } }
+        [DataSourceProperty] public string StageRailTitle { get => _stageRailTitle; set { if (value != _stageRailTitle) { _stageRailTitle = value; OnPropertyChangedWithValue(value, "StageRailTitle"); } } }
     }
 
     /// <summary>One marker on the battlefield map: its top-left pixel offset (design
@@ -1149,6 +1210,43 @@ namespace RealisticBattlePlanning.UI
 
         /// <summary>Marker click (A2.6.1): selects/toggles this formation. No-op for enemy/anchor markers.</summary>
         public void ExecuteSelect() => _onSelect?.Invoke();
+    }
+
+    /// <summary>One row of the KSP-style stage rail: its number, one-line summary, a shared
+    /// flag (dimmed when it diverges across a multi-selection, A2.6.5), and ▲▼/edit actions.</summary>
+    public sealed class StageRailRowVM : ViewModel
+    {
+        private readonly Action _moveUp;
+        private readonly Action _moveDown;
+        private readonly Action _edit;
+
+        public StageRailRowVM(StageRailRow row, bool multiSelect, int stageCount,
+            Action moveUp, Action moveDown, Action edit)
+        {
+            _moveUp = moveUp;
+            _moveDown = moveDown;
+            _edit = edit;
+            NumberText = (row.Index + 1).ToString();
+            SummaryText = row.Summary;
+            // Full colour when shared across the selection (or a single selection); dimmed otherwise.
+            IsShared = !multiSelect || row.SharedAcrossSelection;
+            RowColor = IsShared ? "#2E3A48F0" : "#2E3A4855";
+            TextColor = IsShared ? "#E7EEF6FF" : "#8C97A4FF";
+            IsMoveUpDisabled = row.Index <= 0;
+            IsMoveDownDisabled = row.Index >= stageCount - 1;
+        }
+
+        public void ExecuteMoveUp() => _moveUp?.Invoke();
+        public void ExecuteMoveDown() => _moveDown?.Invoke();
+        public void ExecuteEdit() => _edit?.Invoke();
+
+        [DataSourceProperty] public string NumberText { get; }
+        [DataSourceProperty] public string SummaryText { get; }
+        [DataSourceProperty] public bool IsShared { get; }
+        [DataSourceProperty] public string RowColor { get; }
+        [DataSourceProperty] public string TextColor { get; }
+        [DataSourceProperty] public bool IsMoveUpDisabled { get; }
+        [DataSourceProperty] public bool IsMoveDownDisabled { get; }
     }
 
     /// <summary>One selectable row in a picker menu. Type pickers carry a one-line
