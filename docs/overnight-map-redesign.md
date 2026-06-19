@@ -39,6 +39,30 @@ De-overlap (Inf+Ranged share a column) is handled on top of F1: overlapping mark
 nudged apart with a leader line to true position.
 
 ## Iteration log
-- **Iter 1 (Phase A, done, committed):** keyboard-free dev loop — sentinel in
-  `PlanningModeView` + `tools\map-iterate.ps1`. Verified end-to-end.
-- **Iter 2 (Phase B, this doc):** design decision V1 + F1.
+- **Iter 1 (Phase A):** keyboard-free dev loop — sentinel in `PlanningModeView` +
+  `tools\map-iterate.ps1`. Verified end-to-end. (a93e6ab)
+- **Iter 2 (Phase B):** design decision V1 + F1 (this doc).
+- **Iter 3 (Phase C):** parchment canvas (`paper_texture_tile`) + `brushes` hot-reload
+  dev verb (`UIResourceManager.BrushFactory.LoadBrushFile`). (21f940f)
+- **Iter 4-5 (Phase D/E):** faction-colour unit blocks (live `Team.Color`) + class
+  glyphs (`General\compass\*`) + number badge + selection glow; enemy blocks +
+  `respawn.ps1`/`crop-zoom.ps1`. (a40ae7b)
+- **Iter 6-7 (Phase F):** `BuildTacticalView` bounded fixed-scale framing (the "better
+  solution") + `MapLayout.SpreadOverlaps` de-overlap + tuning; 8 new Core tests. (191b5e5)
+- **Iter 8-9 (Phase G):** `click`/`rightclick` verbs; right-click waypoint removal with
+  chain re-link (`MapAuthoring.RemoveMarchWaypoint`). Verified select/place/remove. (da18112)
+- **Iter 10 (review #1):** subagent review → fixed waypoint-id collision (seed
+  `_waypointCounter`) + dead fields. (1e13f4e)
+- **Iter 11 (Phase H):** KSP-style stage rail (per-selection, shared-stage colouring,
+  click-to-edit). (1aa9954)
+- **Iter 12 (coach run #3):** refreshed the stale AGENTS.md dev-loop section. (9ae3d1e)
+- **Iter 13 (Phase G):** drag box-select + drag-to-line (`drag` verb;
+  `AppendLineFormation`). Verified both modes. (43aa1f0)
+- **Iter 14 (polish):** framed parchment + gesture hint. (65b1edc)
+- **Iter 15 (review #2 + follow-up):** subagent review (no bugs; click→release verified
+  safe) → narrowed the rail to reduce map occlusion. (ae8e1d0)
+
+**Status: the map matches the reference and is fully functional.** Remaining
+nice-to-haves (deferred): rail ▲▼ reorder binding (Gauntlet CoverChildren floated it),
+banner/terrain flourishes, a tested Core extraction of the VM box-select. The physical
+mouse click/drag (now release-based) wants a quick human confirm.
