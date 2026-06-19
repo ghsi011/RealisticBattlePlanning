@@ -82,6 +82,10 @@ namespace RealisticBattlePlanning.UI
             _onClose = onClose;
             _compositionLabels = compositionLabels ?? new Dictionary<PlannedFormationClass, string>();
             _geometry = geometry;
+            // Resume the waypoint counter past any wp anchors the loaded plan already carries
+            // (e.g. after Apply + reopen), so a fresh map click never collides with an existing
+            // id — AddAnchor no-ops on a duplicate id, which would silently re-use the old point.
+            _waypointCounter = MaxWaypointNumber(draft?.Build().Anchors);
             _formations = new MBBindingList<FormationPlanItemVM>();
             _pickerOptions = new MBBindingList<PickerOptionVM>();
             _mapMarkers = new MBBindingList<MapMarkerVM>();
@@ -383,6 +387,19 @@ namespace RealisticBattlePlanning.UI
         /// <summary>Drops any waypoint anchor no stage references any more — called after a
         /// removal so deleting a click-placed waypoint doesn't leave a dangling-anchor warning.</summary>
         private void PruneOrphanedWaypoints() => _draft.RemoveUnreferencedAnchors(IsAutoWaypointAnchor);
+
+        /// <summary>Highest N among existing "wpN" anchors (0 if none) — so a reopened draft
+        /// keeps numbering waypoints upward instead of colliding from 1.</summary>
+        private static int MaxWaypointNumber(IEnumerable<MapAnchor> anchors)
+        {
+            var max = 0;
+            if (anchors != null)
+                foreach (var a in anchors)
+                    if (a != null && IsAutoWaypointAnchor(a.Id)
+                        && int.TryParse(a.Id.Substring(WaypointAnchorPrefix.Length), out var n) && n > max)
+                        max = n;
+            return max;
+        }
 
         private void AddStage(PlannedFormationClass cls)
         {
@@ -1089,8 +1106,6 @@ namespace RealisticBattlePlanning.UI
     public sealed class MapMarkerVM : ViewModel
     {
         private readonly Action _onSelect;
-        private readonly string _baseColor;
-        private readonly string _selectedColor;
         private bool _isSelected;
         private string _color;
 
@@ -1105,8 +1120,6 @@ namespace RealisticBattlePlanning.UI
             HasSub = !string.IsNullOrEmpty(Sub);
             ClassIcon = classIcon ?? "";
             HasIcon = !string.IsNullOrEmpty(ClassIcon);
-            _baseColor = baseColor;
-            _selectedColor = "#6E9A3EFF";  // bright green highlight when selected
             _onSelect = onSelect;
             _isSelected = isSelected;
             // The fill stays the faction colour; selection is shown by a glow ring bound to

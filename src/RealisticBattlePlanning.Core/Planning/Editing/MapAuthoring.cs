@@ -96,6 +96,9 @@ namespace RealisticBattlePlanning.Planning.Editing
         /// waypoint, or to BattleStart if the removed one was the first — so right-clicking a
         /// waypoint out of the middle of a march leaves wp1->wp3 intact, not a dangling trigger.
         /// The caller prunes the now-unreferenced anchor. Returns true if a stage was removed.
+        /// Scoped to the click-authored chain: matches a single-anchor MoveTo (not a Path) and
+        /// re-links the next stage's first PositionReached — a hand-authored multi-trigger stage
+        /// would re-link only that one condition.
         /// </summary>
         public static bool RemoveMarchWaypoint(PlanDraft draft, string anchorId)
         {
