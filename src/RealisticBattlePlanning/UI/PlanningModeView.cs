@@ -160,6 +160,7 @@ namespace RealisticBattlePlanning.UI
                     case "close": Hide(); break;
                     case "toggle": Toggle(); break;
                     case "reopen": Hide(); Show(); break;
+                    case "brushes": ReloadBrushes(); break;
                     case "shot": Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     case "reshot": Hide(); Show(); Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     default: RbpLog.Info($"[DEV] planner.cmd: unknown verb '{verb}'."); return;
@@ -169,6 +170,22 @@ namespace RealisticBattlePlanning.UI
             catch (Exception e)
             {
                 RbpLog.Error($"[DEV] planner.cmd '{cmd}' failed.", e);
+            }
+        }
+
+        // Dev only: re-reads Module\GUI\Brushes\RbpBrushes.xml into the global brush factory
+        // (LoadBrushFile REPLACES existing entries) so a brush edit hot-reloaded via deploy-ui.ps1
+        // takes effect on the next 'reopen' — no relaunch. Brushes are otherwise cached at startup.
+        private static void ReloadBrushes()
+        {
+            try
+            {
+                UIResourceManager.BrushFactory.LoadBrushFile("RbpBrushes");
+                RbpLog.Info("[DEV] reloaded RbpBrushes.xml into the brush factory.");
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[DEV] brush reload failed.", e);
             }
         }
 

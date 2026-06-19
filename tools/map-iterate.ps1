@@ -74,7 +74,9 @@ if ($Cmd -in @('close','open','toggle','reopen')) {
 # built + rendered the panel (a few frames), shot. Doing both in one C# tick captured
 # before the layer rendered, so the script orchestrates the gap explicitly.
 if ($Cmd -eq 'reshot') {
-  Send-Verb 'reopen'
+  Send-Verb 'brushes'              # hot-reload RbpBrushes.xml into the factory (no relaunch)
+  Start-Sleep -Milliseconds 300
+  Send-Verb 'reopen'               # rebuild the movie so new widgets pick up new brushes
   Start-Sleep -Milliseconds 1100   # let the movie build + render
   Send-Verb "shot $Name"
 } else {

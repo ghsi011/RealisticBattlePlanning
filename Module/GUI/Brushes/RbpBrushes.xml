@@ -64,17 +64,28 @@
     </Styles>
   </Brush>
 
-  <!-- The interactive battle-map canvas. It is a ButtonWidget (so it reliably captures
-       clicks), which renders white through Sprite+Color — so its dark background comes from
-       this static brush, with NO hover/press change (it is a map, not a button). -->
+  <!-- The interactive battle-map canvas — a CK/Total-War parchment staff map. It is a
+       ButtonWidget (renders white through Sprite+Color), so the background is built from
+       brush layers: an opaque tan base (always shows, even if the texture sprite isn't
+       mission-loaded) under a paper-grain texture. No hover/press change (it is a map). -->
   <Brush Name="Rbp.MapCanvas" TransitionDuration="0">
     <Layers>
-      <BrushLayer Name="Default" Sprite="BlankWhiteSquare_9" Color="#10150EE8" />
+      <BrushLayer Name="Base"  Sprite="BlankWhiteSquare_9" Color="#877340FF" />
+      <BrushLayer Name="Paper" Sprite="paper_texture_tile" Color="#CBB37AFF" />
     </Layers>
     <Styles>
-      <Style Name="Default"><BrushLayer Name="Default" ColorFactor="1.0" /></Style>
-      <Style Name="Hovered"><BrushLayer Name="Default" ColorFactor="1.0" /></Style>
-      <Style Name="Pressed"><BrushLayer Name="Default" ColorFactor="1.0" /></Style>
+      <Style Name="Default">
+        <BrushLayer Name="Base" ColorFactor="1.0" />
+        <BrushLayer Name="Paper" ColorFactor="1.0" />
+      </Style>
+      <Style Name="Hovered">
+        <BrushLayer Name="Base" ColorFactor="1.0" />
+        <BrushLayer Name="Paper" ColorFactor="1.0" />
+      </Style>
+      <Style Name="Pressed">
+        <BrushLayer Name="Base" ColorFactor="1.0" />
+        <BrushLayer Name="Paper" ColorFactor="1.0" />
+      </Style>
     </Styles>
   </Brush>
 
