@@ -441,9 +441,9 @@
                 <!-- KSP-style stage rail: follows the selection, overlays the right of the map.
                      Each row = a stage; multi-select shows shared stages in full colour (@RowColor /
                      @TextColor dimmed when divergent). Click a row to edit its directive. -->
-                <Widget IsVisible="@HasStageRail" WidthSizePolicy="Fixed" SuggestedWidth="262" HeightSizePolicy="Fixed" SuggestedHeight="330"
+                <Widget IsVisible="@HasStageRail" WidthSizePolicy="Fixed" SuggestedWidth="234" HeightSizePolicy="Fixed" SuggestedHeight="342"
                         HorizontalAlignment="Right" VerticalAlignment="Center"
-                        Sprite="BlankWhiteSquare_9" Color="#14110BF2">
+                        Sprite="BlankWhiteSquare_9" Color="#14110BF7">
                   <Children>
                     <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" StackLayout.LayoutMethod="VerticalTopToBottom"
                                MarginLeft="10" MarginRight="10" MarginTop="9" MarginBottom="9">
