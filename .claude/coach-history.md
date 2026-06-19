@@ -1,6 +1,6 @@
 # Coach Suggestion History
 
-**Last coach run**: 2026-06-18 — score 6/10 (first run)
+**Last coach run**: 2026-06-20 — score 8/10 (=)
 **Last deep CLAUDE.md optimization**: never
 
 ## 2026-06-18 — first run, score 6/10
@@ -35,3 +35,19 @@ Usage-log-driven (the log now has data). Applied to `.claude/settings.local.json
 
 Still pending (carry-over, needs the user): `csharp-lsp` requires a Claude Code
 restart to load; after that, create `.claude/rules/tooling/lsp-fallbacks.md`.
+
+## 2026-06-20 — run #3 (during the overnight map redesign; score 8/10 =)
+
+Focused doc-freshness pass (the setup itself is still solid at 8/10). The biggest
+gap was a **stale load-bearing doc**: `AGENTS.md`'s "Fast UI dev loop" still told
+future sessions to drive the planner with computer-use, but this session proved the
+in-game keyboard unreliable over automation and built a file-driven loop instead.
+Applied:
+- Rewrote the "Fast UI dev loop" section + the `tools/` inventory to document the
+  keyboard-free loop: the `planner.cmd` sentinel (PlanningModeView poll) and the
+  wrappers `map-iterate.ps1` (deploy-ui → brushes hot-reload → reopen → shot →
+  PNG, no relaunch for XML/brush), `respawn.ps1` (relaunch+battle for C# changes),
+  `crop-zoom.ps1`, plus the `click`/`rightclick` test verbs. *(committed)*
+
+Not actioned (still solid / out of scope mid-task): full skills/hooks/permissions
+re-audit — no new gaps since run #2; `csharp-lsp` restart still pending the user.

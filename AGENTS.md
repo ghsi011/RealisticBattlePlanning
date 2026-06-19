@@ -30,9 +30,10 @@ parallel one.
   needed.
 - `Module/` — files copied verbatim into the deployed module root
   (`SubModule.xml`, `ModuleData/`, `GUI/` prefabs + brushes, etc.).
-- `tools/` — dev scripts: `dev-relaunch.ps1` / `deploy-ui.ps1` /
-  `focus-game.ps1` (the in-game UI loop, below), `view-screenshot.ps1`,
-  `run-harness.ps1`, `decompile-game.ps1`.
+- `tools/` — dev scripts: `map-iterate.ps1` / `respawn.ps1` / `crop-zoom.ps1`
+  (the file-driven UI loop, below) + `dev-relaunch.ps1` / `deploy-ui.ps1` /
+  `focus-game.ps1` / `view-screenshot.ps1`, `run-harness.ps1`,
+  `decompile-game.ps1`.
 - `Directory.Build.props` — resolves `BannerlordGameDir` and `ModuleDeployDir`.
 - `local.props` (gitignored) — per-machine overrides. Template in `local.props.example`.
 - `bannerlord-battle-planning-mod-spec.md` — the design spec.
@@ -117,19 +118,34 @@ Screenshots\<name>.bmp` (the engine writes BMP regardless of extension). Run
 PNG — the Read tool renders it, so you can visually verify UI/state directly
 instead of asking the user to describe it. Logs go to `Logs\rbp.log`.
 
-**Fast UI dev loop (computer-use to drive the panel):** `tools\dev-relaunch.ps1`
-does kill → build+deploy → launch → auto-dismiss the BLSE safe-mode dialog →
-pin the window to the primary monitor, returning when the menu is up (~60s;
-`-NoBuild` skips the build). For **XML/brush-only** edits, skip the relaunch
-entirely: `tools\deploy-ui.ps1` copies `Module\GUI\**` into the running game
-(no build, no kill), and Gauntlet re-reads the prefab when the movie reopens —
-so edit a prefab, run `deploy-ui.ps1`, toggle the panel, and the change is live.
-A loaded .NET assembly can't be hot-swapped, so **C# changes still need the
-relaunch**. In the dev console, `rbp.autobattle` spawns a land custom field
-battle (no menu nav) and `rbp.plan` toggles the Planning Mode editor.
-`tools\focus-game.ps1` kills the focus-stealing Windows TextInputHost and
-foregrounds the game — run it before driving the UI with computer-use. Keep the
-game open between iterations; close it when the work is done.
+**Fast UI dev loop (file-driven, no keyboard).** The in-game keyboard is
+unreliable when the game is driven over automation/remote (keystrokes and the
+`rbp.plan`/Numpad0 toggle drop), so the visual loop does NOT use computer-use to
+open the planner. Instead `PlanningModeView` polls a sentinel file
+`Modules\RealisticBattlePlanning\Debug\planner.cmd` (inert in normal play) for
+one verb per write: `open｜close｜toggle｜reopen｜brushes｜shot <name>｜reshot <name>｜
+click <nx> <ny>｜rightclick <nx> <ny>`. Two wrapper scripts drive it:
+
+- **`tools\map-iterate.ps1 <name>`** — one command per *visual* iteration on the
+  map/panel: `deploy-ui` (hot-copy `Module\GUI\**`) → `brushes` (hot-reload
+  `RbpBrushes.xml` into the live factory — brushes are cached at startup and do
+  NOT reload on reopen otherwise) → `reopen` (rebuild the movie, re-reads the
+  prefab) → `shot` → convert the BMP to `temp\<name>.png` to Read. **No relaunch
+  for XML/brush edits.** `-Cmd reopen|open|close|toggle|shot`, `-NoDeploy` to
+  skip the GUI copy.
+- **`tools\respawn.ps1`** — one command for a *C# change*: `dev-relaunch.ps1`
+  (kill → build+deploy → launch → dismiss safe-mode → pin window) then spawn a
+  `cav-clash` battle and wait for deployment. A loaded .NET assembly can't be
+  hot-swapped, so C# still needs this (~90s); XML/brush use `map-iterate` only.
+- **`tools\crop-zoom.ps1 <name>`** — upscale the map-panel region of a capture so
+  marker/glyph/rail detail is legible when Read.
+
+The `click`/`rightclick` verbs dispatch a normalized map click straight into the
+VM, so select/place/remove are testable deterministically over the file channel
+(no mouse). `dev-relaunch.ps1 -NoBuild` skips the build; `tools\deploy-ui.ps1`
+and `tools\focus-game.ps1` still exist for manual use. In the dev console (when
+the keyboard works), `rbp.autobattle` spawns a field battle and `rbp.plan`
+toggles the editor. Keep the game open between iterations; close it when done.
 
 **Committing:** PowerShell here-strings mangle `-`, `/`, `!`, and `()` in a
 commit body — write the message to `COMMIT_MSG.tmp` (gitignored) and
