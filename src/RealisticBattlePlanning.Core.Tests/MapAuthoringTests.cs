@@ -50,5 +50,39 @@ namespace RealisticBattlePlanning.Tests
             Assert.Null(MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(0f, 0f), " "));
             Assert.Empty(draft.StagesOf(PlannedFormationClass.Infantry));
         }
+
+        [Fact]
+        public void LinePositionsSpreadEvenlyEndpointsInclusive()
+        {
+            var p = MapAuthoring.LinePositions(new MapVec(0f, 0f), new MapVec(60f, 0f), 3);
+            Assert.Equal(3, p.Count);
+            Assert.Equal(0f, p[0].X, 3);
+            Assert.Equal(30f, p[1].X, 3);
+            Assert.Equal(60f, p[2].X, 3);
+
+            var one = MapAuthoring.LinePositions(new MapVec(0f, 0f), new MapVec(60f, 0f), 1);
+            Assert.Equal(30f, Assert.Single(one).X, 3);  // single formation -> midpoint
+            Assert.Empty(MapAuthoring.LinePositions(new MapVec(0f, 0f), new MapVec(1f, 0f), 0));
+        }
+
+        [Fact]
+        public void DragToLineArraysFormationsAndGivesEachAMarchStage()
+        {
+            var draft = new PlanDraft();
+            var forms = new[] { PlannedFormationClass.Infantry, PlannedFormationClass.Ranged, PlannedFormationClass.Cavalry };
+
+            var ids = MapAuthoring.AppendLineFormation(draft, forms, new MapVec(0f, 0f), new MapVec(60f, 0f), f => $"line-{f}");
+
+            Assert.Equal(new[] { "line-Infantry", "line-Ranged", "line-Cavalry" }, ids);
+            // each got a move stage to its evenly-spaced spot, gated on battle start (first stage = move together)
+            foreach (var (f, x) in new[] { (PlannedFormationClass.Infantry, 0f), (PlannedFormationClass.Ranged, 30f), (PlannedFormationClass.Cavalry, 60f) })
+            {
+                var stage = Assert.Single(draft.StagesOf(f));
+                Assert.Equal(DirectiveType.MoveTo, stage.Do.Type);
+                Assert.Equal(TriggerType.BattleStart, Assert.Single(stage.When).Type);
+                Assert.Equal(x, draft.Anchors.Single(a => a.Id == $"line-{f}").X, 3);
+            }
+            Assert.Empty(draft.Validate().Errors);
+        }
     }
 }
