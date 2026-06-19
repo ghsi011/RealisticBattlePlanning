@@ -1,47 +1,79 @@
 using System;
+using System.Reflection;
 using TaleWorlds.GauntletUI;            // UIContext, EventManager
-using TaleWorlds.GauntletUI.BaseTypes;  // Widget
-using TaleWorlds.Library;
+using TaleWorlds.GauntletUI.BaseTypes;  // ButtonWidget
 
 namespace RealisticBattlePlanning.UI
 {
     /// <summary>
-    /// The interactive battle-map canvas (spec A2.6.2): a full-bounds widget that turns a
-    /// click on empty map into a normalized [0,1] point and hands it to the VM, so the
-    /// editor can append a point-and-click move stage. Marker buttons sit on top and consume
-    /// their own clicks; clicks that land on the bare canvas reach here. The VM wires
-    /// <see cref="MapClicked"/> after the movie loads (Command.Click is parameterless and
-    /// cannot carry the position — the 2026-06-12 review's open question, solved by a direct
-    /// delegate rather than a two-way binding). Guarded — a click handler fault must never
-    /// take the mission down.
+    /// The interactive battle-map canvas (spec A2.6): captures every click in its bounds and
+    /// hands the VM a normalized [0,1] point, so the editor can select a formation (marker
+    /// hit-test, VM-side) or append a point-and-click move stage. The active planning view wires
+    /// <see cref="Clicked"/> on open / clears it on close (Command.Click is parameterless and
+    /// cannot carry the position — the 2026-06-12 review's open question, solved with a static
+    /// delegate rather than a fragile two-way binding).
+    ///
+    /// Bases on <see cref="ButtonWidget"/>: a raw Widget's OnMousePressed never fired — the
+    /// marker ListPanels filling the canvas swallowed the clicks; a ButtonWidget with
+    /// DoNotPassEventsToChildren reliably captures the whole area.
+    ///
+    /// Geometry (Size / GlobalPosition / MousePosition) is read by REFLECTION: the compile-time
+    /// reference assembly and the installed game disagree on the Vector2 type behind those
+    /// members, so a direct call fails to JIT with a MissingMethodException (which a try/catch
+    /// can't catch — the whole method won't compile). Reflection binds to the runtime members.
     /// </summary>
-    public class MapCanvasWidget : Widget
+    public class MapCanvasWidget : ButtonWidget
     {
         public MapCanvasWidget(UIContext context) : base(context) { }
 
         /// <summary>Invoked with the click's normalized canvas coordinates: x right in [0,1],
-        /// y DOWN in [0,1] (screen sense; the VM un-flips to map-forward). The active planning
-        /// view sets this on open and clears it on close — a static hook avoids hunting the
-        /// widget out of the loaded movie tree (only one planner is open at a time).</summary>
+        /// y DOWN in [0,1] (screen sense; the VM un-flips to map-forward).</summary>
         public static Action<float, float> Clicked { get; set; }
 
         protected override void OnMousePressed()
         {
-            base.OnMousePressed();
             try
             {
-                var size = Size;
-                if (Clicked == null || size.X <= 0f || size.Y <= 0f)
+                base.OnMousePressed();
+                if (Clicked == null)
                     return;
-                var local = EventManager.MousePosition - GlobalPosition;
-                var nx = Clamp01(local.X / size.X);
-                var ny = Clamp01(local.Y / size.Y);
+                if (!TryXY(this, "Size", out var sw, out var sh) || sw <= 0f || sh <= 0f)
+                    return;
+                if (!TryXY(this, "GlobalPosition", out var gx, out var gy))
+                    return;
+                var em = EventManager;
+                if (em == null || !TryXY(em, "MousePosition", out var mx, out var my))
+                    return;
+
+                var nx = Clamp01((mx - gx) / sw);
+                var ny = Clamp01((my - gy) / sh);
+                Diagnostics.RbpLog.Info($"[MAP] click n=({nx:0.00},{ny:0.00}) mouse=({mx:0},{my:0}) gp=({gx:0},{gy:0}) size=({sw:0},{sh:0})");
                 Clicked(nx, ny);
             }
-            catch
+            catch (Exception e)
             {
-                // Never let a UI click handler fault propagate into the mission tick.
+                Diagnostics.RbpLog.Error("[MAP] canvas click handler failed.", e);
             }
+        }
+
+        /// <summary>Reads the X/Y of a Vector2-like value fetched from <paramref name="prop"/> on
+        /// <paramref name="obj"/> by reflection (X/Y may be a field or a property).</summary>
+        private static bool TryXY(object obj, string prop, out float x, out float y)
+        {
+            x = 0f; y = 0f;
+            var value = obj?.GetType().GetProperty(prop)?.GetValue(obj);
+            return value != null && TryComponent(value, "X", out x) && TryComponent(value, "Y", out y);
+        }
+
+        private static bool TryComponent(object v, string name, out float f)
+        {
+            f = 0f;
+            var t = v.GetType();
+            var p = t.GetProperty(name);
+            if (p != null) { f = Convert.ToSingle(p.GetValue(v)); return true; }
+            var field = t.GetField(name);
+            if (field != null) { f = Convert.ToSingle(field.GetValue(v)); return true; }
+            return false;
         }
 
         private static float Clamp01(float v) => v < 0f ? 0f : (v > 1f ? 1f : v);

@@ -94,6 +94,11 @@ namespace RealisticBattlePlanning.UI
         /// <summary>Map area size in design units (the prefab scales to the window).</summary>
         private const float MapWidth = 620f;
         private const float MapHeight = 330f;
+        // Uniform pixels-per-normalized-unit so the shape-preserving square projection isn't
+        // stretched into the 620x330 canvas (which made nearby units look far apart). Scale by
+        // the smaller dimension and centre horizontally, so distances/angles read true.
+        private const float MapScale = MapHeight;
+        private const float MapOffsetX = (MapWidth - MapHeight) / 2f;
         private const float MarkerSize = 36f;
         private const float EnemySize = 26f;
         private const float AnchorSize = 18f;
@@ -187,8 +192,8 @@ namespace RealisticBattlePlanning.UI
             {
                 var p = projection.Project(kv.Value);
                 var cls = kv.Key;
-                var mx = p.X * MapWidth - MarkerSize / 2f;
-                var my = (1f - p.Y) * MapHeight - MarkerSize / 2f; // flip Y: forward (up) -> small screen-y
+                var mx = MapOffsetX + p.X * MapScale - MarkerSize / 2f;
+                var my = (1f - p.Y) * MapScale - MarkerSize / 2f; // flip Y: forward (up) -> small screen-y
                 _mapMarkers.Add(new MapMarkerVM(
                     x: mx, y: my,
                     label: SlotNumber(cls).ToString(),
@@ -203,8 +208,8 @@ namespace RealisticBattlePlanning.UI
             {
                 var p = projection.Project(e);
                 _enemyMarkers.Add(new MapMarkerVM(
-                    x: Clamp(p.X, 0.05f, 0.95f) * MapWidth - EnemySize / 2f,
-                    y: (1f - Clamp(p.Y, 0.05f, 0.95f)) * MapHeight - EnemySize / 2f,
+                    x: MapOffsetX + Clamp(p.X, 0.05f, 0.95f) * MapScale - EnemySize / 2f,
+                    y: (1f - Clamp(p.Y, 0.05f, 0.95f)) * MapScale - EnemySize / 2f,
                     label: "", sub: ""));
             }
 
@@ -212,8 +217,8 @@ namespace RealisticBattlePlanning.UI
             {
                 var p = projection.Project(AnchorDisplayPosition(a));
                 _anchorMarkers.Add(new MapMarkerVM(
-                    x: Clamp(p.X, 0.03f, 0.97f) * MapWidth - AnchorSize / 2f,
-                    y: (1f - Clamp(p.Y, 0.03f, 0.97f)) * MapHeight - AnchorSize / 2f,
+                    x: MapOffsetX + Clamp(p.X, 0.03f, 0.97f) * MapScale - AnchorSize / 2f,
+                    y: (1f - Clamp(p.Y, 0.03f, 0.97f)) * MapScale - AnchorSize / 2f,
                     label: a.Id, sub: ""));
             }
 
@@ -272,16 +277,20 @@ namespace RealisticBattlePlanning.UI
             // Marker hit-test in design space (markers are placed in MapWidth x MapHeight units).
             var dx = nx * MapWidth;
             var dy = ny * MapHeight;
+            var rects = string.Join("  ", _markerHits.Select(h => $"{SlotNumber(h.Cls)}@[{h.X:0}-{h.X + h.Size:0},{h.Y:0}-{h.Y + h.Size:0}]"));
+            Diagnostics.RbpLog.Info($"[MAP] OnMapClicked n=({nx:0.00},{ny:0.00}) design=({dx:0},{dy:0}) selected={_selectedFormations.Count} markers: {rects}");
             foreach (var hit in _markerHits)
                 if (dx >= hit.X && dx <= hit.X + hit.Size && dy >= hit.Y && dy <= hit.Y + hit.Size)
                 {
+                    Diagnostics.RbpLog.Info($"[MAP] hit formation {SlotNumber(hit.Cls)} -> select");
                     SelectFormation(hit.Cls);
                     return;
                 }
 
             if (_selectedFormations.Count == 0)
                 return;
-            var world = _projection.Unproject(new MapPoint(nx, 1f - ny));
+            // Invert the centred uniform mapping (canvas px -> normalized square -> world).
+            var world = _projection.Unproject(new MapPoint((nx * MapWidth - MapOffsetX) / MapScale, 1f - ny));
             foreach (var cls in _selectedFormations.OrderBy(c => (int)c))
                 MapAuthoring.AppendMarchStage(_draft, cls, world, $"wp{++_waypointCounter}");
             Refresh();

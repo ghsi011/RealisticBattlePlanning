@@ -336,7 +336,7 @@
             <Widget IsVisible="@ShowMapBody" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
                     MarginTop="68" MarginBottom="146" MarginLeft="24" MarginRight="16">
               <Children>
-                <MapCanvasWidget WidthSizePolicy="Fixed" SuggestedWidth="620" HeightSizePolicy="Fixed" SuggestedHeight="330"
+                <MapCanvasWidget DoNotPassEventsToChildren="true" WidthSizePolicy="Fixed" SuggestedWidth="620" HeightSizePolicy="Fixed" SuggestedHeight="330"
                         HorizontalAlignment="Center" VerticalAlignment="Center" Sprite="BlankWhiteSquare_9" Color="#10150E88">
                   <Children>
                     <TextWidget Text="↑  toward the enemy  ·  click a number to select, click the map to add a move" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="18"
