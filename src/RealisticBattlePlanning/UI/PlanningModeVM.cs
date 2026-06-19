@@ -99,8 +99,8 @@ namespace RealisticBattlePlanning.UI
         // the smaller dimension and centre horizontally, so distances/angles read true.
         private const float MapScale = MapHeight;
         private const float MapOffsetX = (MapWidth - MapHeight) / 2f;
-        private const float MarkerSize = 36f;
-        private const float EnemySize = 26f;
+        private const float MarkerSize = 40f;
+        private const float EnemySize = 30f;
         private const float AnchorSize = 18f;
 
         /// <summary>Formation slot number (1-8) — the deployment formation index + 1.</summary>
@@ -206,16 +206,25 @@ namespace RealisticBattlePlanning.UI
             var friendlyPoints = new List<MapVec>(_geometry.FormationPositions.Values);
             friendlyPoints.AddRange(anchors.Select(AnchorDisplayPosition));
             var enemyPoints = _geometry.EnemyFormations.Select(e => e.Pos).ToList();
-            var projection = PlanMapProjection.BuildForEngagement(
+            var projection = PlanMapProjection.BuildTacticalView(
                 _geometry.TeamCenter, _geometry.AttackDirection, friendlyPoints, enemyPoints);
             _projection = projection;  // kept so a map click can un-project back to a world point
 
-            foreach (var kv in _geometry.FormationPositions.OrderBy(p => (int)p.Key))
+            // Marker centres in map design space, then de-overlapped so formations sharing a
+            // column (e.g. infantry + ranged, metres apart) stay separately clickable.
+            var ordered = _geometry.FormationPositions.OrderBy(p => (int)p.Key).ToList();
+            var centers = new List<MapVec>();
+            foreach (var kv in ordered)
             {
                 var p = projection.Project(kv.Value);
-                var cls = kv.Key;
-                var mx = MapOffsetX + p.X * MapScale - MarkerSize / 2f;
-                var my = (1f - p.Y) * MapScale - MarkerSize / 2f; // flip Y: forward (up) -> small screen-y
+                centers.Add(new MapVec(MapOffsetX + p.X * MapScale, (1f - p.Y) * MapScale));
+            }
+            var spread = MapLayout.SpreadOverlaps(centers, MarkerSize * 0.95f);
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                var cls = ordered[i].Key;
+                var mx = spread[i].X - MarkerSize / 2f;
+                var my = spread[i].Y - MarkerSize / 2f;
                 _mapMarkers.Add(new MapMarkerVM(
                     x: mx, y: my,
                     label: SlotNumber(cls).ToString(),

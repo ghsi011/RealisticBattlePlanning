@@ -350,7 +350,7 @@
                         <Widget WidthSizePolicy="Fixed" SuggestedWidth="0" HeightSizePolicy="Fixed" SuggestedHeight="0">
                           <Children>
                             <Widget HorizontalAlignment="Left" VerticalAlignment="Top" PositionXOffset="@X" PositionYOffset="@Y"
-                                    WidthSizePolicy="Fixed" SuggestedWidth="28" HeightSizePolicy="Fixed" SuggestedHeight="28">
+                                    WidthSizePolicy="Fixed" SuggestedWidth="30" HeightSizePolicy="Fixed" SuggestedHeight="30">
                               <Children>
                                 <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" PositionXOffset="1" PositionYOffset="2"
                                         Sprite="BlankWhiteSquare_9" Color="#00000044" />
@@ -395,7 +395,7 @@
                         <Widget WidthSizePolicy="Fixed" SuggestedWidth="0" HeightSizePolicy="Fixed" SuggestedHeight="0">
                           <Children>
                             <Widget HorizontalAlignment="Left" VerticalAlignment="Top" PositionXOffset="@X" PositionYOffset="@Y"
-                                    WidthSizePolicy="Fixed" SuggestedWidth="36" HeightSizePolicy="Fixed" SuggestedHeight="36">
+                                    WidthSizePolicy="Fixed" SuggestedWidth="40" HeightSizePolicy="Fixed" SuggestedHeight="40">
                               <Children>
                                 <!-- drop shadow -->
                                 <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" PositionXOffset="2" PositionYOffset="3"

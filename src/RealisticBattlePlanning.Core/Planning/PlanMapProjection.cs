@@ -92,63 +92,73 @@ namespace RealisticBattlePlanning.Planning
             return new PlanMapProjection(teamCenter, forward, right, center, scale);
         }
 
+        /// <summary>Default tactical-view framing constants (A2.6, the map "better framing").</summary>
+        public const float MinViewSpanMeters = 110f;   // never zoom in tighter than this (compact armies don't fill the frame)
+        public const float MaxViewSpanMeters = 170f;   // never zoom out past this (the army stays readable; a far enemy edge-clamps)
+        public const float MaxArmyFill = 0.55f;         // the friendly army occupies at most this fraction of the view span
+        public const float TeamScreenY = 0.66f;         // the team centre sits this fraction down the map (army low, enemy up)
+
         /// <summary>
-        /// Builds a projection framed for an engagement (A2.6): the friendly formations
-        /// (and the plan's anchors) set the authoring scale, but the enemy is folded into
-        /// the fit so the map reads at TRUE battlefield scale — a compact deployment looks
-        /// compact, with the enemy across the field, instead of the friendlies being blown
-        /// up to fill the frame (which made nearby units look far apart). A distant enemy
-        /// is pulled in along the forward axis to a cap that scales with the friendly size,
-        /// so the friendlies never collapse to a dot; the enemy marker then sits near the
-        /// forward edge ("the enemy is this way, far off"). With no enemy points this is
-        /// exactly <see cref="Build"/> over the friendly points.
+        /// Frames a stable, Total-War-style tactical view (A2.6, "better framing"): a
+        /// bounded FIXED scale centred on the team, forward = up. The span is
+        /// <c>clamp(max(enemy reach ×1.2, army size / MaxArmyFill), MinView, MaxView)</c>,
+        /// so a compact deployment never blows up to fill the frame (the old "nearby units
+        /// look far apart" bug) and a distant enemy never shrinks the army to a dot — it
+        /// just edge-clamps (the marker loop clamps it on-canvas). The team centre is biased
+        /// to <see cref="TeamScreenY"/> down, seating the army in the lower third with the
+        /// enemy across the top, like the reference staff map. Scale stays consistent across
+        /// battles, so players build intuition. With no points this is a clean centred view.
         /// </summary>
-        public static PlanMapProjection BuildForEngagement(
+        public static PlanMapProjection BuildTacticalView(
             MapVec teamCenter,
             MapVec attackDirection,
             IReadOnlyList<MapVec> friendlyPoints,
             IReadOnlyList<MapVec> enemyPoints,
-            float paddingFraction = 0.12f,
-            float forwardViewFactor = 2.2f,
-            float minForwardViewMeters = 110f)
+            float minSpanMeters = MinViewSpanMeters,
+            float maxSpanMeters = MaxViewSpanMeters,
+            float maxArmyFill = MaxArmyFill,
+            float teamScreenY = TeamScreenY,
+            float paddingFraction = 0.12f)
         {
             var forward = attackDirection.Normalized();
             var right = forward.Right();
 
-            // Friendly forward reach (the front of the deployment) and overall size: the
-            // size bounds how far forward the enemy may pull the fit, so the friendlies
-            // keep a usable share of the map however distant the enemy deploys.
+            // Friendly extent (right/forward), always including the team centre (the origin).
             float minR = 0f, maxR = 0f, minF = 0f, maxF = 0f;
             if (friendlyPoints != null)
                 foreach (var p in friendlyPoints)
                 {
                     var d = p - teamCenter;
-                    var r = d.Dot(right);
-                    var f = d.Dot(forward);
+                    var r = d.Dot(right); var f = d.Dot(forward);
                     if (r < minR) minR = r; if (r > maxR) maxR = r;
                     if (f < minF) minF = f; if (f > maxF) maxF = f;
                 }
-            var friendlySize = System.Math.Max(maxR - minR, maxF - minF);
-            var forwardCap = maxF + System.Math.Max(minForwardViewMeters, forwardViewFactor * friendlySize);
+            var armySize = System.Math.Max(maxR - minR, maxF - minF);
 
-            var fit = new List<MapVec>();
-            if (friendlyPoints != null)
-                fit.AddRange(friendlyPoints);
+            // How far forward the enemy reaches (0 if none) — the view tries to include it.
+            var enemyForward = 0f;
             if (enemyPoints != null)
                 foreach (var e in enemyPoints)
-                    fit.Add(ClampForward(e, teamCenter, forward, forwardCap));
+                {
+                    var f = (e - teamCenter).Dot(forward);
+                    if (f > enemyForward) enemyForward = f;
+                }
 
-            return Build(teamCenter, attackDirection, fit, paddingFraction);
+            if (maxArmyFill < 0.1f) maxArmyFill = 0.1f;
+            var rawSpan = System.Math.Max(enemyForward * 1.2f, armySize / maxArmyFill);
+            var span = Clamp(rawSpan, minSpanMeters, System.Math.Max(minSpanMeters, maxSpanMeters));
+
+            if (paddingFraction < 0f) paddingFraction = 0f;
+            if (paddingFraction > 0.45f) paddingFraction = 0.45f;
+            var scale = (1f - 2f * paddingFraction) / span;
+
+            // Bias the view forward so the team centre lands at teamScreenY down the (Y-up,
+            // then renderer-flipped) map: screenDown(teamCentre) = 0.5 + bias*scale = teamScreenY.
+            var biasForward = (teamScreenY - 0.5f) / scale;
+            return new PlanMapProjection(teamCenter, forward, right, new MapVec(0f, biasForward), scale);
         }
 
-        /// <summary>Pulls a point back along <paramref name="forward"/> so its forward
-        /// distance from <paramref name="teamCenter"/> is at most <paramref name="maxForward"/>,
-        /// keeping its lateral offset — used to cap how far a distant enemy frames the map.</summary>
-        private static MapVec ClampForward(MapVec point, MapVec teamCenter, MapVec forward, float maxForward)
-        {
-            var f = (point - teamCenter).Dot(forward);
-            return f <= maxForward ? point : point - forward * (f - maxForward);
-        }
+        private static float Clamp(float v, float lo, float hi) => v < lo ? lo : (v > hi ? hi : v);
 
         /// <summary>Projects a world position to normalized map coordinates (Y up).</summary>
         public MapPoint Project(MapVec world)
