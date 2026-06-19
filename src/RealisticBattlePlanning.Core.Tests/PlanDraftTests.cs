@@ -456,6 +456,54 @@ namespace RealisticBattlePlanning.Tests
             Assert.Equal(new[] { PlannedFormationClass.Infantry }, draft.Formations);
         }
 
+        [Fact]
+        public void RemoveUnreferencedAnchorsPrunesOnlyOrphanedMatchingAnchors()
+        {
+            // A 3-click march (wp1->wp2->wp3) plus a deliberately-unused user anchor.
+            var draft = new PlanDraft();
+            var cav = PlannedFormationClass.Cavalry;
+            RealisticBattlePlanning.Execution.MapVec At(float x) => new(x, 0f);
+            MapAuthoring.AppendMarchStage(draft, cav, At(10f), "wp1");
+            MapAuthoring.AppendMarchStage(draft, cav, At(20f), "wp2");
+            MapAuthoring.AppendMarchStage(draft, cav, At(30f), "wp3");
+            draft.AddAnchor(new MapAnchor { Id = "rally", Basis = AnchorBasis.Scene, X = 5f, Y = 5f });
+
+            // Remove the last waypoint's stage -> wp3 is now referenced by nothing.
+            draft.RemoveStage(cav, draft.StagesOf(cav).Count - 1);
+
+            var removed = draft.RemoveUnreferencedAnchors(IsWaypoint);
+
+            Assert.Equal(new[] { "wp3" }, removed);                       // only the orphan went
+            var ids = draft.Anchors.Select(a => a.Id).ToArray();
+            Assert.Contains("wp1", ids);                                  // still a destination
+            Assert.Contains("wp2", ids);                                  // still referenced (wp3's old trigger aside)
+            Assert.Contains("rally", ids);                                // user anchor: predicate skips it
+            Assert.DoesNotContain("wp3", ids);
+
+            var warnings = draft.Validate().Warnings;
+            Assert.DoesNotContain(warnings, w => w.Contains("wp3"));       // the pruned orphan no longer warns
+            Assert.Contains(warnings, w => w.Contains("rally"));          // the user anchor keeps its warning
+        }
+
+        [Fact]
+        public void RemoveUnreferencedAnchorsKeepsStillReferencedWaypointsAndNoOpsOnNull()
+        {
+            var draft = new PlanDraft();
+            var inf = PlannedFormationClass.Infantry;
+            MapAuthoring.AppendMarchStage(draft, inf, new RealisticBattlePlanning.Execution.MapVec(0f, 0f), "wp1");
+
+            // wp1 is the only stage's destination: matching predicate, but referenced -> kept.
+            Assert.Empty(draft.RemoveUnreferencedAnchors(IsWaypoint));
+            Assert.Contains(draft.Anchors, a => a.Id == "wp1");
+
+            // Null predicate is a safe no-op (the no-throw contract).
+            Assert.Empty(draft.RemoveUnreferencedAnchors(null));
+        }
+
+        private static bool IsWaypoint(string id)
+            => !string.IsNullOrEmpty(id) && id.Length > 2 && id[0] == 'w' && id[1] == 'p'
+               && id.Skip(2).All(char.IsDigit);
+
         private static Stage Named(string name) => new() { Name = name, Do = new DirectiveSpec { Type = DirectiveType.Hold } };
 
         private static string[] StageNames(PlanDraft draft)

@@ -278,6 +278,54 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
+        /// <summary>
+        /// Removes anchors whose id matches <paramref name="idMatches"/> and that no
+        /// trigger or directive references — cleaning up the auto-generated waypoint
+        /// anchors a map click creates (A2.6.2) once their stage is gone, so removing a
+        /// waypoint doesn't leave a dangling "anchor declared but never used" warning.
+        /// A non-matching predicate skips user-named anchors, so a deliberately-unused
+        /// one keeps its informative warning. Returns the ids removed.
+        /// </summary>
+        public IReadOnlyList<string> RemoveUnreferencedAnchors(Func<string, bool> idMatches)
+        {
+            if (idMatches == null)
+                return new List<string>();
+            var referenced = ReferencedAnchorIds();
+            var removed = new List<string>();
+            _plan.Anchors.RemoveAll(a =>
+            {
+                if (a == null || string.IsNullOrWhiteSpace(a.Id) || !idMatches(a.Id) || referenced.Contains(a.Id))
+                    return false;
+                removed.Add(a.Id);
+                return true;
+            });
+            return removed;
+        }
+
+        /// <summary>Every anchor id a trigger or directive points at (mirrors PlanValidator).</summary>
+        private HashSet<string> ReferencedAnchorIds()
+        {
+            var refs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var formation in _plan.Formations)
+                foreach (var stage in formation.Stages)
+                {
+                    foreach (var trigger in stage.When)
+                        if (!string.IsNullOrWhiteSpace(trigger?.Anchor))
+                            refs.Add(trigger.Anchor);
+
+                    var directive = stage.Do;
+                    if (directive == null)
+                        continue;
+                    if (!string.IsNullOrWhiteSpace(directive.Anchor))
+                        refs.Add(directive.Anchor);
+                    if (directive.Path != null)
+                        foreach (var waypoint in directive.Path)
+                            if (!string.IsNullOrWhiteSpace(waypoint))
+                                refs.Add(waypoint);
+                }
+            return refs;
+        }
+
         /// <summary>Live feasibility feedback for the editor (A3.8): non-blocking.</summary>
         public PlanValidationResult Validate() => PlanValidator.Validate(_plan);
 

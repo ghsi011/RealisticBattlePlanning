@@ -107,6 +107,66 @@ namespace RealisticBattlePlanning.Tests
             Assert.Equal(xSpan, ySpan, 3);
         }
 
+        // A 50 m-wide friendly line; the lateral span it occupies on the map under a
+        // given projection — the smaller it is, the more "zoomed out" / true-to-scale.
+        private static readonly MapVec[] FriendlyLine = { new(25f, 0f), new(-25f, 0f) };
+
+        private static float LateralSpan(PlanMapProjection proj)
+            => proj.Project(new MapVec(25f, 0f)).X - proj.Project(new MapVec(-25f, 0f)).X;
+
+        [Fact]
+        public void EngagementWithNoEnemyEqualsPlainFit()
+        {
+            var plain = PlanMapProjection.Build(Origin, North, FriendlyLine);
+            var engagement = PlanMapProjection.BuildForEngagement(Origin, North, FriendlyLine, null);
+
+            foreach (var p in new[] { new MapVec(25f, 0f), new MapVec(-25f, 0f), new MapVec(0f, 10f) })
+            {
+                Assert.Equal(plain.Project(p).X, engagement.Project(p).X, 3);
+                Assert.Equal(plain.Project(p).Y, engagement.Project(p).Y, 3);
+            }
+        }
+
+        [Fact]
+        public void EngagementWithEnemyShrinksFriendlyFootprint()
+        {
+            // The accuracy fix: folding the enemy into the fit zooms the map out to true
+            // battlefield scale, so a compact deployment stops filling the frame (nearby
+            // units no longer read as far apart).
+            var friendlyOnly = PlanMapProjection.Build(Origin, North, FriendlyLine);
+            var withEnemy = PlanMapProjection.BuildForEngagement(
+                Origin, North, FriendlyLine, new[] { new MapVec(0f, 200f) });
+
+            Assert.True(LateralSpan(withEnemy) < LateralSpan(friendlyOnly),
+                $"enemy-framed footprint {LateralSpan(withEnemy):0.000} should be tighter than fill-frame {LateralSpan(friendlyOnly):0.000}");
+        }
+
+        [Fact]
+        public void EngagementEnemyProjectsAheadOfFriendlies()
+        {
+            var proj = PlanMapProjection.BuildForEngagement(
+                Origin, North, FriendlyLine, new[] { new MapVec(0f, 120f) });
+
+            var enemy = proj.Project(new MapVec(0f, 120f));
+            var friendly = proj.Project(new MapVec(0f, 0f));
+            Assert.True(enemy.Y > friendly.Y, "enemy should sit forward (up) of the friendlies");
+            Assert.True(enemy.Y > 0.5f, "enemy should be in the forward half");
+        }
+
+        [Fact]
+        public void EngagementCapKeepsFriendliesUsableAgainstADistantEnemy()
+        {
+            // A very distant enemy must not collapse the friendlies to a dot: the forward
+            // cap saturates, so the footprint matches a merely-far enemy rather than shrinking.
+            var far = PlanMapProjection.BuildForEngagement(
+                Origin, North, FriendlyLine, new[] { new MapVec(0f, 300f) });
+            var veryFar = PlanMapProjection.BuildForEngagement(
+                Origin, North, FriendlyLine, new[] { new MapVec(0f, 5000f) });
+
+            Assert.True(LateralSpan(veryFar) > 0.25f, $"distant-enemy footprint collapsed to {LateralSpan(veryFar):0.000}");
+            Assert.Equal(LateralSpan(far), LateralSpan(veryFar), 3); // cap saturated -> same framing
+        }
+
         [Fact]
         public void EmptyInputClampsZoomToMinSpan()
         {

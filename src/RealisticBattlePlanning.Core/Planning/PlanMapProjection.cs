@@ -92,6 +92,64 @@ namespace RealisticBattlePlanning.Planning
             return new PlanMapProjection(teamCenter, forward, right, center, scale);
         }
 
+        /// <summary>
+        /// Builds a projection framed for an engagement (A2.6): the friendly formations
+        /// (and the plan's anchors) set the authoring scale, but the enemy is folded into
+        /// the fit so the map reads at TRUE battlefield scale — a compact deployment looks
+        /// compact, with the enemy across the field, instead of the friendlies being blown
+        /// up to fill the frame (which made nearby units look far apart). A distant enemy
+        /// is pulled in along the forward axis to a cap that scales with the friendly size,
+        /// so the friendlies never collapse to a dot; the enemy marker then sits near the
+        /// forward edge ("the enemy is this way, far off"). With no enemy points this is
+        /// exactly <see cref="Build"/> over the friendly points.
+        /// </summary>
+        public static PlanMapProjection BuildForEngagement(
+            MapVec teamCenter,
+            MapVec attackDirection,
+            IReadOnlyList<MapVec> friendlyPoints,
+            IReadOnlyList<MapVec> enemyPoints,
+            float paddingFraction = 0.12f,
+            float forwardViewFactor = 2.2f,
+            float minForwardViewMeters = 110f)
+        {
+            var forward = attackDirection.Normalized();
+            var right = forward.Right();
+
+            // Friendly forward reach (the front of the deployment) and overall size: the
+            // size bounds how far forward the enemy may pull the fit, so the friendlies
+            // keep a usable share of the map however distant the enemy deploys.
+            float minR = 0f, maxR = 0f, minF = 0f, maxF = 0f;
+            if (friendlyPoints != null)
+                foreach (var p in friendlyPoints)
+                {
+                    var d = p - teamCenter;
+                    var r = d.Dot(right);
+                    var f = d.Dot(forward);
+                    if (r < minR) minR = r; if (r > maxR) maxR = r;
+                    if (f < minF) minF = f; if (f > maxF) maxF = f;
+                }
+            var friendlySize = System.Math.Max(maxR - minR, maxF - minF);
+            var forwardCap = maxF + System.Math.Max(minForwardViewMeters, forwardViewFactor * friendlySize);
+
+            var fit = new List<MapVec>();
+            if (friendlyPoints != null)
+                fit.AddRange(friendlyPoints);
+            if (enemyPoints != null)
+                foreach (var e in enemyPoints)
+                    fit.Add(ClampForward(e, teamCenter, forward, forwardCap));
+
+            return Build(teamCenter, attackDirection, fit, paddingFraction);
+        }
+
+        /// <summary>Pulls a point back along <paramref name="forward"/> so its forward
+        /// distance from <paramref name="teamCenter"/> is at most <paramref name="maxForward"/>,
+        /// keeping its lateral offset — used to cap how far a distant enemy frames the map.</summary>
+        private static MapVec ClampForward(MapVec point, MapVec teamCenter, MapVec forward, float maxForward)
+        {
+            var f = (point - teamCenter).Dot(forward);
+            return f <= maxForward ? point : point - forward * (f - maxForward);
+        }
+
         /// <summary>Projects a world position to normalized map coordinates (Y up).</summary>
         public MapPoint Project(MapVec world)
         {

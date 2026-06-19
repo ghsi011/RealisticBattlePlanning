@@ -176,16 +176,18 @@ namespace RealisticBattlePlanning.UI
             if (!HasMap)
                 return;
 
-            // Fit the scale to the own formations AND the authored anchors, so the
-            // plan's spatial extent (e.g. a "push" anchor 120 m forward) frames the
-            // map. The enemy — typically far beyond that — is a direction band:
-            // its markers are CLAMPED to the top edge ("the enemy is this way")
-            // rather than dragged into the fit, which would collapse the own markers.
+            // Frame the map for the engagement (A2.6): the own formations and the
+            // authored anchors set the authoring scale, and the enemy is folded into the
+            // fit so the map reads at TRUE battlefield scale — a compact deployment looks
+            // compact with the enemy across the field, instead of being blown up to fill
+            // the frame (which made nearby units look far apart). BuildForEngagement caps
+            // how far a distant enemy pulls the fit so the own markers never collapse; an
+            // enemy beyond that cap is clamped to the forward edge by the marker loop.
             var anchors = _draft.Build().Anchors;
-            var fitPoints = new List<MapVec>(_geometry.FormationPositions.Values);
-            fitPoints.AddRange(anchors.Select(AnchorDisplayPosition));
-            var projection = PlanMapProjection.Build(
-                _geometry.TeamCenter, _geometry.AttackDirection, fitPoints);
+            var friendlyPoints = new List<MapVec>(_geometry.FormationPositions.Values);
+            friendlyPoints.AddRange(anchors.Select(AnchorDisplayPosition));
+            var projection = PlanMapProjection.BuildForEngagement(
+                _geometry.TeamCenter, _geometry.AttackDirection, friendlyPoints, _geometry.EnemyPositions);
             _projection = projection;  // kept so a map click can un-project back to a world point
 
             foreach (var kv in _geometry.FormationPositions.OrderBy(p => (int)p.Key))
@@ -292,9 +294,32 @@ namespace RealisticBattlePlanning.UI
             // Invert the centred uniform mapping (canvas px -> normalized square -> world).
             var world = _projection.Unproject(new MapPoint((nx * MapWidth - MapOffsetX) / MapScale, 1f - ny));
             foreach (var cls in _selectedFormations.OrderBy(c => (int)c))
-                MapAuthoring.AppendMarchStage(_draft, cls, world, $"wp{++_waypointCounter}");
+                MapAuthoring.AppendMarchStage(_draft, cls, world, $"{WaypointAnchorPrefix}{++_waypointCounter}");
             Refresh();
         }
+
+        /// <summary>Prefix for the Scene anchors a map click auto-creates (A2.6.2): "wp1",
+        /// "wp2", … These are owned by the map, not the player, so a removed waypoint's
+        /// anchor is pruned silently rather than left to warn (unlike user-named anchors).</summary>
+        private const string WaypointAnchorPrefix = "wp";
+
+        /// <summary>An auto-generated waypoint anchor id ("wp" + digits) — the ones a map
+        /// click owns and may prune, vs. a user-named anchor (advance/push/…) which keeps
+        /// its "declared but unused" warning.</summary>
+        private static bool IsAutoWaypointAnchor(string id)
+        {
+            if (string.IsNullOrEmpty(id) || id.Length <= WaypointAnchorPrefix.Length
+                || !id.StartsWith(WaypointAnchorPrefix, StringComparison.Ordinal))
+                return false;
+            for (var i = WaypointAnchorPrefix.Length; i < id.Length; i++)
+                if (!char.IsDigit(id[i]))
+                    return false;
+            return true;
+        }
+
+        /// <summary>Drops any waypoint anchor no stage references any more — called after a
+        /// removal so deleting a click-placed waypoint doesn't leave a dangling-anchor warning.</summary>
+        private void PruneOrphanedWaypoints() => _draft.RemoveUnreferencedAnchors(IsAutoWaypointAnchor);
 
         private void AddStage(PlannedFormationClass cls)
         {
@@ -315,6 +340,7 @@ namespace RealisticBattlePlanning.UI
             if (formation == null || formation.Stages.Count == 0)
                 return;
             _draft.RemoveStage(cls, formation.Stages.Count - 1);
+            PruneOrphanedWaypoints();
             StatusText = $"Removed a stage from Formation {SlotNumber(cls)}.";
             Refresh();
         }
@@ -324,6 +350,7 @@ namespace RealisticBattlePlanning.UI
         private void ClearFormation(PlannedFormationClass cls)
         {
             _draft.RemoveFormation(cls);
+            PruneOrphanedWaypoints();
             StatusText = $"Formation {SlotNumber(cls)} cleared — now uncommanded.";
             Refresh();
         }

@@ -35,14 +35,13 @@ namespace RealisticBattlePlanning.UI
             try
             {
                 base.OnMousePressed();
-                if (Clicked == null)
-                    return;
-                if (!TryXY(this, "Size", out var sw, out var sh) || sw <= 0f || sh <= 0f)
-                    return;
-                if (!TryXY(this, "GlobalPosition", out var gx, out var gy))
-                    return;
+                var okSize = TryXY(this, "Size", out var sw, out var sh);
+                var okGp = TryXY(this, "GlobalPosition", out var gx, out var gy);
                 var em = EventManager;
-                if (em == null || !TryXY(em, "MousePosition", out var mx, out var my))
+                float mx = 0f, my = 0f;
+                var okMouse = em != null && TryXY(em, "MousePosition", out mx, out my);
+                Diagnostics.RbpLog.Info($"[MAP] OnMousePressed fired: hooked={Clicked != null} okSize={okSize}({sw:0},{sh:0}) okGp={okGp}({gx:0},{gy:0}) okMouse={okMouse}({mx:0},{my:0})");
+                if (Clicked == null || !okSize || !okGp || !okMouse || sw <= 0f || sh <= 0f)
                     return;
 
                 var nx = Clamp01((mx - gx) / sw);
