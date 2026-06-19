@@ -161,6 +161,8 @@ namespace RealisticBattlePlanning.UI
                     case "toggle": Toggle(); break;
                     case "reopen": Hide(); Show(); break;
                     case "brushes": ReloadBrushes(); break;
+                    case "click": DevClick(arg, rightClick: false); break;
+                    case "rightclick": DevClick(arg, rightClick: true); break;
                     case "shot": Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     case "reshot": Hide(); Show(); Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     default: RbpLog.Info($"[DEV] planner.cmd: unknown verb '{verb}'."); return;
@@ -176,6 +178,25 @@ namespace RealisticBattlePlanning.UI
         // Dev only: re-reads Module\GUI\Brushes\RbpBrushes.xml into the global brush factory
         // (LoadBrushFile REPLACES existing entries) so a brush edit hot-reloaded via deploy-ui.ps1
         // takes effect on the next 'reopen' — no relaunch. Brushes are otherwise cached at startup.
+        // Dev only: dispatch a normalized map click straight into the VM, bypassing the
+        // (unreliable-over-automation) mouse — so the file loop can test select / place /
+        // remove deterministically. arg = "nx ny" in [0,1].
+        private void DevClick(string arg, bool rightClick)
+        {
+            if (_dataSource == null) { RbpLog.Info("[DEV] click: planner not open."); return; }
+            var parts = (arg ?? "").Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2
+                || !float.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var nx)
+                || !float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ny))
+            {
+                RbpLog.Info($"[DEV] click: bad args '{arg}' (want: nx ny in 0..1).");
+                return;
+            }
+            if (rightClick) _dataSource.OnMapRightClicked(nx, ny);
+            else _dataSource.OnMapClicked(nx, ny);
+            RbpLog.Info($"[DEV] {(rightClick ? "rightclick" : "click")} ({nx:0.00},{ny:0.00}) dispatched.");
+        }
+
         private static void ReloadBrushes()
         {
             try
@@ -228,6 +249,7 @@ namespace RealisticBattlePlanning.UI
                 // Route bare-canvas map clicks (the custom MapCanvasWidget) into the VM's
                 // point-and-click move authoring. Cleared in Hide so a stale closure can't fire.
                 MapCanvasWidget.Clicked = (x, y) => _dataSource?.OnMapClicked(x, y);
+                MapCanvasWidget.RightClicked = (x, y) => _dataSource?.OnMapRightClicked(x, y);
                 // High local order so the layer sits above the deployment UI for
                 // both rendering and input (the deployment HUD/order layers are
                 // low-order; a focus layer underneath them never gets clicks).
@@ -274,6 +296,7 @@ namespace RealisticBattlePlanning.UI
             if (!_shown && _layer == null)
                 return;
             Guard(() => MapCanvasWidget.Clicked = null);
+            Guard(() => MapCanvasWidget.RightClicked = null);
             if (_layer != null)
             {
                 // Each release step is guarded on its own: if one throws (e.g.

@@ -64,6 +64,9 @@ namespace RealisticBattlePlanning.UI
         // marker (select) vs bare map (place) in the VM — robust against Gauntlet failing
         // to hit-test the zero-size marker wrappers (the 2026-06-12 review's finding).
         private readonly List<(PlannedFormationClass Cls, float X, float Y, float Size)> _markerHits = new();
+        // Waypoint-anchor centres in design space, so a right-click resolves to the nearest
+        // click-placed waypoint to remove it (A2.6.2).
+        private readonly List<(string Id, float X, float Y)> _anchorHits = new();
         private PlanMapProjection _projection;
         private int _waypointCounter;
         private string _selectedText;
@@ -191,6 +194,7 @@ namespace RealisticBattlePlanning.UI
             _enemyMarkers.Clear();
             _anchorMarkers.Clear();
             _markerHits.Clear();
+            _anchorHits.Clear();
             HasMap = _geometry != null && _geometry.HasFormations;
             if (!HasMap)
                 return;
@@ -250,10 +254,12 @@ namespace RealisticBattlePlanning.UI
             foreach (var a in anchors)
             {
                 var p = projection.Project(AnchorDisplayPosition(a));
+                var acx = MapOffsetX + Clamp(p.X, 0.03f, 0.97f) * MapScale;
+                var acy = (1f - Clamp(p.Y, 0.03f, 0.97f)) * MapScale;
                 _anchorMarkers.Add(new MapMarkerVM(
-                    x: MapOffsetX + Clamp(p.X, 0.03f, 0.97f) * MapScale - AnchorSize / 2f,
-                    y: (1f - Clamp(p.Y, 0.03f, 0.97f)) * MapScale - AnchorSize / 2f,
+                    x: acx - AnchorSize / 2f, y: acy - AnchorSize / 2f,
                     label: a.Id, sub: ""));
+                _anchorHits.Add((a.Id, acx, acy));
             }
 
             SelectedText = _selectedFormations.Count == 0
@@ -328,6 +334,31 @@ namespace RealisticBattlePlanning.UI
             foreach (var cls in _selectedFormations.OrderBy(c => (int)c))
                 MapAuthoring.AppendMarchStage(_draft, cls, world, $"{WaypointAnchorPrefix}{++_waypointCounter}");
             Refresh();
+        }
+
+        // A right-click on the map (A2.6.2): remove the click-placed waypoint nearest the
+        // cursor and re-link the march, so a misplaced waypoint is undone in place from the map.
+        internal void OnMapRightClicked(float nx, float ny)
+        {
+            var dx = nx * MapWidth;
+            var dy = ny * MapHeight;
+            string nearest = null;
+            var best = 32f; // px pick radius
+            foreach (var a in _anchorHits)
+            {
+                if (!IsAutoWaypointAnchor(a.Id))
+                    continue;
+                var d = (float)System.Math.Sqrt((dx - a.X) * (dx - a.X) + (dy - a.Y) * (dy - a.Y));
+                if (d < best) { best = d; nearest = a.Id; }
+            }
+            if (nearest == null)
+                return;
+            if (MapAuthoring.RemoveMarchWaypoint(_draft, nearest))
+            {
+                PruneOrphanedWaypoints();
+                StatusText = $"Removed waypoint '{nearest}'.";
+                Refresh();
+            }
         }
 
         /// <summary>Prefix for the Scene anchors a map click auto-creates (A2.6.2): "wp1",

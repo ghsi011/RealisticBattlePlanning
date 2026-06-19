@@ -30,28 +30,48 @@ namespace RealisticBattlePlanning.UI
         /// y DOWN in [0,1] (screen sense; the VM un-flips to map-forward).</summary>
         public static Action<float, float> Clicked { get; set; }
 
+        /// <summary>Right-click (alternate) at the same normalized coordinates — the VM uses it
+        /// to remove the nearest click-placed waypoint (A2.6.2).</summary>
+        public static Action<float, float> RightClicked { get; set; }
+
         protected override void OnMousePressed()
+        {
+            base.OnMousePressed();
+            Dispatch(Clicked, "click");
+        }
+
+        protected override void OnMouseAlternatePressed()
+        {
+            base.OnMouseAlternatePressed();
+            Dispatch(RightClicked, "rightclick");
+        }
+
+        // Reads the canvas geometry (by reflection — see the class summary) and hands the
+        // handler a normalized point. Shared by left/right press so both stay in sync.
+        private void Dispatch(Action<float, float> handler, string what)
         {
             try
             {
-                base.OnMousePressed();
+                if (handler == null)
+                    return;
                 var okSize = TryXY(this, "Size", out var sw, out var sh);
                 var okGp = TryXY(this, "GlobalPosition", out var gx, out var gy);
                 var em = EventManager;
                 float mx = 0f, my = 0f;
                 var okMouse = em != null && TryXY(em, "MousePosition", out mx, out my);
-                Diagnostics.RbpLog.Info($"[MAP] OnMousePressed fired: hooked={Clicked != null} okSize={okSize}({sw:0},{sh:0}) okGp={okGp}({gx:0},{gy:0}) okMouse={okMouse}({mx:0},{my:0})");
-                if (Clicked == null || !okSize || !okGp || !okMouse || sw <= 0f || sh <= 0f)
+                if (!okSize || !okGp || !okMouse || sw <= 0f || sh <= 0f)
+                {
+                    Diagnostics.RbpLog.Info($"[MAP] {what}: geometry read failed okSize={okSize} okGp={okGp} okMouse={okMouse}.");
                     return;
-
+                }
                 var nx = Clamp01((mx - gx) / sw);
                 var ny = Clamp01((my - gy) / sh);
-                Diagnostics.RbpLog.Info($"[MAP] click n=({nx:0.00},{ny:0.00}) mouse=({mx:0},{my:0}) gp=({gx:0},{gy:0}) size=({sw:0},{sh:0})");
-                Clicked(nx, ny);
+                Diagnostics.RbpLog.Info($"[MAP] {what} n=({nx:0.00},{ny:0.00})");
+                handler(nx, ny);
             }
             catch (Exception e)
             {
-                Diagnostics.RbpLog.Error("[MAP] canvas click handler failed.", e);
+                Diagnostics.RbpLog.Error($"[MAP] canvas {what} handler failed.", e);
             }
         }
 

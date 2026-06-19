@@ -84,5 +84,40 @@ namespace RealisticBattlePlanning.Tests
             }
             Assert.Empty(draft.Validate().Errors);
         }
+
+        [Fact]
+        public void RemoveMarchWaypointRelinksTheChain()
+        {
+            var draft = new PlanDraft();
+            var cav = PlannedFormationClass.Cavalry;
+            MapAuthoring.AppendMarchStage(draft, cav, new MapVec(10f, 0f), "wp1");
+            MapAuthoring.AppendMarchStage(draft, cav, new MapVec(20f, 0f), "wp2");
+            MapAuthoring.AppendMarchStage(draft, cav, new MapVec(30f, 0f), "wp3");
+
+            Assert.True(MapAuthoring.RemoveMarchWaypoint(draft, "wp2"));
+
+            var stages = draft.StagesOf(cav);
+            Assert.Equal(2, stages.Count);
+            Assert.Equal("wp1", stages[0].Do.Anchor);
+            Assert.Equal("wp3", stages[1].Do.Anchor);
+            var t = Assert.Single(stages[1].When);
+            Assert.Equal(TriggerType.PositionReached, t.Type);
+            Assert.Equal("wp1", t.Anchor); // re-linked from wp2 onto wp1, so wp1 -> wp3 holds
+        }
+
+        [Fact]
+        public void RemoveFirstMarchWaypointMakesTheNextStartOnBattleStart()
+        {
+            var draft = new PlanDraft();
+            var inf = PlannedFormationClass.Infantry;
+            MapAuthoring.AppendMarchStage(draft, inf, new MapVec(10f, 0f), "wp1");
+            MapAuthoring.AppendMarchStage(draft, inf, new MapVec(20f, 0f), "wp2");
+
+            Assert.True(MapAuthoring.RemoveMarchWaypoint(draft, "wp1"));
+            var s = Assert.Single(draft.StagesOf(inf));
+            Assert.Equal("wp2", s.Do.Anchor);
+            Assert.Equal(TriggerType.BattleStart, Assert.Single(s.When).Type);
+            Assert.False(MapAuthoring.RemoveMarchWaypoint(draft, "no-such-anchor"));
+        }
     }
 }

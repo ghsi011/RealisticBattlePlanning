@@ -89,6 +89,61 @@ namespace RealisticBattlePlanning.Planning.Editing
             return ids;
         }
 
+        /// <summary>
+        /// Removes the march stage whose destination is <paramref name="anchorId"/> (a
+        /// click-placed waypoint) and RE-LINKS the chain: if a following stage waited on that
+        /// waypoint (PositionReached), it is re-pointed to the removed stage's own previous
+        /// waypoint, or to BattleStart if the removed one was the first — so right-clicking a
+        /// waypoint out of the middle of a march leaves wp1->wp3 intact, not a dangling trigger.
+        /// The caller prunes the now-unreferenced anchor. Returns true if a stage was removed.
+        /// </summary>
+        public static bool RemoveMarchWaypoint(PlanDraft draft, string anchorId)
+        {
+            if (draft == null || string.IsNullOrWhiteSpace(anchorId))
+                return false;
+
+            foreach (var formation in draft.Formations)
+            {
+                var stages = draft.StagesOf(formation); // snapshot list of LIVE stage objects
+                for (var i = 0; i < stages.Count; i++)
+                {
+                    var move = stages[i].Do;
+                    if (move is not { Type: DirectiveType.MoveTo } || !Same(move.Anchor, anchorId))
+                        continue;
+
+                    // What this stage waited on (its previous waypoint), to re-link the next stage.
+                    var prevAnchor = stages[i].When
+                        .FirstOrDefault(t => t != null && t.Type == TriggerType.PositionReached)?.Anchor;
+
+                    if (i + 1 < stages.Count)
+                    {
+                        var nextTrigger = stages[i + 1].When
+                            .FirstOrDefault(t => t != null && t.Type == TriggerType.PositionReached && Same(t.Anchor, anchorId));
+                        if (nextTrigger != null)
+                        {
+                            if (!string.IsNullOrWhiteSpace(prevAnchor))
+                            {
+                                nextTrigger.Anchor = prevAnchor; // chain onto the earlier waypoint
+                            }
+                            else
+                            {
+                                nextTrigger.Type = TriggerType.BattleStart; // removed one was first
+                                nextTrigger.Anchor = null;
+                                nextTrigger.ToleranceMeters = null;
+                            }
+                        }
+                    }
+
+                    draft.RemoveStage(formation, i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static bool Same(string a, string b)
+            => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
         /// <summary>The destination anchor of a formation's current last stage when it is a
         /// move (single anchor or the last path waypoint), else null — i.e. "where the
         /// previous stage ends", the point a follow-on march waits to reach.</summary>
