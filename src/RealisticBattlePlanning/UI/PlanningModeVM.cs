@@ -57,6 +57,16 @@ namespace RealisticBattlePlanning.UI
         // Live deployment geometry (formation positions, attack direction, enemy
         // positions) for the map view. Null outside a mission — the map is hidden.
         private readonly BattlefieldGeometry _geometry;
+        // Map-first authoring state (spec A2.6): the current selection, the live
+        // projection (for click→world), and a running id for click-placed waypoints.
+        private readonly HashSet<PlannedFormationClass> _selectedFormations = new();
+        // Friendly-marker hit rects in map design units, so a canvas click resolves to a
+        // marker (select) vs bare map (place) in the VM — robust against Gauntlet failing
+        // to hit-test the zero-size marker wrappers (the 2026-06-12 review's finding).
+        private readonly List<(PlannedFormationClass Cls, float X, float Y, float Size)> _markerHits = new();
+        private PlanMapProjection _projection;
+        private int _waypointCounter;
+        private string _selectedText;
 
         public PlanningModeVM(string title, string hint, PlanDraft draft, Action<BattlePlan> onApply, Action onClose,
             Dictionary<PlannedFormationClass, string> compositionLabels = null,
@@ -74,7 +84,10 @@ namespace RealisticBattlePlanning.UI
             _mapMarkers = new MBBindingList<MapMarkerVM>();
             _enemyMarkers = new MBBindingList<MapMarkerVM>();
             _anchorMarkers = new MBBindingList<MapMarkerVM>();
-            _mapToggleText = "▦  Map";
+            // Open on the map (the primary authoring surface, A2.6); falls back to the
+            // list automatically when there's no live geometry (UpdateBodyVisibility).
+            _showMap = true;
+            _mapToggleText = "☰  List";
             Refresh();
         }
 
@@ -153,6 +166,7 @@ namespace RealisticBattlePlanning.UI
             _mapMarkers.Clear();
             _enemyMarkers.Clear();
             _anchorMarkers.Clear();
+            _markerHits.Clear();
             HasMap = _geometry != null && _geometry.HasFormations;
             if (!HasMap)
                 return;
@@ -167,15 +181,22 @@ namespace RealisticBattlePlanning.UI
             fitPoints.AddRange(anchors.Select(AnchorDisplayPosition));
             var projection = PlanMapProjection.Build(
                 _geometry.TeamCenter, _geometry.AttackDirection, fitPoints);
+            _projection = projection;  // kept so a map click can un-project back to a world point
 
             foreach (var kv in _geometry.FormationPositions.OrderBy(p => (int)p.Key))
             {
                 var p = projection.Project(kv.Value);
+                var cls = kv.Key;
+                var mx = p.X * MapWidth - MarkerSize / 2f;
+                var my = (1f - p.Y) * MapHeight - MarkerSize / 2f; // flip Y: forward (up) -> small screen-y
                 _mapMarkers.Add(new MapMarkerVM(
-                    x: p.X * MapWidth - MarkerSize / 2f,
-                    y: (1f - p.Y) * MapHeight - MarkerSize / 2f, // flip Y: forward (up) -> small screen-y
-                    label: SlotNumber(kv.Key).ToString(),
-                    sub: _compositionLabels.TryGetValue(kv.Key, out var l) ? l : kv.Key.ToString()));
+                    x: mx, y: my,
+                    label: SlotNumber(cls).ToString(),
+                    sub: _compositionLabels.TryGetValue(cls, out var l) ? l : cls.ToString(),
+                    baseColor: "#2C3C2CDD",
+                    onSelect: () => SelectFormation(cls),
+                    isSelected: _selectedFormations.Contains(cls)));
+                _markerHits.Add((cls, mx, my, MarkerSize));
             }
 
             foreach (var e in _geometry.EnemyPositions)
@@ -195,6 +216,11 @@ namespace RealisticBattlePlanning.UI
                     y: (1f - Clamp(p.Y, 0.03f, 0.97f)) * MapHeight - AnchorSize / 2f,
                     label: a.Id, sub: ""));
             }
+
+            SelectedText = _selectedFormations.Count == 0
+                ? "Click a formation number to select it, then click the map to add a move waypoint."
+                : "Selected:  " + string.Join(", ", _selectedFormations.OrderBy(c => (int)c).Select(SlotNumber))
+                  + "    —    click the map to add a move waypoint (default: after the previous one).";
         }
 
         /// <summary>A single map position for an anchor. Scene anchors are absolute;
@@ -223,6 +249,42 @@ namespace RealisticBattlePlanning.UI
         {
             ShowMapBody = _showMap && HasMap;
             ShowListBody = HasPlan && !ShowMapBody;
+        }
+
+        // Map marker click (A2.6.1): toggle this formation in the selection, so the
+        // player can pick one or several to command together, then re-render.
+        internal void SelectFormation(PlannedFormationClass cls)
+        {
+            if (!_selectedFormations.Remove(cls))
+                _selectedFormations.Add(cls);
+            Refresh();
+        }
+
+        // A click on the map canvas (A2.6.1/A2.6.2). nx/ny are normalized canvas coords,
+        // y DOWN (screen). A click on a formation marker toggles its selection; a click on
+        // bare map appends a move stage to that world point for each selected formation
+        // (default trigger = reached the previous waypoint / battle start).
+        internal void OnMapClicked(float nx, float ny)
+        {
+            if (_projection == null)
+                return;
+
+            // Marker hit-test in design space (markers are placed in MapWidth x MapHeight units).
+            var dx = nx * MapWidth;
+            var dy = ny * MapHeight;
+            foreach (var hit in _markerHits)
+                if (dx >= hit.X && dx <= hit.X + hit.Size && dy >= hit.Y && dy <= hit.Y + hit.Size)
+                {
+                    SelectFormation(hit.Cls);
+                    return;
+                }
+
+            if (_selectedFormations.Count == 0)
+                return;
+            var world = _projection.Unproject(new MapPoint(nx, 1f - ny));
+            foreach (var cls in _selectedFormations.OrderBy(c => (int)c))
+                MapAuthoring.AppendMarchStage(_draft, cls, world, $"wp{++_waypointCounter}");
+            Refresh();
         }
 
         private void AddStage(PlannedFormationClass cls)
@@ -919,6 +981,7 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public bool ShowMapBody { get => _showMapBody; set { if (value != _showMapBody) { _showMapBody = value; OnPropertyChangedWithValue(value, "ShowMapBody"); } } }
         [DataSourceProperty] public bool ShowListBody { get => _showListBody; set { if (value != _showListBody) { _showListBody = value; OnPropertyChangedWithValue(value, "ShowListBody"); } } }
         [DataSourceProperty] public string MapToggleText { get => _mapToggleText; set { if (value != _mapToggleText) { _mapToggleText = value; OnPropertyChangedWithValue(value, "MapToggleText"); } } }
+        [DataSourceProperty] public string SelectedText { get => _selectedText; set { if (value != _selectedText) { _selectedText = value; OnPropertyChangedWithValue(value, "SelectedText"); } } }
     }
 
     /// <summary>One marker on the battlefield map: its top-left pixel offset (design
@@ -926,13 +989,25 @@ namespace RealisticBattlePlanning.UI
     /// an optional sub-label (composition). Absolute-positioned via PositionXOffset.</summary>
     public sealed class MapMarkerVM : ViewModel
     {
-        public MapMarkerVM(float x, float y, string label, string sub)
+        private readonly Action _onSelect;
+        private readonly string _baseColor;
+        private readonly string _selectedColor;
+        private bool _isSelected;
+        private string _color;
+
+        public MapMarkerVM(float x, float y, string label, string sub,
+            string baseColor = "#2C3C2CDD", Action onSelect = null, bool isSelected = false)
         {
             X = x;
             Y = y;
             Label = label;
             Sub = sub ?? "";
             HasSub = !string.IsNullOrEmpty(Sub);
+            _baseColor = baseColor;
+            _selectedColor = "#6E9A3EFF";  // bright green highlight when selected
+            _onSelect = onSelect;
+            _isSelected = isSelected;
+            _color = isSelected ? _selectedColor : baseColor;
         }
 
         [DataSourceProperty] public float X { get; }
@@ -940,6 +1015,20 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public string Label { get; }
         [DataSourceProperty] public string Sub { get; }
         [DataSourceProperty] public bool HasSub { get; }
+
+        /// <summary>Fill color (bound by the friendly-marker template), brightened when selected.</summary>
+        [DataSourceProperty]
+        public string Color { get => _color; set { if (value != _color) { _color = value; OnPropertyChangedWithValue(value, "Color"); } } }
+
+        [DataSourceProperty]
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set { if (value != _isSelected) { _isSelected = value; OnPropertyChangedWithValue(value, "IsSelected"); Color = value ? _selectedColor : _baseColor; } }
+        }
+
+        /// <summary>Marker click (A2.6.1): selects/toggles this formation. No-op for enemy/anchor markers.</summary>
+        public void ExecuteSelect() => _onSelect?.Invoke();
     }
 
     /// <summary>One selectable row in a picker menu. Type pickers carry a one-line

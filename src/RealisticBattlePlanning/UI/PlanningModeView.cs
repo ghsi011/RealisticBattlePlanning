@@ -135,6 +135,9 @@ namespace RealisticBattlePlanning.UI
                 // Live deployment geometry for the battlefield map view.
                 var geometry = BattlefieldReader.Read(Mission?.PlayerTeam);
                 _dataSource = new PlanningModeVM("Battle Plan", $"{ToggleKey} to close", draft, ApplyEditedPlan, Hide, labels, geometry);
+                // Route bare-canvas map clicks (the custom MapCanvasWidget) into the VM's
+                // point-and-click move authoring. Cleared in Hide so a stale closure can't fire.
+                MapCanvasWidget.Clicked = (x, y) => _dataSource?.OnMapClicked(x, y);
                 // High local order so the layer sits above the deployment UI for
                 // both rendering and input (the deployment HUD/order layers are
                 // low-order; a focus layer underneath them never gets clicks).
@@ -180,6 +183,7 @@ namespace RealisticBattlePlanning.UI
         {
             if (!_shown && _layer == null)
                 return;
+            Guard(() => MapCanvasWidget.Clicked = null);
             if (_layer != null)
             {
                 // Each release step is guarded on its own: if one throws (e.g.
