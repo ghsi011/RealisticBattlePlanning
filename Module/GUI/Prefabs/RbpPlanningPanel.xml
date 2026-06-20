@@ -438,56 +438,44 @@
                     </ListPanel>
                   </Children>
                 </MapCanvasWidget>
-                <!-- KSP-style stage rail: follows the selection, overlays the right of the map.
-                     Each row = a stage; multi-select shows shared stages in full colour (@RowColor /
-                     @TextColor dimmed when divergent). Click a row to edit its directive. -->
-                <Widget IsVisible="@HasStageRail" WidthSizePolicy="Fixed" SuggestedWidth="234" HeightSizePolicy="Fixed" SuggestedHeight="342"
-                        HorizontalAlignment="Right" VerticalAlignment="Center"
-                        Sprite="BlankWhiteSquare_9" Color="#14110BF7">
-                  <Children>
-                    <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" StackLayout.LayoutMethod="VerticalTopToBottom"
-                               MarginLeft="10" MarginRight="10" MarginTop="9" MarginBottom="9">
+                <!-- KSP-style stage rail: a compact vertical column of small clickable stage
+                     squares in the right MARGIN (outside the map, never overlapping it). Each
+                     square shows the directive's order icon + a corner stage number; multi-select
+                     dims the squares that diverge across the selection (@RowColor / @IconColor /
+                     @TextColor). Click a square to edit its directive. -->
+                <ListPanel IsVisible="@HasStageRail" DataSource="{StageRailRows}"
+                           WidthSizePolicy="Fixed" SuggestedWidth="58" HeightSizePolicy="CoverChildren"
+                           HorizontalAlignment="Right" VerticalAlignment="Center" MarginRight="-2"
+                           StackLayout.LayoutMethod="VerticalTopToBottom">
+                  <ItemTemplate>
+                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEdit"
+                                  WidthSizePolicy="Fixed" SuggestedWidth="50" HeightSizePolicy="Fixed" SuggestedHeight="50"
+                                  HorizontalAlignment="Center" MarginTop="3" MarginBottom="3" Brush="Rbp.Field">
                       <Children>
-                        <TextWidget Text="@StageRailTitle" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="20"
-                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="#D8C79CFF"
-                                    Brush.TextHorizontalAlignment="Left" Brush.TextVerticalAlignment="Center" />
-                        <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="1" MarginTop="3" MarginBottom="5"
-                                Sprite="BlankWhiteSquare_9" Color="#5A4F38AA" />
-                        <ListPanel DataSource="{StageRailRows}" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
-                                   StackLayout.LayoutMethod="VerticalTopToBottom">
-                          <ItemTemplate>
-                            <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginBottom="5">
-                              <Children>
-                                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Sprite="BlankWhiteSquare_9" Color="@RowColor" />
-                                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEdit"
-                                              WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" Brush="Rbp.Field">
-                                  <Children>
-                                    <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" StackLayout.LayoutMethod="HorizontalLeftToRight"
-                                               MarginLeft="7" MarginRight="7" MarginTop="6" MarginBottom="6">
-                                      <Children>
-                                        <Widget WidthSizePolicy="Fixed" SuggestedWidth="20" HeightSizePolicy="Fixed" SuggestedHeight="20"
-                                                VerticalAlignment="Top" Sprite="BlankWhiteSquare_9" Color="#0E0B07FF">
-                                          <Children>
-                                            <TextWidget Text="@NumberText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
-                                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="12" Brush.FontColor="@TextColor"
-                                                        Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
-                                          </Children>
-                                        </Widget>
-                                        <TextWidget Text="@SummaryText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginLeft="7"
-                                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="12" Brush.FontColor="@TextColor"
-                                                    Brush.TextHorizontalAlignment="Left" Brush.TextVerticalAlignment="Center" />
-                                      </Children>
-                                    </ListPanel>
-                                  </Children>
-                                </ButtonWidget>
-                              </Children>
-                            </Widget>
-                          </ItemTemplate>
-                        </ListPanel>
+                        <!-- dark frame -->
+                        <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent" Sprite="BlankWhiteSquare_9" Color="#0E0B07FF" />
+                        <!-- colour fill (inset 2px = border); full colour when shared, dim otherwise -->
+                        <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                MarginLeft="2" MarginTop="2" MarginRight="2" MarginBottom="2"
+                                Sprite="BlankWhiteSquare_9" Color="@RowColor" />
+                        <!-- directive order icon -->
+                        <Widget IsVisible="@HasIcon" WidthSizePolicy="Fixed" SuggestedWidth="32" HeightSizePolicy="Fixed" SuggestedHeight="32"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Sprite="@DirectiveIcon" Color="@IconColor" />
+                        <!-- stage-number badge (top-left corner) -->
+                        <Widget WidthSizePolicy="Fixed" SuggestedWidth="16" HeightSizePolicy="Fixed" SuggestedHeight="16"
+                                HorizontalAlignment="Left" VerticalAlignment="Top" PositionXOffset="-2" PositionYOffset="-2"
+                                Sprite="BlankWhiteSquare_9" Color="#13100AF2">
+                          <Children>
+                            <TextWidget Text="@NumberText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="11" Brush.FontColor="@TextColor"
+                                        Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                          </Children>
+                        </Widget>
                       </Children>
-                    </ListPanel>
-                  </Children>
-                </Widget>
+                    </ButtonWidget>
+                  </ItemTemplate>
+                </ListPanel>
                 <TextWidget Text="@SelectedText" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="22"
                             VerticalAlignment="Bottom" MarginBottom="0"
                             Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#9FD6A0FF"

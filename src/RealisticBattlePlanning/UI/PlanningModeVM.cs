@@ -1265,12 +1265,34 @@ namespace RealisticBattlePlanning.UI
             _edit = edit;
             NumberText = (row.Index + 1).ToString();
             SummaryText = row.Summary;
+            DirectiveIcon = DirectiveIconSprite(row.Directive);
+            HasIcon = !string.IsNullOrEmpty(DirectiveIcon);
             // Full colour when shared across the selection (or a single selection); dimmed otherwise.
             IsShared = !multiSelect || row.SharedAcrossSelection;
             RowColor = IsShared ? "#2E3A48F0" : "#2E3A4855";
             TextColor = IsShared ? "#E7EEF6FF" : "#8C97A4FF";
+            IconColor = IsShared ? "#FFFFFFFF" : "#FFFFFF66";
             IsMoveUpDisabled = row.Index <= 0;
             IsMoveDownDisabled = row.Index >= stageCount - 1;
+        }
+
+        /// <summary>The command-order action icon for a directive — the mission-loaded round
+        /// order glyphs (move/charge/skirmish/…), so each tiny stage square reads at a glance.</summary>
+        private static string DirectiveIconSprite(DirectiveType? d)
+        {
+            switch (d)
+            {
+                case DirectiveType.MoveTo:       return "Order\\ItemIconsRound\\OIMoveToPosition";
+                case DirectiveType.Skirmish:     return "Order\\ItemIconsRound\\OISkirmish";
+                case DirectiveType.FeignRetreat: return "Order\\ItemIconsRound\\OIRetreat";
+                case DirectiveType.Charge:       return "Order\\ItemIconsRound\\OICharge";
+                case DirectiveType.FlankArc:     return "Order\\ItemIconsRound\\OIAdvance";
+                case DirectiveType.PullBack:     return "Order\\ItemIconsRound\\OIFallback";
+                case DirectiveType.Screen:       return "Order\\ItemIconsRound\\OIGuardMe";
+                case DirectiveType.Follow:       return "Order\\ItemIconsRound\\OIFollowMe";
+                case DirectiveType.FireControl:  return "Order\\ItemIconsRound\\OIToggleFire";
+                default:                         return "Order\\ItemIconsRound\\OIStop"; // Hold / unknown
+            }
         }
 
         public void ExecuteMoveUp() => _moveUp?.Invoke();
@@ -1279,9 +1301,12 @@ namespace RealisticBattlePlanning.UI
 
         [DataSourceProperty] public string NumberText { get; }
         [DataSourceProperty] public string SummaryText { get; }
+        [DataSourceProperty] public string DirectiveIcon { get; }
+        [DataSourceProperty] public bool HasIcon { get; }
         [DataSourceProperty] public bool IsShared { get; }
         [DataSourceProperty] public string RowColor { get; }
         [DataSourceProperty] public string TextColor { get; }
+        [DataSourceProperty] public string IconColor { get; }
         [DataSourceProperty] public bool IsMoveUpDisabled { get; }
         [DataSourceProperty] public bool IsMoveDownDisabled { get; }
     }

@@ -20,6 +20,9 @@ namespace RealisticBattlePlanning.Planning.Editing
 
         /// <summary>True when every selected formation has a stage at this row.</summary>
         public bool PresentInAll { get; set; }
+
+        /// <summary>The stage's directive type (for the rail's compact action icon); null if empty.</summary>
+        public DirectiveType? Directive { get; set; }
     }
 
     /// <summary>
@@ -52,6 +55,7 @@ namespace RealisticBattlePlanning.Planning.Editing
                     Summary = stage != null
                         ? $"{PlanFormatter.DescribeWhen(stage, i)} → {PlanFormatter.DescribeDirective(stage.Do)}"
                         : "(none)",
+                    Directive = stage?.Do?.Type,
                     SharedAcrossSelection = i < shared.Count && shared[i],
                     PresentInAll = stageLists.All(s => i < s.Count),
                 });
