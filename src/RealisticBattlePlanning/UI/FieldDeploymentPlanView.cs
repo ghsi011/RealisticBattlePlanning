@@ -59,8 +59,10 @@ namespace RealisticBattlePlanning.UI
                 }
 
                 var input = Inp;
-                if (input != null && input.IsKeyPressed(InputKey.LeftMouseButton))
-                    OnFieldClick(input.GetMousePositionRanged(), "mouse");
+                if (input != null)
+                    HandleGesture(input);
+                else
+                    HidePreview();
 
                 PollDevCommand(dt);
             }
@@ -87,6 +89,135 @@ namespace RealisticBattlePlanning.UI
             var inside = !hasBoundaries || plan.IsPositionInsideDeploymentBoundaries(team, world.AsVec2);
             var p = world.AsVec2;
             RbpLog.Info($"[FIELD] {source} click at ({p.x:0.0},{p.y:0.0}) selected={SelectedCount()} boundaries={hasBoundaries} inside={inside} -> {(inside ? "DEPLOY (vanilla handles)" : "WAYPOINT (ours)")}");
+        }
+
+        // --- Out-of-boundary waypoint gesture (mirrors the vanilla placer's down/drag/up) ----
+        private bool _isMouseDown;
+        private bool _gestureActive;
+        private bool _stickyPreview; // dev-only: keep a one-shot preview visible for a screenshot
+        private WorldPosition _gestureStart;
+        private readonly System.Collections.Generic.List<GameEntity> _previewEntities = new System.Collections.Generic.List<GameEntity>();
+        // Blue tint for the planned-move ghost dots (vs vanilla green), 0xAARRGGBB.
+        private const uint PreviewTint = 0xFF3F7BFFu;
+
+        private void HandleGesture(TaleWorlds.InputSystem.IInputContext input)
+        {
+            if (input.IsKeyPressed(InputKey.LeftMouseButton))
+            {
+                _isMouseDown = true;
+                BeginGesture(input.GetMousePositionRanged());
+            }
+            else if (input.IsKeyReleased(InputKey.LeftMouseButton) && _isMouseDown)
+            {
+                _isMouseDown = false;
+                EndGesture(input.GetMousePositionRanged());
+            }
+            else if (input.IsKeyDown(InputKey.LeftMouseButton) && _isMouseDown && _gestureActive)
+            {
+                UpdateGesture(input.GetMousePositionRanged());
+            }
+            else if (!_gestureActive && !_stickyPreview)
+            {
+                HidePreview();
+            }
+        }
+
+        // A press that lands BEYOND the deployment boundary (with a formation selected) starts a
+        // waypoint gesture; a press inside is left to the vanilla placer (it deploys there).
+        private void BeginGesture(Vec2 screen)
+        {
+            _gestureActive = false;
+            _stickyPreview = false;
+            HidePreview();
+            if (SelectedCount() == 0 || !TryProjectToWorld(screen, out var world) || IsInsideBoundary(world))
+                return;
+            _gestureActive = true;
+            _gestureStart = world;
+        }
+
+        private void UpdateGesture(Vec2 screen)
+        {
+            if (TryProjectToWorld(screen, out var end))
+                RenderPreviewFor(_gestureStart, end);
+        }
+
+        private void EndGesture(Vec2 screen)
+        {
+            if (!_gestureActive)
+                return;
+            _gestureActive = false;
+            if (TryProjectToWorld(screen, out var end))
+                RbpLog.Info($"[FIELD] waypoint gesture ({_gestureStart.AsVec2.x:0},{_gestureStart.AsVec2.y:0})->({end.AsVec2.x:0},{end.AsVec2.y:0}) — commit pending (iter 3).");
+            HidePreview();
+        }
+
+        private bool IsInsideBoundary(WorldPosition world)
+        {
+            var team = Mission.PlayerTeam;
+            var plan = Mission.DeploymentPlan;
+            return plan == null || !plan.HasDeploymentBoundaries(team)
+                   || plan.IsPositionInsideDeploymentBoundaries(team, world.AsVec2);
+        }
+
+        // Reuse the engine's own per-soldier line simulation for the ghost dots (the "line depth"
+        // math) — we only render the result in blue, so no vanilla maths are rewritten.
+        private void RenderPreviewFor(WorldPosition lineBegin, WorldPosition lineEnd)
+        {
+            var oc = Mission?.PlayerTeam?.PlayerOrderController;
+            if (oc == null)
+            {
+                HidePreview();
+                return;
+            }
+            oc.SimulateNewOrderWithPositionAndDirection(lineBegin, lineEnd, out var frames, isFormationLayoutVertical: true);
+            RenderPreview(frames);
+        }
+
+        private void RenderPreview(System.Collections.Generic.List<WorldPosition> frames)
+        {
+            var count = frames?.Count ?? 0;
+            while (_previewEntities.Count < count)
+            {
+                var e = GameEntity.CreateEmpty(Mission.Scene);
+                e.EntityFlags |= EntityFlags.NotAffectedBySeason;
+                var mesh = MetaMesh.GetCopy("order_flag_small");
+                mesh?.SetFactor1(PreviewTint);
+                e.AddComponent(mesh);
+                e.SetVisibilityExcludeParents(visible: false);
+                _previewEntities.Add(e);
+            }
+            for (var i = 0; i < _previewEntities.Count; i++)
+            {
+                var e = _previewEntities[i];
+                if (i < count)
+                {
+                    var frame = new MatrixFrame(Mat3.Identity, frames[i].GetGroundVec3());
+                    e.SetFrame(ref frame);
+                    e.SetVisibilityExcludeParents(visible: true);
+                }
+                else
+                {
+                    e.SetVisibilityExcludeParents(visible: false);
+                }
+            }
+        }
+
+        private void HidePreview()
+        {
+            foreach (var e in _previewEntities)
+                e.SetVisibilityExcludeParents(visible: false);
+        }
+
+        public override void OnRemoveBehavior()
+        {
+            try
+            {
+                foreach (var e in _previewEntities)
+                    e?.Remove(0);
+                _previewEntities.Clear();
+            }
+            catch (Exception e) { RbpLog.Error("[FIELD] cleanup failed.", e); }
+            base.OnRemoveBehavior();
         }
 
         private bool TryProjectToWorld(Vec2 screenRanged, out WorldPosition world)
@@ -149,6 +280,13 @@ namespace RealisticBattlePlanning.UI
                     case "click" when parts.Length >= 3 && TryF(parts[1], out var sx) && TryF(parts[2], out var sy):
                         OnFieldClick(new Vec2(sx, sy), "dev");
                         break;
+                    case "preview" when parts.Length >= 5 && TryF(parts[1], out var px0) && TryF(parts[2], out var py0) && TryF(parts[3], out var px1) && TryF(parts[4], out var py1):
+                        DevPreview(new Vec2(px0, py0), new Vec2(px1, py1));
+                        break;
+                    case "clearpreview":
+                        _stickyPreview = false;
+                        HidePreview();
+                        break;
                     default:
                         RbpLog.Info($"[FIELD] field.cmd: unknown '{cmd}'.");
                         break;
@@ -172,6 +310,23 @@ namespace RealisticBattlePlanning.UI
             oc.ClearSelectedFormations();
             oc.SelectFormation(formation);
             RbpLog.Info($"[FIELD] dev selected formation {formationNumber} (count={formation.CountOfUnits}).");
+        }
+
+        private void DevPreview(Vec2 screen0, Vec2 screen1)
+        {
+            if (SelectedCount() == 0)
+            {
+                RbpLog.Info("[FIELD] dev preview: no formation selected.");
+                return;
+            }
+            if (!TryProjectToWorld(screen0, out var a) || !TryProjectToWorld(screen1, out var b))
+            {
+                RbpLog.Info("[FIELD] dev preview: no ground under one of the points.");
+                return;
+            }
+            RenderPreviewFor(a, b);
+            _stickyPreview = true;
+            RbpLog.Info($"[FIELD] dev preview ({a.AsVec2.x:0},{a.AsVec2.y:0})->({b.AsVec2.x:0},{b.AsVec2.y:0}) rendered ({_previewEntities.Count} dots pooled).");
         }
 
         private static bool TryF(string s, out float v)
