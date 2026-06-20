@@ -18,6 +18,11 @@ namespace RealisticBattlePlanning.Planning
     {
         public const string FileName = "rbp_debug_plan.json";
 
+        /// <summary>Off by default: the hand-written debug plan is a dev convenience and must
+        /// NOT load in normal play, so a fresh game starts with a blank plan (the session store
+        /// carries plans battle-to-battle). Flip in a dev session to seed from the JSON file.</summary>
+        public static bool Enabled { get; set; } = false;
+
         public static BattlePlan TryLoad()
         {
             string path;

@@ -164,6 +164,7 @@ namespace RealisticBattlePlanning.UI
                     case "click": DevClick(arg, rightClick: false); break;
                     case "rightclick": DevClick(arg, rightClick: true); break;
                     case "drag": DevDrag(arg); break;
+                    case "apply": _dataSource?.ExecuteApply(); break;
                     case "shot": Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     case "reshot": Hide(); Show(); Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     default: RbpLog.Info($"[DEV] planner.cmd: unknown verb '{verb}'."); return;
@@ -263,6 +264,13 @@ namespace RealisticBattlePlanning.UI
                 // Label each numbered formation by its live troop composition so
                 // the cards read "1 — Ranged-Infantry", not the slot's class name.
                 var labels = FormationReader.CompositionLabels(Mission?.PlayerTeam);
+                // Drop any planned formation that has no troops in THIS battle: a plan carried
+                // from a different army composition (session store) must not show phantom
+                // formations the player can't field. Only when live composition is known.
+                if (labels.Count > 0)
+                    foreach (var f in draft.Formations) // a fresh snapshot list each call
+                        if (!labels.ContainsKey(f))
+                            draft.RemoveFormation(f);
                 // Live deployment geometry for the battlefield map view.
                 var geometry = BattlefieldReader.Read(Mission?.PlayerTeam);
                 _dataSource = new PlanningModeVM("Battle Plan", $"{ToggleKey} to close", draft, ApplyEditedPlan, Hide, labels, geometry);

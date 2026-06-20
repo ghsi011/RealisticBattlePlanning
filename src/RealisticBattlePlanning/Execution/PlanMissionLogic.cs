@@ -116,9 +116,17 @@ namespace RealisticBattlePlanning.Execution
 
                 var harnessPlan = HarnessSession.PlanForNextBattle();
                 _isHarnessRun = harnessPlan != null;
-                _plan = harnessPlan ?? DebugPlanLoader.TryLoad();
+                // The first battle of a session starts BLANK; later battles carry the plan that
+                // was last applied (SessionPlanStore). The hand-written debug plan only loads when
+                // explicitly enabled for dev — never by default — so a fresh game has no plan.
+                _plan = harnessPlan
+                        ?? SessionPlanStore.Current
+                        ?? (DebugPlanLoader.Enabled ? DebugPlanLoader.TryLoad() : null);
                 if (_plan == null)
+                {
+                    RbpLog.Info("No plan for this battle (blank start); plan logic stays inert until one is applied.");
                     return;
+                }
 
                 var validation = PlanValidator.Validate(_plan);
                 foreach (var warning in validation.Warnings)
@@ -575,6 +583,8 @@ namespace RealisticBattlePlanning.Execution
             try
             {
                 _plan = newPlan;
+                // Carry the applied plan to the next battle of this session (spec Area G).
+                SessionPlanStore.Current = newPlan;
                 _fidelityActive = FidelityConfig.Enabled;
                 _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), FidelityConfig.NextBattleSeed());
                 RbpLog.Info("Plan applied from the editor:\n" + PlanFormatter.Describe(_plan));
