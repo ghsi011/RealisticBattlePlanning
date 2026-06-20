@@ -177,10 +177,13 @@ deviation in the log is tagged `INTENDED_FIDELITY` or `FAULT` (spec R2).
 Assume installed and loaded (declared in `Module\SubModule.xml`):
 
 - **Harmony** (`Lib.Harmony`) — patch hook registered in
-  `SubModule.OnSubModuleLoad`, but **there are currently no `[HarmonyPatch]`
-  classes**: the mod is vanilla-first, so order-override detection rides the
-  vanilla `OrderController.OnOrderIssued` event, not a patch. Add a patch only
-  when no event/extension point exists.
+  `SubModule.OnSubModuleLoad`. Vanilla-first, so there is exactly **one
+  `[HarmonyPatch]`**: `Patches/DeploymentCameraReachPatch` (relaxes the
+  deployment-camera leash so you can pan to field-planned waypoints — a private
+  camera clamp with no event/extension point). Order-override detection still
+  rides the vanilla `OrderController.OnOrderIssued` event, not a patch. Add a
+  patch only when no event/extension point exists — and add its target to
+  `EngineContract` so a game update surfaces as a readable failure, not a crash.
 - **BLSE** — replaces the launcher. Mods don't take a code dependency, but it
   must be running for ButterLib/MCM to behave.
 - **ButterLib** — DI container, extended logging, event helpers.

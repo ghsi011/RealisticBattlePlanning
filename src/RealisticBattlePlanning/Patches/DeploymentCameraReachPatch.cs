@@ -1,6 +1,7 @@
 using System;
 using HarmonyLib;
 using RealisticBattlePlanning.Diagnostics;
+using TaleWorlds.Core;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 
@@ -11,12 +12,14 @@ namespace RealisticBattlePlanning.Patches
     /// deployment camera is hard-clamped to the deployment boundary, so you can't pan far enough
     /// forward to see/place them. The clamp lives in a private <c>MissionScreen.UpdateCamera</c>
     /// with no event or extension point — its only lever is the snap function it calls when the
-    /// camera leaves the zone: <see cref="DefaultMissionDeploymentPlan.GetClosestDeploymentBoundaryPosition"/>,
-    /// whose sole caller across the whole engine IS that camera clamp (verified in the decompiled
-    /// sources). So a postfix here relaxes the camera leash by a fixed margin WITHOUT touching troop
-    /// placement (which uses <c>IsPositionInsideDeploymentBoundaries</c>, untouched) — the boundary
-    /// itself, and where you may deploy, are unchanged. This is the mod's one Harmony patch because
-    /// it's the only place the camera leash can be reached.
+    /// camera leaves the zone: <see cref="DefaultMissionDeploymentPlan.GetClosestDeploymentBoundaryPosition"/>.
+    /// In VANILLA its only caller is that camera clamp (verified in the decompiled sources), so a
+    /// postfix here relaxes the camera leash by a fixed margin WITHOUT touching troop placement
+    /// (which uses <c>IsPositionInsideDeploymentBoundaries</c>, untouched) — the boundary itself, and
+    /// where you may deploy, are unchanged. (RTSCamera, a reference mod, also calls this from its own
+    /// camera override; the same relaxation applies there and is equally desirable, and its camera is
+    /// likewise mission-clamped first, so the effect stays bounded.) This is the mod's one Harmony
+    /// patch because the camera leash can't be reached any other way.
     ///
     /// Gated on our <see cref="UI.FieldDeploymentPlanView"/> being attached, so missions without
     /// field planning keep the exact vanilla camera (zero-touch, spec G3).
@@ -35,8 +38,10 @@ namespace RealisticBattlePlanning.Patches
             try
             {
                 var mission = Mission.Current;
-                if (mission == null || mission.GetMissionBehavior<UI.FieldDeploymentPlanView>() == null)
-                    return; // field planning not active in this mission — leave the vanilla clamp alone
+                if (mission == null || mission.Mode != MissionMode.Deployment
+                    || mission.GetMissionBehavior<UI.FieldDeploymentPlanView>() == null)
+                    return; // only during deployment, and only when field planning is active —
+                            // a non-deployment caller of this snap gets the strict vanilla result
 
                 // __result is the boundary point closest to the camera's desired spot (position);
                 // the overshoot points outward from the zone. Allow it up to ReachBonusMeters, then

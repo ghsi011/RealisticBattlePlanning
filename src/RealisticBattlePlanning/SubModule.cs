@@ -38,10 +38,12 @@ namespace RealisticBattlePlanning
                 RbpLog.Error("Engine contract check itself failed.", e);
             }
 
-            // Deliberately empty today: there are NO [HarmonyPatch] classes — the
-            // mod is vanilla-first (§1.1), so order-override detection rides the
-            // vanilla OrderController.OnOrderIssued event, not a patch. This is the
-            // registration hook kept ready for any genuinely-needed future patch.
+            // Vanilla-first (§1.1): the mod has exactly ONE [HarmonyPatch] —
+            // Patches/DeploymentCameraReachPatch, which relaxes the deployment-camera
+            // leash so you can pan to field-planned waypoints (the camera clamp is a
+            // private method with no event/extension point, the only justified patch).
+            // Everything else rides vanilla events (e.g. order-override detection uses
+            // OrderController.OnOrderIssued, not a patch).
             Harmony.PatchAll(typeof(SubModule).Assembly);
 
             UIExtender.Register(typeof(SubModule).Assembly);

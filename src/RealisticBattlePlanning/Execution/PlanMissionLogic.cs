@@ -143,7 +143,7 @@ namespace RealisticBattlePlanning.Execution
 
                 RbpLog.Info(PlanFormatter.Describe(_plan));
                 _fidelityActive = FidelityConfig.Enabled;
-                _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), FidelityConfig.NextBattleSeed());
+                _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), BattleSeed());
                 if (_fidelityActive)
                     RbpLog.Info($"Fidelity: {FidelityConfig.Describe()}.");
                 _executor = new FormationOrderExecutor();
@@ -576,6 +576,18 @@ namespace RealisticBattlePlanning.Execution
         /// Rebuilds the monitor so the edited plan governs this battle; if
         /// deployment already finished, re-adopts the planned formations now.
         /// </summary>
+        // The battle's fidelity error seed is rolled ONCE per mission and reused, so re-applying the
+        // plan during deployment (every field/parchment waypoint edit rebuilds the monitor) does not
+        // advance the seed — the realized errors must not depend on how many waypoints you happened to
+        // place. Lazily rolled at the first monitor build (AfterStart or the first ApplyPlan).
+        private int? _battleSeed;
+        private int BattleSeed()
+        {
+            if (_battleSeed == null)
+                _battleSeed = FidelityConfig.NextBattleSeed();
+            return _battleSeed.Value;
+        }
+
         internal void ApplyPlan(BattlePlan newPlan)
         {
             if (newPlan == null)
@@ -586,7 +598,7 @@ namespace RealisticBattlePlanning.Execution
                 // Carry the applied plan to the next battle of this session (spec Area G).
                 SessionPlanStore.Current = newPlan;
                 _fidelityActive = FidelityConfig.Enabled;
-                _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), FidelityConfig.NextBattleSeed());
+                _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), BattleSeed());
                 RbpLog.Info("Plan applied from the editor:\n" + PlanFormatter.Describe(_plan));
                 if (_deploymentFinished)
                 {

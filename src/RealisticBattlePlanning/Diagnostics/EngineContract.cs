@@ -5,6 +5,7 @@ using TaleWorlds.Core;
 using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.MountAndBlade.CustomBattle.CustomBattle;
+using TaleWorlds.MountAndBlade.View.Screens;
 
 namespace RealisticBattlePlanning.Diagnostics
 {
@@ -71,6 +72,16 @@ namespace RealisticBattlePlanning.Diagnostics
             {
                 if (type.GetConstructor(parameters) == null)
                     failures.Add($"{type.Name}..ctor({string.Join(", ", Array.ConvertAll(parameters, p => p.Name))})");
+            }
+
+            // Existence-by-name (tolerant of overloads and in/out/ref param shapes, which exact
+            // GetMethod matching is brittle about): a game patch that renames or removes the member
+            // is the realistic break, and this catches that without crying wolf over a byref modreq.
+            void InstanceByName(Type type, string name)
+            {
+                const BindingFlags flags = BindingFlags.Public | BindingFlags.Instance;
+                if (!Array.Exists(type.GetMethods(flags), m => m.Name == name))
+                    failures.Add($"{type.Name}.{name} (instance method)");
             }
 
             // Mission lifecycle & gating (PlannableMission, PlanMissionLogic).
@@ -167,6 +178,28 @@ namespace RealisticBattlePlanning.Diagnostics
             StaticMember(typeof(FormOrder), "FormOrderCustom");
             Constructor(typeof(TaleWorlds.Engine.WorldPosition),
                 typeof(TaleWorlds.Engine.Scene), typeof(UIntPtr), typeof(Vec3), typeof(bool));
+
+            // Field-deployment planning (FieldDeploymentPlanView) + its one Harmony patch
+            // (DeploymentCameraReachPatch). Grow-with-every-patch rule: the patch target below is the
+            // member PatchAll resolves at load, so a rename there must surface as a contract failure,
+            // not a crash.
+            Property(typeof(Mission), "DeploymentPlan");
+            InstanceByName(typeof(IMissionDeploymentPlan), "HasDeploymentBoundaries");
+            InstanceByName(typeof(IMissionDeploymentPlan), "IsPositionInsideDeploymentBoundaries");
+            InstanceByName(typeof(IMissionDeploymentPlan), "GetClosestDeploymentBoundaryPosition");
+            // The Harmony patch target (the concrete type PatchAll binds).
+            InstanceByName(typeof(DefaultMissionDeploymentPlan), "GetClosestDeploymentBoundaryPosition");
+            // Per-soldier line simulation (preview + frozen ghost) and selection (dev select).
+            InstanceByName(typeof(OrderController), "SimulateNewOrderWithPositionAndDirection");
+            InstanceByName(typeof(OrderController), "SelectFormation");
+            InstanceByName(typeof(OrderController), "ClearSelectedFormations");
+            Property(typeof(OrderController), "SelectedFormations");
+            // Vanilla deploy cursor we suppress over a waypoint spot.
+            var orderFlagType = typeof(MissionScreen).GetProperty("OrderFlag", BindingFlags.Public | BindingFlags.Instance)?.PropertyType;
+            if (orderFlagType == null)
+                failures.Add("MissionScreen.OrderFlag (property)");
+            else
+                Property(orderFlagType, "IsVisible");
 
             if (failures.Count == 0)
             {

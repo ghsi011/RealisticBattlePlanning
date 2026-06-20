@@ -32,10 +32,17 @@ beyond the deployment boundary** (where vanilla is inert, so they never conflict
 - Up → commit a **MoveTo waypoint** into the active plan, so it shows in the KSP
   stage rail and the monitor marches it in battle. Reuses `MapAuthoring.AppendMarchStage`
   (anchor id `fwN`); a chain of out-of-bounds clicks builds a march.
-- **Markers mirror the plan, not a private list:** every tick the view renders one
-  flag per Scene anchor in the active plan, so a placed waypoint persists after the
-  drag releases AND a waypoint removed in the parchment planner makes its flag
-  vanish. The planner's orphan-prune now owns `fwN` anchors too (alongside its `wpN`).
+- **Placed soldier ghosts persist, mirrored to the plan:** on commit the FULL
+  per-soldier ghost the live preview was drawing is frozen and re-rendered each
+  deployment tick (so you can read how the formation will array for the rest of
+  deployment), keyed to the anchor(s) it created. It renders only while its anchor
+  survives, so a stage removed in the parchment planner clears its soldier flags —
+  the planner's orphan-prune now owns `fwN` anchors too (alongside its `wpN`). The
+  per-tick render is skipped when the live Scene-anchor set is unchanged. NOTE: the
+  full per-soldier freeze is for **single-formation** placement; a multi-select
+  placement (one combined frame set across N anchors that can't be split) instead
+  drops a single marker per anchor, each independently deletable — per-formation
+  multi-select ghosts are a follow-up needing per-formation frame slicing.
 
 Everything heavy (soldier-line math, projection, boundary test) is **reused**
 from the engine; we only add the thin input/preview/commit wrapper.
@@ -45,11 +52,14 @@ The vanilla deployment camera is hard-clamped to the deployment boundary, so you
 can't pan far enough forward to see/place out-of-field waypoints. That clamp lives
 in a private `MissionScreen.UpdateCamera` with no hook; its only lever is the snap
 function it calls, `DefaultMissionDeploymentPlan.GetClosestDeploymentBoundaryPosition`,
-whose **sole caller across the whole engine is that camera clamp** (verified in the
-decompiled sources). So `Patches/DeploymentCameraReachPatch` postfixes it to let the
-camera roam a fixed margin (~80 m) past the boundary — touching **only** the camera,
-never troop placement (which uses `IsPositionInsideDeploymentBoundaries`, untouched).
-Gated on our view being attached, so other missions keep the exact vanilla camera.
+whose **only vanilla caller is that camera clamp** (verified in the decompiled
+sources). So `Patches/DeploymentCameraReachPatch` postfixes it to let the camera roam
+a fixed margin (~80 m) past the boundary — touching **only** the camera, never troop
+placement (which uses `IsPositionInsideDeploymentBoundaries`, untouched). Gated on our
+view being attached, so other missions keep the exact vanilla camera. (RTSCamera, a
+reference mod, also calls this from its own camera override — the same relaxation
+applies there and is equally wanted, and its camera is mission-clamped first too, so
+the effect stays bounded. The patch target is registered in `EngineContract`.)
 
 The list-based Planning Mode UI stays for the richer plan components (triggers,
 abort, signals) the field gesture doesn't cover.

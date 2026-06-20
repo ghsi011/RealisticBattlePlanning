@@ -110,15 +110,27 @@ namespace RealisticBattlePlanning.UI
         // Blue tint for the planned-move ghost dots (vs vanilla green), 0xAARRGGBB.
         private const uint PreviewTint = 0xFF3F7BFFu;
 
-        // Committed waypoints: one persistent marker per Scene anchor in the active plan, so the
-        // field always shows exactly what the plan holds — placed waypoints stay visible after the
-        // drag releases, and a waypoint removed in the planner makes its flag disappear (the markers
-        // are derived from the live plan each tick, not a private list). Ground Z per anchor is
-        // resolved once and cached (anchors never move in place; removal reuses fresh ids).
+        // Committed waypoints: the FULL per-soldier ghost (the same line the live preview drew) is
+        // frozen at commit and re-rendered every deployment tick, so the player can read how each
+        // placed formation will array — for the rest of deployment, not just on hover. Each
+        // placement is keyed to the plan anchors it created (one per formation); it is rendered only
+        // while at least one of those anchors is still in the plan, so deleting the stage deletes its
+        // soldier flags. A carried-plan anchor with no frozen frames (e.g. battle 2) falls back to a
+        // single marker (ground Z resolved off the terrain once and cached).
         private int _fieldWaypointCounter;
         private readonly Dictionary<string, Vec3> _markerGroundCache = new Dictionary<string, Vec3>();
         private readonly List<GameEntity> _committedEntities = new List<GameEntity>();
+        private readonly List<PlacedPreview> _placements = new List<PlacedPreview>();
         private const uint CommittedTint = 0xFF2E66FFu;
+
+        /// <summary>A placed move waypoint's frozen soldier-ghost: the per-soldier ground positions
+        /// captured at commit, plus the plan anchor id(s) the placement created. Rendered while any
+        /// of those anchors survives in the plan; dropped once they're all gone (stage deleted).</summary>
+        private sealed class PlacedPreview
+        {
+            public List<string> AnchorIds;
+            public List<Vec3> Frames;
+        }
 
         // One pass per tick: project the cursor, suppress the vanilla "invalid deploy" cursor over
         // a valid waypoint spot, run the click/drag gesture, and draw the ghost preview (hovering
@@ -144,6 +156,20 @@ namespace RealisticBattlePlanning.UI
                 _gestureActive = false;
             }
 
+            // Self-heal stale input state: a missed release (focus loss / screen swap) would otherwise
+            // leave _isMouseDown or _gestureActive latched — _isMouseDown suppresses the hover preview
+            // (even after an in-bounds press), and _gestureActive draws a stale line. If the button
+            // isn't actually held, neither can be in progress, regardless of where the press started.
+            if (!input.IsKeyDown(InputKey.LeftMouseButton))
+            {
+                _isMouseDown = false;
+                _gestureActive = false;
+            }
+            else if (_gestureActive && SelectedCount() == 0)
+            {
+                _gestureActive = false; // formation deselected mid-drag
+            }
+
             if (_gestureActive && hasWorld)
                 RenderPreviewFor(_gestureStart, world);   // dragging the line
             else if (overWaypoint && hasWorld && !_isMouseDown)
@@ -154,6 +180,10 @@ namespace RealisticBattlePlanning.UI
 
         // Hide the vanilla deploy cursor (its red "invalid" mark) over a valid waypoint spot, and
         // restore it elsewhere, so beyond-boundary reads as a legal move rather than a forbidden one.
+        // The desired state is re-derived every tick from overWaypoint, so the flag can't get stuck
+        // hidden across ticks: as soon as the cursor leaves a waypoint spot it is handed back to
+        // vanilla. We only force-restore once (via the latch) so we don't fight vanilla's own
+        // visibility logic while the cursor is over an in-bounds deploy spot.
         private bool _hidVanillaFlag;
         private void UpdateVanillaCursor(bool overWaypoint)
         {
@@ -162,7 +192,9 @@ namespace RealisticBattlePlanning.UI
                 return;
             if (overWaypoint)
             {
-                if (flag.IsVisible) { flag.IsVisible = false; _hidVanillaFlag = true; }
+                // Set every tick (idempotent), so even if vanilla re-shows the flag we keep it hidden.
+                flag.IsVisible = false;
+                _hidVanillaFlag = true;
             }
             else if (_hidVanillaFlag)
             {
@@ -178,6 +210,8 @@ namespace RealisticBattlePlanning.UI
             var flag = ResolvedScreen?.OrderFlag;
             if (flag != null)
                 flag.IsVisible = true;
+            // Clear the latch regardless of whether the screen was resolvable: if it isn't, there's no
+            // flag to leave stuck, and we must not stay latched into the battle.
             _hidVanillaFlag = false;
         }
 
@@ -207,23 +241,45 @@ namespace RealisticBattlePlanning.UI
             // the parchment map fixed by seeding its counter from existing waypoint anchors).
             _fieldWaypointCounter = Math.Max(_fieldWaypointCounter, MaxFieldWaypointNumber(logic.ActivePlan));
             var draft = PlanDraft.EditingCopyOf(logic.ActivePlan);
-            var committed = 0;
+            var anchorIds = new List<string>();
             foreach (var formation in oc.SelectedFormations)
             {
                 var planned = FormationClassMap.ToPlanned(formation.FormationIndex);
                 if (!planned.HasValue)
                     continue;
-                MapAuthoring.AppendMarchStage(draft, planned.Value, center, $"fw{++_fieldWaypointCounter}");
-                committed++;
+                var id = $"fw{++_fieldWaypointCounter}";
+                MapAuthoring.AppendMarchStage(draft, planned.Value, center, id);
+                anchorIds.Add(id);
             }
-            if (committed == 0)
+            if (anchorIds.Count == 0)
             {
                 RbpLog.Info("[FIELD] commit skipped: selection had no plannable formation class.");
                 return;
             }
 
             logic.ApplyPlan(draft.Build());
-            RbpLog.Info($"[FIELD] committed move waypoint at ({center.X:0},{center.Y:0}) for {committed} formation(s); plan now has {draft.Formations.Count} planned formation(s).");
+
+            // Freeze the soldier ghost the live preview was showing, so it persists at the waypoint
+            // for the rest of deployment — keyed to its anchor so deleting that stage clears exactly
+            // its soldiers. Only for a SINGLE-formation placement: the engine simulates all selected
+            // formations into one combined frame set, which can't be split per anchor, so a
+            // multi-select placement would leave one formation's ghosts behind when only its stage is
+            // deleted. For multi-select we skip the frozen ghost; each anchor then shows a single
+            // fallback marker that deletes independently. (Per-formation ghosts for multi-select is a
+            // follow-up that needs per-formation frame slicing.)
+            var froze = 0;
+            if (anchorIds.Count == 1)
+            {
+                oc.SimulateNewOrderWithPositionAndDirection(_gestureStart, end, out var frames, isFormationLayoutVertical: true);
+                var positions = new List<Vec3>(frames?.Count ?? 0);
+                if (frames != null)
+                    foreach (var f in frames)
+                        positions.Add(f.GetGroundVec3());
+                _placements.Add(new PlacedPreview { AnchorIds = anchorIds, Frames = positions });
+                froze = positions.Count;
+            }
+
+            RbpLog.Info($"[FIELD] committed move waypoint at ({center.X:0},{center.Y:0}) for {anchorIds.Count} formation(s), {froze} soldier ghost(s) frozen; plan now has {draft.Formations.Count} planned formation(s).");
         }
 
         private bool IsInsideBoundary(WorldPosition world)
@@ -283,18 +339,63 @@ namespace RealisticBattlePlanning.UI
                 e.SetVisibilityExcludeParents(visible: false);
         }
 
-        // One persistent flag per Scene anchor in the active plan, so the field mirrors the plan:
-        // a committed waypoint shows after the drag releases, and a waypoint removed in the planner
-        // makes its flag disappear (the markers are derived from the plan, never a private list).
+        // Persist the placed soldier ghosts, mirrored to the plan: each placement's frozen frames
+        // render while any of its anchors survives, and a stage deleted in the planner drops both the
+        // anchor and (once all its anchors are gone) its soldier flags. Plan anchors with no frozen
+        // frames (a carried plan) fall back to a single marker so they still show.
+        private readonly HashSet<string> _liveAnchorIds = new HashSet<string>();   // ids, for placement liveness
+        private readonly HashSet<string> _coveredAnchorIds = new HashSet<string>();
+        private readonly HashSet<string> _liveAnchorSig = new HashSet<string>();   // id|x|y, for the dirty check
+        private readonly HashSet<string> _renderedAnchorSig = new HashSet<string>();
+        private bool _committedRendered;
         private void RenderCommitted()
         {
             var anchors = Mission?.GetMissionBehavior<PlanMissionLogic>()?.ActivePlan?.Anchors;
-            var shown = 0;
+            _liveAnchorIds.Clear();
+            _liveAnchorSig.Clear();
             if (anchors != null)
+                foreach (var a in anchors)
+                    if (a != null && a.Basis == AnchorBasis.Scene && a.Id != null)
+                    {
+                        _liveAnchorIds.Add(a.Id);
+                        _liveAnchorSig.Add(AnchorSig(a));
+                    }
+
+            // Drop placements whose every anchor is gone (their stage was deleted).
+            _placements.RemoveAll(p => !AnyAlive(p.AnchorIds));
+
+            // The fallback markers' positions depend on anchor (id, x, y), so the dirty key includes
+            // coordinates — a re-applied plan that moved an anchor in place (same id) still re-renders.
+            // Skip the per-soldier entity churn on idle ticks when nothing changed (exact set compare).
+            if (_committedRendered && _liveAnchorSig.SetEquals(_renderedAnchorSig))
+                return;
+            _committedRendered = true;
+            _renderedAnchorSig.Clear();
+            foreach (var s in _liveAnchorSig)
+                _renderedAnchorSig.Add(s);
+
+            var shown = 0;
+            _coveredAnchorIds.Clear();
+            foreach (var p in _placements)
             {
+                foreach (var id in p.AnchorIds)
+                    _coveredAnchorIds.Add(id);
+                foreach (var pos in p.Frames)
+                {
+                    EnsureCommittedEntity(shown);
+                    var frame = new MatrixFrame(Mat3.Identity, pos);
+                    var e = _committedEntities[shown];
+                    e.SetFrame(ref frame);
+                    e.SetVisibilityExcludeParents(visible: true);
+                    shown++;
+                }
+            }
+
+            // Fallback marker for any live Scene anchor no placement froze frames for.
+            if (anchors != null)
                 foreach (var a in anchors)
                 {
-                    if (a == null || a.Basis != AnchorBasis.Scene)
+                    if (a == null || a.Basis != AnchorBasis.Scene || a.Id == null || _coveredAnchorIds.Contains(a.Id))
                         continue;
                     EnsureCommittedEntity(shown);
                     var frame = new MatrixFrame(Mat3.Identity, GroundFor(a));
@@ -303,9 +404,17 @@ namespace RealisticBattlePlanning.UI
                     e.SetVisibilityExcludeParents(visible: true);
                     shown++;
                 }
-            }
+
             for (var i = shown; i < _committedEntities.Count; i++)
                 _committedEntities[i].SetVisibilityExcludeParents(visible: false);
+        }
+
+        private bool AnyAlive(List<string> anchorIds)
+        {
+            foreach (var id in anchorIds)
+                if (_liveAnchorIds.Contains(id))
+                    return true;
+            return false;
         }
 
         private void EnsureCommittedEntity(int index)
@@ -322,16 +431,21 @@ namespace RealisticBattlePlanning.UI
             }
         }
 
-        // Ground position for a Scene anchor, resolved off the terrain once and cached by id.
+        // Ground position for a Scene anchor, resolved off the terrain once and cached by (id, x, y)
+        // so a moved anchor (same id, new coords) gets a fresh resolve rather than the stale position.
         private Vec3 GroundFor(MapAnchor anchor)
         {
-            if (!_markerGroundCache.TryGetValue(anchor.Id, out var pos))
+            var key = AnchorSig(anchor);
+            if (!_markerGroundCache.TryGetValue(key, out var pos))
             {
                 pos = new WorldPosition(Mission.Scene, UIntPtr.Zero, new Vec3(anchor.X, anchor.Y, 0f), hasValidZ: false).GetGroundVec3();
-                _markerGroundCache[anchor.Id] = pos;
+                _markerGroundCache[key] = pos;
             }
             return pos;
         }
+
+        private static string AnchorSig(MapAnchor a)
+            => a.Id + "|" + a.X.ToString("0.0", CultureInfo.InvariantCulture) + "|" + a.Y.ToString("0.0", CultureInfo.InvariantCulture);
 
         private static int MaxFieldWaypointNumber(BattlePlan plan)
         {
