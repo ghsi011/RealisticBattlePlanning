@@ -31,7 +31,13 @@ beyond the deployment boundary** (where vanilla is inert, so they never conflict
   positions; render them as **blue** ghost dots (reuse `order_flag_small`, tinted).
 - Up → commit a **MoveTo waypoint** into the active plan, so it shows in the KSP
   stage rail and the monitor marches it in battle. Reuses `MapAuthoring.AppendMarchStage`
-  (anchor id `fwN`); a chain of out-of-bounds clicks builds a march.
+  (anchor id `fwN`); a chain of out-of-bounds clicks builds a march. A single-formation
+  drag carries its frontage **width** into the order (so the formation forms the line
+  you drew — what the ghost shows is what executes); a click keeps the default width.
+- **Right-click** (not a camera drag) near a field waypoint **removes** it and re-links
+  the march (`MapAuthoring.RemoveMarchWaypoint` + prune), so the whole place/remove loop
+  lives on the field with no parchment-planner trip. The vanilla camera only enters
+  drag-mode past a movement threshold, so a quick click doesn't pan it.
 - **Placed soldier ghosts persist, mirrored to the plan:** on commit the FULL
   per-soldier ghost the live preview was drawing is frozen and re-rendered each
   deployment tick (so you can read how the formation will array for the rest of
@@ -72,12 +78,13 @@ abort, signals) the field gesture doesn't cover.
    spot (user-confirmed: no banner, drag works).
 3. **Commit** ✅ — mouse-up appends a MoveTo waypoint to the active plan (reusing
    `MapAuthoring.AppendMarchStage`, anchor `fwN`) so it shows in the KSP stage
-   rail and the monitor marches it in battle; a persistent blue marker is dropped
-   at the destination so placed waypoints stay visible after release.
-4. **Line** — carry the drag's width/facing so the formation arrays along it
-   (MoveToLineSegment) instead of only its centre point.
-5. **Polish** — multi-formation, march chains (chained out-of-bounds clicks),
-   integration with the rail/list.
+   rail and the monitor marches it in battle; the full per-soldier ghost is frozen
+   and persists for the rest of deployment, clearing when the stage is deleted.
+4. **Width + remove** ✅ — a single-formation drag carries its frontage width into
+   the order (the ghost is what executes); right-click on the field removes the
+   nearest waypoint (re-link + prune), closing the place/remove loop on the field.
+5. **Polish** — facing (the line orientation, not just width); multi-formation
+   placement (per-formation ghosts + arraying along the drag); custom banner mesh.
 
 ## Follow-ups (not blocking)
 - **Custom planning banner** (user request 2026-06-20): the ghost/committed

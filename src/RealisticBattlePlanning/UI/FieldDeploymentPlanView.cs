@@ -106,6 +106,10 @@ namespace RealisticBattlePlanning.UI
         private bool _gestureActive;
         private bool _stickyPreview; // dev-only: keep a one-shot preview visible for a screenshot
         private WorldPosition _gestureStart;
+        private bool _rightDown;
+        private Vec2 _rightDownRanged;
+        private const float RightClickMaxRangedMove = 0.012f; // beyond this it's a camera drag, not a click
+        private const float RemoveWaypointToleranceMeters = 22f; // how near the click must land to a waypoint
         private readonly List<GameEntity> _previewEntities = new List<GameEntity>();
         // Blue tint for the planned-move ghost dots (vs vanilla green), 0xAARRGGBB.
         private const uint PreviewTint = 0xFF3F7BFFu;
@@ -170,6 +174,22 @@ namespace RealisticBattlePlanning.UI
             else if (_gestureActive && SelectedCount() == 0)
             {
                 _gestureActive = false; // formation deselected mid-drag
+            }
+
+            // Right-CLICK (not a camera drag) near a field waypoint removes it — the place/remove loop
+            // lives on the field, no parchment-planner trip. The vanilla camera only enters drag-mode
+            // past a movement threshold, so a quick click here doesn't pan it.
+            if (input.IsKeyPressed(InputKey.RightMouseButton))
+            {
+                _rightDown = true;
+                _rightDownRanged = input.GetMousePositionRanged();
+            }
+            else if (input.IsKeyReleased(InputKey.RightMouseButton) && _rightDown)
+            {
+                _rightDown = false;
+                var moved = (input.GetMousePositionRanged() - _rightDownRanged).Length;
+                if (moved < RightClickMaxRangedMove && hasWorld && !IsInsideBoundary(world))
+                    TryRemoveFieldWaypoint(world);
             }
 
             if (_gestureActive && hasWorld)
@@ -298,6 +318,53 @@ namespace RealisticBattlePlanning.UI
             }
 
             RbpLog.Info($"[FIELD] committed move waypoint at ({center.X:0},{center.Y:0}) for {anchorIds.Count} formation(s), {froze} soldier ghost(s) frozen, width={(width.HasValue ? $"{width.Value:0.0}m" : "default")}; plan now has {draft.Formations.Count} planned formation(s).");
+        }
+
+        // Right-click removal: drop the field waypoint nearest the click and re-link the march
+        // (the same Core edit the parchment planner's right-click uses), then apply — so the ghost
+        // clears. Tolerant radius because the deploy camera projects the field at a distance.
+        private void TryRemoveFieldWaypoint(WorldPosition world)
+        {
+            var logic = Mission?.GetMissionBehavior<PlanMissionLogic>();
+            var plan = logic?.ActivePlan;
+            if (plan?.Anchors == null)
+                return;
+
+            var click = world.AsVec2;
+            string nearest = null;
+            var best = RemoveWaypointToleranceMeters;
+            foreach (var a in plan.Anchors)
+            {
+                if (a == null || a.Basis != AnchorBasis.Scene || !IsAutoWaypointAnchorId(a.Id))
+                    continue;
+                var dx = a.X - click.x;
+                var dy = a.Y - click.y;
+                var d = (float)Math.Sqrt(dx * dx + dy * dy);
+                if (d < best) { best = d; nearest = a.Id; }
+            }
+            if (nearest == null)
+                return;
+
+            var draft = PlanDraft.EditingCopyOf(plan);
+            if (MapAuthoring.RemoveMarchWaypoint(draft, nearest))
+            {
+                draft.RemoveUnreferencedAnchors(IsAutoWaypointAnchorId);
+                logic.ApplyPlan(draft.Build());
+                RbpLog.Info($"[FIELD] removed waypoint '{nearest}' (field right-click).");
+            }
+        }
+
+        // An auto-authored waypoint anchor the editor owns: a field gesture ("fwN") or a map click
+        // ("wpN"). Mirrors the planner's IsAutoWaypointAnchor so the two surfaces prune the same set.
+        private static bool IsAutoWaypointAnchorId(string id)
+        {
+            if (string.IsNullOrEmpty(id) || id.Length <= 2
+                || !(id[0] == 'f' && id[1] == 'w') && !(id[0] == 'w' && id[1] == 'p'))
+                return false;
+            for (var i = 2; i < id.Length; i++)
+                if (!char.IsDigit(id[i]))
+                    return false;
+            return true;
         }
 
         private bool IsInsideBoundary(WorldPosition world)
@@ -562,6 +629,10 @@ namespace RealisticBattlePlanning.UI
                         break;
                     case "commit" when parts.Length >= 5 && TryF(parts[1], out var cx0) && TryF(parts[2], out var cy0) && TryF(parts[3], out var cx1) && TryF(parts[4], out var cy1):
                         DevCommit(new Vec2(cx0, cy0), new Vec2(cx1, cy1));
+                        break;
+                    case "rremove" when parts.Length >= 3 && TryF(parts[1], out var rx) && TryF(parts[2], out var ry):
+                        if (TryProjectToWorld(new Vec2(rx, ry), out var rworld)) TryRemoveFieldWaypoint(rworld);
+                        else RbpLog.Info("[FIELD] dev rremove: no ground under cursor.");
                         break;
                     case "clearpreview":
                         _stickyPreview = false;
