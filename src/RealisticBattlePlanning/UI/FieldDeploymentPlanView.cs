@@ -109,6 +109,8 @@ namespace RealisticBattlePlanning.UI
         private readonly List<GameEntity> _previewEntities = new List<GameEntity>();
         // Blue tint for the planned-move ghost dots (vs vanilla green), 0xAARRGGBB.
         private const uint PreviewTint = 0xFF3F7BFFu;
+        // Below this drag length (m) the gesture is a click, not a line — keep the default width.
+        private const float MinDragWidthMeters = 4f;
 
         // Committed waypoints: the FULL per-soldier ghost (the same line the live preview drew) is
         // frozen at commit and re-rendered every deployment tick, so the player can read how each
@@ -237,24 +239,40 @@ namespace RealisticBattlePlanning.UI
             // The drag centre is where the formation centre lands (a click is start==end).
             var center = new MapVec((_gestureStart.AsVec2.x + end.AsVec2.x) * 0.5f,
                                     (_gestureStart.AsVec2.y + end.AsVec2.y) * 0.5f);
+
+            // Collect the plannable selected formations first, so we can tell single- from multi-select.
+            var plannable = new List<Formation>();
+            foreach (var f in oc.SelectedFormations)
+                if (FormationClassMap.ToPlanned(f.FormationIndex).HasValue)
+                    plannable.Add(f);
+            if (plannable.Count == 0)
+            {
+                RbpLog.Info("[FIELD] commit skipped: selection had no plannable formation class.");
+                return;
+            }
+
+            // A single-formation drag carries its frontage WIDTH into the order, so the formation forms
+            // the line you stretched (what the soldier ghost shows is what executes). A short drag (a
+            // click) keeps the formation's default width. Multi-select gets default width for now.
+            float? width = null;
+            if (plannable.Count == 1)
+            {
+                var w = (end.AsVec2 - _gestureStart.AsVec2).Length;
+                if (w >= MinDragWidthMeters)
+                    width = w;
+            }
+
             // Keep ids unique across a carried plan / reopen (else "fw1" collides — the same bug
             // the parchment map fixed by seeding its counter from existing waypoint anchors).
             _fieldWaypointCounter = Math.Max(_fieldWaypointCounter, MaxFieldWaypointNumber(logic.ActivePlan));
             var draft = PlanDraft.EditingCopyOf(logic.ActivePlan);
             var anchorIds = new List<string>();
-            foreach (var formation in oc.SelectedFormations)
+            foreach (var formation in plannable)
             {
-                var planned = FormationClassMap.ToPlanned(formation.FormationIndex);
-                if (!planned.HasValue)
-                    continue;
+                var planned = FormationClassMap.ToPlanned(formation.FormationIndex).Value;
                 var id = $"fw{++_fieldWaypointCounter}";
-                MapAuthoring.AppendMarchStage(draft, planned.Value, center, id);
+                MapAuthoring.AppendMarchStage(draft, planned, center, id, width);
                 anchorIds.Add(id);
-            }
-            if (anchorIds.Count == 0)
-            {
-                RbpLog.Info("[FIELD] commit skipped: selection had no plannable formation class.");
-                return;
             }
 
             logic.ApplyPlan(draft.Build());
@@ -279,7 +297,7 @@ namespace RealisticBattlePlanning.UI
                 froze = positions.Count;
             }
 
-            RbpLog.Info($"[FIELD] committed move waypoint at ({center.X:0},{center.Y:0}) for {anchorIds.Count} formation(s), {froze} soldier ghost(s) frozen; plan now has {draft.Formations.Count} planned formation(s).");
+            RbpLog.Info($"[FIELD] committed move waypoint at ({center.X:0},{center.Y:0}) for {anchorIds.Count} formation(s), {froze} soldier ghost(s) frozen, width={(width.HasValue ? $"{width.Value:0.0}m" : "default")}; plan now has {draft.Formations.Count} planned formation(s).");
         }
 
         private bool IsInsideBoundary(WorldPosition world)

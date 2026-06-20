@@ -43,6 +43,25 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void AppendMarchStageCarriesAPositiveWidthAndIgnoresNonPositive()
+        {
+            var draft = new PlanDraft();
+
+            // A field-planning drag passes its frontage width; it lands on the MoveTo directive.
+            MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(10f, 20f), "fw1", 42.5f);
+            // No width (a click) leaves it default.
+            MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(30f, 40f), "fw2");
+            // A non-positive width is ignored (treated as "no width").
+            MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(50f, 60f), "fw3", 0f);
+
+            var stages = draft.StagesOf(PlannedFormationClass.Infantry);
+            Assert.Equal(42.5f, stages[0].Do.WidthMeters);
+            Assert.Null(stages[1].Do.WidthMeters);
+            Assert.Null(stages[2].Do.WidthMeters);
+            Assert.Empty(draft.Validate().Errors);
+        }
+
+        [Fact]
         public void AppendMarchStageNoOpsOnNullDraftOrBlankId()
         {
             Assert.Null(MapAuthoring.AppendMarchStage(null, PlannedFormationClass.Infantry, new MapVec(0f, 0f), "x"));

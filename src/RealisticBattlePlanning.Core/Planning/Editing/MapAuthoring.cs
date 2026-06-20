@@ -27,8 +27,12 @@ namespace RealisticBattlePlanning.Planning.Editing
         /// previous waypoint (or battle start if it's the first stage). The caller
         /// owns anchor-id naming/uniqueness so this stays pure. No-ops on a null draft
         /// or blank id; returns the anchor id used (null if it no-opped).
+        /// <paramref name="widthMeters"/>, when given, sets the formation's frontage at the
+        /// destination (the field-planning drag carries the line you stretched, so the formation
+        /// forms the width you drew — what the soldier ghost showed is what executes). A
+        /// non-positive width is ignored.
         /// </summary>
-        public static string AppendMarchStage(PlanDraft draft, PlannedFormationClass formation, MapVec worldPoint, string anchorId)
+        public static string AppendMarchStage(PlanDraft draft, PlannedFormationClass formation, MapVec worldPoint, string anchorId, float? widthMeters = null)
         {
             if (draft == null || string.IsNullOrWhiteSpace(anchorId))
                 return null;
@@ -43,7 +47,12 @@ namespace RealisticBattlePlanning.Planning.Editing
             draft.AddStage(formation, new Stage
             {
                 When = { trigger },
-                Do = new DirectiveSpec { Type = DirectiveType.MoveTo, Anchor = anchorId },
+                Do = new DirectiveSpec
+                {
+                    Type = DirectiveType.MoveTo,
+                    Anchor = anchorId,
+                    WidthMeters = widthMeters is { } w && w > 0f ? widthMeters : null,
+                },
             });
             return anchorId;
         }
