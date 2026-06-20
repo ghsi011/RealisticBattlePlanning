@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using RealisticBattlePlanning.Diagnostics;
+using RealisticBattlePlanning.Execution;
+using RealisticBattlePlanning.Planning.Editing;
+using RealisticBattlePlanning.Planning.Model;
 using TaleWorlds.Core;
 using TaleWorlds.Engine;
 using TaleWorlds.InputSystem;
@@ -49,7 +53,12 @@ namespace RealisticBattlePlanning.UI
             try
             {
                 if (!IsDeployment)
+                {
+                    RestoreVanillaCursor();
+                    HidePreview();
+                    HideCommitted();
                     return;
+                }
 
                 _heartbeat += dt;
                 if (_heartbeat >= 3f)
@@ -60,10 +69,11 @@ namespace RealisticBattlePlanning.UI
 
                 var input = Inp;
                 if (input != null)
-                    HandleGesture(input);
+                    HandleField(input);
                 else
                     HidePreview();
 
+                RenderCommitted();
                 PollDevCommand(dt);
             }
             catch (Exception e)
@@ -96,59 +106,124 @@ namespace RealisticBattlePlanning.UI
         private bool _gestureActive;
         private bool _stickyPreview; // dev-only: keep a one-shot preview visible for a screenshot
         private WorldPosition _gestureStart;
-        private readonly System.Collections.Generic.List<GameEntity> _previewEntities = new System.Collections.Generic.List<GameEntity>();
+        private readonly List<GameEntity> _previewEntities = new List<GameEntity>();
         // Blue tint for the planned-move ghost dots (vs vanilla green), 0xAARRGGBB.
         private const uint PreviewTint = 0xFF3F7BFFu;
 
-        private void HandleGesture(TaleWorlds.InputSystem.IInputContext input)
+        // Committed waypoints: one persistent marker per Scene anchor in the active plan, so the
+        // field always shows exactly what the plan holds — placed waypoints stay visible after the
+        // drag releases, and a waypoint removed in the planner makes its flag disappear (the markers
+        // are derived from the live plan each tick, not a private list). Ground Z per anchor is
+        // resolved once and cached (anchors never move in place; removal reuses fresh ids).
+        private int _fieldWaypointCounter;
+        private readonly Dictionary<string, Vec3> _markerGroundCache = new Dictionary<string, Vec3>();
+        private readonly List<GameEntity> _committedEntities = new List<GameEntity>();
+        private const uint CommittedTint = 0xFF2E66FFu;
+
+        // One pass per tick: project the cursor, suppress the vanilla "invalid deploy" cursor over
+        // a valid waypoint spot, run the click/drag gesture, and draw the ghost preview (hovering
+        // shows a point preview; dragging stretches the line).
+        private void HandleField(TaleWorlds.InputSystem.IInputContext input)
         {
+            var hasWorld = TryProjectToWorld(input.GetMousePositionRanged(), out var world);
+            var overWaypoint = hasWorld && SelectedCount() > 0 && (_gestureActive || !IsInsideBoundary(world));
+
+            UpdateVanillaCursor(overWaypoint);
+
             if (input.IsKeyPressed(InputKey.LeftMouseButton))
             {
                 _isMouseDown = true;
-                BeginGesture(input.GetMousePositionRanged());
+                _gestureActive = hasWorld && SelectedCount() > 0 && !IsInsideBoundary(world);
+                if (_gestureActive) { _gestureStart = world; _stickyPreview = false; }
             }
             else if (input.IsKeyReleased(InputKey.LeftMouseButton) && _isMouseDown)
             {
                 _isMouseDown = false;
-                EndGesture(input.GetMousePositionRanged());
+                if (_gestureActive)
+                    CommitWaypoint(world, hasWorld);
+                _gestureActive = false;
             }
-            else if (input.IsKeyDown(InputKey.LeftMouseButton) && _isMouseDown && _gestureActive)
-            {
-                UpdateGesture(input.GetMousePositionRanged());
-            }
-            else if (!_gestureActive && !_stickyPreview)
-            {
+
+            if (_gestureActive && hasWorld)
+                RenderPreviewFor(_gestureStart, world);   // dragging the line
+            else if (overWaypoint && hasWorld && !_isMouseDown)
+                RenderPreviewFor(world, world);           // hovering a waypoint spot -> point preview
+            else if (!_stickyPreview)
                 HidePreview();
+        }
+
+        // Hide the vanilla deploy cursor (its red "invalid" mark) over a valid waypoint spot, and
+        // restore it elsewhere, so beyond-boundary reads as a legal move rather than a forbidden one.
+        private bool _hidVanillaFlag;
+        private void UpdateVanillaCursor(bool overWaypoint)
+        {
+            var flag = ResolvedScreen?.OrderFlag;
+            if (flag == null)
+                return;
+            if (overWaypoint)
+            {
+                if (flag.IsVisible) { flag.IsVisible = false; _hidVanillaFlag = true; }
+            }
+            else if (_hidVanillaFlag)
+            {
+                flag.IsVisible = true;
+                _hidVanillaFlag = false;
             }
         }
 
-        // A press that lands BEYOND the deployment boundary (with a formation selected) starts a
-        // waypoint gesture; a press inside is left to the vanilla placer (it deploys there).
-        private void BeginGesture(Vec2 screen)
+        private void RestoreVanillaCursor()
         {
-            _gestureActive = false;
-            _stickyPreview = false;
-            HidePreview();
-            if (SelectedCount() == 0 || !TryProjectToWorld(screen, out var world) || IsInsideBoundary(world))
+            if (!_hidVanillaFlag)
                 return;
-            _gestureActive = true;
-            _gestureStart = world;
+            var flag = ResolvedScreen?.OrderFlag;
+            if (flag != null)
+                flag.IsVisible = true;
+            _hidVanillaFlag = false;
         }
 
-        private void UpdateGesture(Vec2 screen)
+        // Mouse-up over a waypoint spot: turn the gesture into a real MOVE WAYPOINT in the active
+        // plan. The drag's centre is the destination; each selected formation gets a MoveTo stage
+        // (reusing MapAuthoring.AppendMarchStage — same Core logic the parchment map uses, so it
+        // appears in the KSP stage rail and the monitor marches it in battle). A persistent blue
+        // marker is dropped at the spot so placed waypoints stay visible after release.
+        private void CommitWaypoint(WorldPosition end, bool hasEnd)
         {
-            if (TryProjectToWorld(screen, out var end))
-                RenderPreviewFor(_gestureStart, end);
-        }
-
-        private void EndGesture(Vec2 screen)
-        {
-            if (!_gestureActive)
-                return;
-            _gestureActive = false;
-            if (TryProjectToWorld(screen, out var end))
-                RbpLog.Info($"[FIELD] waypoint gesture ({_gestureStart.AsVec2.x:0},{_gestureStart.AsVec2.y:0})->({end.AsVec2.x:0},{end.AsVec2.y:0}) — commit pending (iter 3).");
             HidePreview();
+            if (!hasEnd)
+                return;
+
+            var logic = Mission?.GetMissionBehavior<PlanMissionLogic>();
+            var oc = Mission?.PlayerTeam?.PlayerOrderController;
+            if (logic == null || oc == null || oc.SelectedFormations.Count == 0)
+            {
+                RbpLog.Info("[FIELD] commit skipped: no plan logic / order controller / selection.");
+                return;
+            }
+
+            // The drag centre is where the formation centre lands (a click is start==end).
+            var center = new MapVec((_gestureStart.AsVec2.x + end.AsVec2.x) * 0.5f,
+                                    (_gestureStart.AsVec2.y + end.AsVec2.y) * 0.5f);
+            // Keep ids unique across a carried plan / reopen (else "fw1" collides — the same bug
+            // the parchment map fixed by seeding its counter from existing waypoint anchors).
+            _fieldWaypointCounter = Math.Max(_fieldWaypointCounter, MaxFieldWaypointNumber(logic.ActivePlan));
+            var draft = PlanDraft.EditingCopyOf(logic.ActivePlan);
+            var committed = 0;
+            foreach (var formation in oc.SelectedFormations)
+            {
+                var planned = FormationClassMap.ToPlanned(formation.FormationIndex);
+                if (!planned.HasValue)
+                    continue;
+                MapAuthoring.AppendMarchStage(draft, planned.Value, center, $"fw{++_fieldWaypointCounter}");
+                committed++;
+            }
+            if (committed == 0)
+            {
+                RbpLog.Info("[FIELD] commit skipped: selection had no plannable formation class.");
+                return;
+            }
+
+            logic.ApplyPlan(draft.Build());
+            RbpLog.Info($"[FIELD] committed move waypoint at ({center.X:0},{center.Y:0}) for {committed} formation(s); plan now has {draft.Formations.Count} planned formation(s).");
         }
 
         private bool IsInsideBoundary(WorldPosition world)
@@ -208,6 +283,73 @@ namespace RealisticBattlePlanning.UI
                 e.SetVisibilityExcludeParents(visible: false);
         }
 
+        // One persistent flag per Scene anchor in the active plan, so the field mirrors the plan:
+        // a committed waypoint shows after the drag releases, and a waypoint removed in the planner
+        // makes its flag disappear (the markers are derived from the plan, never a private list).
+        private void RenderCommitted()
+        {
+            var anchors = Mission?.GetMissionBehavior<PlanMissionLogic>()?.ActivePlan?.Anchors;
+            var shown = 0;
+            if (anchors != null)
+            {
+                foreach (var a in anchors)
+                {
+                    if (a == null || a.Basis != AnchorBasis.Scene)
+                        continue;
+                    EnsureCommittedEntity(shown);
+                    var frame = new MatrixFrame(Mat3.Identity, GroundFor(a));
+                    var e = _committedEntities[shown];
+                    e.SetFrame(ref frame);
+                    e.SetVisibilityExcludeParents(visible: true);
+                    shown++;
+                }
+            }
+            for (var i = shown; i < _committedEntities.Count; i++)
+                _committedEntities[i].SetVisibilityExcludeParents(visible: false);
+        }
+
+        private void EnsureCommittedEntity(int index)
+        {
+            while (_committedEntities.Count <= index)
+            {
+                var e = GameEntity.CreateEmpty(Mission.Scene);
+                e.EntityFlags |= EntityFlags.NotAffectedBySeason;
+                var mesh = MetaMesh.GetCopy("order_flag_small");
+                mesh?.SetFactor1(CommittedTint);
+                e.AddComponent(mesh);
+                e.SetVisibilityExcludeParents(visible: false);
+                _committedEntities.Add(e);
+            }
+        }
+
+        // Ground position for a Scene anchor, resolved off the terrain once and cached by id.
+        private Vec3 GroundFor(MapAnchor anchor)
+        {
+            if (!_markerGroundCache.TryGetValue(anchor.Id, out var pos))
+            {
+                pos = new WorldPosition(Mission.Scene, UIntPtr.Zero, new Vec3(anchor.X, anchor.Y, 0f), hasValidZ: false).GetGroundVec3();
+                _markerGroundCache[anchor.Id] = pos;
+            }
+            return pos;
+        }
+
+        private static int MaxFieldWaypointNumber(BattlePlan plan)
+        {
+            var max = 0;
+            if (plan?.Anchors != null)
+                foreach (var a in plan.Anchors)
+                    if (a?.Id != null && a.Id.Length > 2 && a.Id.StartsWith("fw", StringComparison.Ordinal)
+                        && int.TryParse(a.Id.Substring(2), out var n) && n > max)
+                        max = n;
+            return max;
+        }
+
+        private void HideCommitted()
+        {
+            foreach (var e in _committedEntities)
+                e.SetVisibilityExcludeParents(visible: false);
+        }
+
         public override void OnRemoveBehavior()
         {
             try
@@ -215,6 +357,9 @@ namespace RealisticBattlePlanning.UI
                 foreach (var e in _previewEntities)
                     e?.Remove(0);
                 _previewEntities.Clear();
+                foreach (var e in _committedEntities)
+                    e?.Remove(0);
+                _committedEntities.Clear();
             }
             catch (Exception e) { RbpLog.Error("[FIELD] cleanup failed.", e); }
             base.OnRemoveBehavior();
@@ -283,6 +428,9 @@ namespace RealisticBattlePlanning.UI
                     case "preview" when parts.Length >= 5 && TryF(parts[1], out var px0) && TryF(parts[2], out var py0) && TryF(parts[3], out var px1) && TryF(parts[4], out var py1):
                         DevPreview(new Vec2(px0, py0), new Vec2(px1, py1));
                         break;
+                    case "commit" when parts.Length >= 5 && TryF(parts[1], out var cx0) && TryF(parts[2], out var cy0) && TryF(parts[3], out var cx1) && TryF(parts[4], out var cy1):
+                        DevCommit(new Vec2(cx0, cy0), new Vec2(cx1, cy1));
+                        break;
                     case "clearpreview":
                         _stickyPreview = false;
                         HidePreview();
@@ -327,6 +475,24 @@ namespace RealisticBattlePlanning.UI
             RenderPreviewFor(a, b);
             _stickyPreview = true;
             RbpLog.Info($"[FIELD] dev preview ({a.AsVec2.x:0},{a.AsVec2.y:0})->({b.AsVec2.x:0},{b.AsVec2.y:0}) rendered ({_previewEntities.Count} dots pooled).");
+        }
+
+        // Dev-only: drive the full down→drag→up commit over the file channel (no mouse). Projects
+        // both screen points, sets the gesture start to the first, and commits at the second.
+        private void DevCommit(Vec2 screen0, Vec2 screen1)
+        {
+            if (SelectedCount() == 0)
+            {
+                RbpLog.Info("[FIELD] dev commit: no formation selected.");
+                return;
+            }
+            if (!TryProjectToWorld(screen0, out var a) || !TryProjectToWorld(screen1, out var b))
+            {
+                RbpLog.Info("[FIELD] dev commit: no ground under one of the points.");
+                return;
+            }
+            _gestureStart = a;
+            CommitWaypoint(b, hasEnd: true);
         }
 
         private static bool TryF(string s, out float v)

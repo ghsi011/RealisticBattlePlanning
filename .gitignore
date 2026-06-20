@@ -73,3 +73,6 @@ COMMIT_MSG.tmp
 
 # graphify knowledge-graph output (generated artifact)
 graphify-out/
+
+# Dev screenshot scratch (map-iterate / view-screenshot output)
+temp/

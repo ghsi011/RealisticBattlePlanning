@@ -465,19 +465,26 @@ namespace RealisticBattlePlanning.UI
         /// anchor is pruned silently rather than left to warn (unlike user-named anchors).</summary>
         private const string WaypointAnchorPrefix = "wp";
 
-        /// <summary>An auto-generated waypoint anchor id ("wp" + digits) — the ones a map
-        /// click owns and may prune, vs. a user-named anchor (advance/push/…) which keeps
-        /// its "declared but unused" warning.</summary>
-        private static bool IsAutoWaypointAnchor(string id)
+        // Field-deployment waypoints (FieldDeploymentPlanView) use the "fw" prefix; the planner owns
+        // and prunes them the same way it owns its own "wp" map clicks.
+        private const string FieldWaypointAnchorPrefix = "fw";
+
+        private static bool HasPrefixedDigits(string id, string prefix)
         {
-            if (string.IsNullOrEmpty(id) || id.Length <= WaypointAnchorPrefix.Length
-                || !id.StartsWith(WaypointAnchorPrefix, StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(id) || id.Length <= prefix.Length
+                || !id.StartsWith(prefix, StringComparison.Ordinal))
                 return false;
-            for (var i = WaypointAnchorPrefix.Length; i < id.Length; i++)
+            for (var i = prefix.Length; i < id.Length; i++)
                 if (!char.IsDigit(id[i]))
                     return false;
             return true;
         }
+
+        /// <summary>An auto-generated waypoint anchor id — a map click ("wpN") or a field-deployment
+        /// gesture ("fwN") — the ones the editor owns and may prune, vs. a user-named anchor
+        /// (advance/push/…) which keeps its "declared but unused" warning.</summary>
+        private static bool IsAutoWaypointAnchor(string id)
+            => HasPrefixedDigits(id, WaypointAnchorPrefix) || HasPrefixedDigits(id, FieldWaypointAnchorPrefix);
 
         /// <summary>Drops any waypoint anchor no stage references any more — called after a
         /// removal so deleting a click-placed waypoint doesn't leave a dangling-anchor warning.</summary>
@@ -490,7 +497,7 @@ namespace RealisticBattlePlanning.UI
             var max = 0;
             if (anchors != null)
                 foreach (var a in anchors)
-                    if (a != null && IsAutoWaypointAnchor(a.Id)
+                    if (a != null && HasPrefixedDigits(a.Id, WaypointAnchorPrefix)
                         && int.TryParse(a.Id.Substring(WaypointAnchorPrefix.Length), out var n) && n > max)
                         max = n;
             return max;
