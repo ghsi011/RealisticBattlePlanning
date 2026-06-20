@@ -84,7 +84,10 @@ namespace RealisticBattlePlanning.Execution
         internal static PlanMissionLogic Active => Mission.Current?.GetMissionBehavior<PlanMissionLogic>();
 
         /// <summary>The validated plan driving this mission; null when inert.</summary>
-        internal BattlePlan ActivePlan => _monitor == null ? null : _plan;
+        // The authored plan this battle (what the editor and field view show). Decoupled from the
+        // monitor: a mid-battle monitor fault nulls _monitor to stop ticking, but the user's plan must
+        // NOT vanish from the editor — they can reopen it and re-Apply to rebuild the monitor.
+        internal BattlePlan ActivePlan => _plan;
 
         internal PlanMonitor Monitor => _monitor;
 
@@ -468,23 +471,54 @@ namespace RealisticBattlePlanning.Execution
         /// Up to four IsKeyReleased calls; nothing else runs unless a
         /// declared signal fires.
         /// </summary>
+        // The numpad-bindable signals for the current plan, recomputed only when _plan changes
+        // (the editor can apply a new plan mid-battle). Built from declared signals PLUS every signal
+        // a stage trigger references, so a wired-but-undeclared signal still gets a key (the reported
+        // "advance default that the numpad couldn't fire" bug).
+        private System.Collections.Generic.IReadOnlyList<string> _signalPalette = System.Array.Empty<string>();
+        private BattlePlan _signalPalettePlan;
+
         private void PollSignalPalette()
         {
-            if (!_deploymentFinished || _plan.PlayerSignals.Count == 0)
+            if (!_deploymentFinished || _plan == null)
+                return;
+
+            if (!ReferenceEquals(_signalPalettePlan, _plan))
+            {
+                _signalPalettePlan = _plan;
+                _signalPalette = SignalPalette.Resolve(_plan);
+                LogSignalPalette();
+            }
+            if (_signalPalette.Count == 0)
                 return;
 
             try
             {
-                for (var i = 0; i < _plan.PlayerSignals.Count && i < PaletteKeys.Length; i++)
+                for (var i = 0; i < _signalPalette.Count && i < PaletteKeys.Length; i++)
                 {
                     if (Input.IsKeyReleased(PaletteKeys[i]))
-                        FirePlayerSignal(_plan.PlayerSignals[i]);
+                        FirePlayerSignal(_signalPalette[i]);
                 }
             }
             catch (Exception e)
             {
                 RbpLog.Error("[FAULT] Signal palette polling failed; use rbp.signal as the fallback.", e);
             }
+        }
+
+        private void LogSignalPalette()
+        {
+            if (_signalPalette.Count == 0)
+                return;
+            var legend = new System.Text.StringBuilder("[SIGNAL] numpad palette: ");
+            for (var i = 0; i < _signalPalette.Count && i < PaletteKeys.Length; i++)
+            {
+                if (i > 0) legend.Append(", ");
+                legend.Append("Numpad").Append(i + 1).Append('=').Append(_signalPalette[i]);
+            }
+            RbpLog.Info(legend.ToString());
+            if (_signalPalette.Count > PaletteKeys.Length)
+                RbpLog.Warn($"[SIGNAL] {_signalPalette.Count} signals wired but only {PaletteKeys.Length} numpad keys; the rest have no key (fire them with rbp.signal).");
         }
 
         /// <summary>
@@ -599,6 +633,12 @@ namespace RealisticBattlePlanning.Execution
                 SessionPlanStore.Current = newPlan;
                 _fidelityActive = FidelityConfig.Enabled;
                 _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), BattleSeed());
+                // A battle that started blank never ran AfterStart's executor init (it returns early
+                // before line ~149), so a plan FIRST authored in-mission (parchment Apply or the field
+                // gesture) would build a monitor with a null _executor — then AdoptPlannedFormations
+                // and the next tick NRE, the tick-fault nulls _monitor, and the reopened planner shows
+                // empty (the reported "plan vanished on Ready" bug). Create it here, once.
+                _executor ??= new FormationOrderExecutor();
                 RbpLog.Info("Plan applied from the editor:\n" + PlanFormatter.Describe(_plan));
                 if (_deploymentFinished)
                 {
@@ -626,14 +666,18 @@ namespace RealisticBattlePlanning.Execution
             if (_plan == null || _monitor == null || Mission.PlayerTeam == null)
                 return;
 
-            // Casualty percentages are measured against deployment-end strength.
+            // Casualty percentages are measured against deployment-end strength — captured the FIRST
+            // time a formation is adopted and never overwritten, so a re-Apply (the editor reopened
+            // mid-battle, or a second plan applied) does not reset the baseline to the formation's
+            // already-reduced mid-battle count (which would make CasualtiesAbove triggers misfire).
             foreach (var (planned, engine) in FormationClassMap.All)
             {
                 var initial = Mission.PlayerTeam.GetFormation(engine);
                 if (initial is { CountOfUnits: > 0 })
                 {
-                    _initialCounts[planned] = initial.CountOfUnits;
-                    if (initial.Captain != null)
+                    if (!_initialCounts.ContainsKey(planned))
+                        _initialCounts[planned] = initial.CountOfUnits;
+                    if (initial.Captain != null && !_initialCaptains.ContainsKey(planned))
                         _initialCaptains[planned] = initial.Captain;
                 }
             }

@@ -191,6 +191,10 @@ namespace RealisticBattlePlanning.UI
                 if (moved < RightClickMaxRangedMove && hasWorld && !IsInsideBoundary(world))
                     TryRemoveFieldWaypoint(world);
             }
+            // Self-heal a missed right-release (focus loss / screen swap): otherwise _rightDown stays
+            // latched and the next click's distance is measured from a stale press position.
+            if (_rightDown && !input.IsKeyDown(InputKey.RightMouseButton))
+                _rightDown = false;
 
             if (_gestureActive && hasWorld)
                 RenderPreviewFor(_gestureStart, world);   // dragging the line
@@ -412,7 +416,7 @@ namespace RealisticBattlePlanning.UI
                 e.EntityFlags |= EntityFlags.NotAffectedBySeason;
                 var mesh = MetaMesh.GetCopy("order_flag_small");
                 mesh?.SetFactor1(PreviewTint);
-                e.AddComponent(mesh);
+                if (mesh != null) e.AddComponent(mesh);
                 e.SetVisibilityExcludeParents(visible: false);
                 _previewEntities.Add(e);
             }
@@ -524,7 +528,7 @@ namespace RealisticBattlePlanning.UI
                 e.EntityFlags |= EntityFlags.NotAffectedBySeason;
                 var mesh = MetaMesh.GetCopy("order_flag_small");
                 mesh?.SetFactor1(CommittedTint);
-                e.AddComponent(mesh);
+                if (mesh != null) e.AddComponent(mesh);
                 e.SetVisibilityExcludeParents(visible: false);
                 _committedEntities.Add(e);
             }
