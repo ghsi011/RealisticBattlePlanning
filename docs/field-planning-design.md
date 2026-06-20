@@ -83,8 +83,13 @@ abort, signals) the field gesture doesn't cover.
 4. **Width + remove** ✅ — a single-formation drag carries its frontage width into
    the order (the ghost is what executes); right-click on the field removes the
    nearest waypoint (re-link + prune), closing the place/remove loop on the field.
-5. **Polish** — facing (the line orientation, not just width); multi-formation
-   placement (per-formation ghosts + arraying along the drag); custom banner mesh.
+5. **Facing + multi-select** ✅ — a single-formation drag also carries the line's
+   **facing** (perpendicular to the drag, disambiguated forward) so the arrived
+   formation looks the way the ghost showed; a **multi-select** drag spreads the
+   formations evenly along the line (reusing `MapAuthoring.AppendLineFormation`)
+   instead of stacking them at one point.
+6. **Remaining polish** — per-formation soldier ghosts for a multi-select placement
+   (today it drops one marker per formation); a custom planning banner mesh.
 
 ## Follow-ups (not blocking)
 - **Custom planning banner** (user request 2026-06-20): the ghost/committed

@@ -271,28 +271,42 @@ namespace RealisticBattlePlanning.UI
                 return;
             }
 
-            // A single-formation drag carries its frontage WIDTH into the order, so the formation forms
-            // the line you stretched (what the soldier ghost shows is what executes). A short drag (a
-            // click) keeps the formation's default width. Multi-select gets default width for now.
-            float? width = null;
-            if (plannable.Count == 1)
-            {
-                var w = (end.AsVec2 - _gestureStart.AsVec2).Length;
-                if (w >= MinDragWidthMeters)
-                    width = w;
-            }
-
             // Keep ids unique across a carried plan / reopen (else "fw1" collides — the same bug
             // the parchment map fixed by seeding its counter from existing waypoint anchors).
             _fieldWaypointCounter = Math.Max(_fieldWaypointCounter, MaxFieldWaypointNumber(logic.ActivePlan));
             var draft = PlanDraft.EditingCopyOf(logic.ActivePlan);
-            var anchorIds = new List<string>();
-            foreach (var formation in plannable)
+            List<string> anchorIds;
+            float? width = null;
+
+            if (plannable.Count == 1)
             {
-                var planned = FormationClassMap.ToPlanned(formation.FormationIndex).Value;
+                // Single-formation drag: carry its frontage WIDTH and FACING into the order, so the
+                // formation forms the line you stretched, facing the way it pointed (what the soldier
+                // ghost shows is what executes). A short drag (a click) keeps default width/facing.
+                var planned = FormationClassMap.ToPlanned(plannable[0].FormationIndex).Value;
+                MapVec? facing = null;
+                var w = (end.AsVec2 - _gestureStart.AsVec2).Length;
+                if (w >= MinDragWidthMeters)
+                {
+                    width = w;
+                    facing = ForwardFacing(plannable[0], _gestureStart.AsVec2, end.AsVec2, center);
+                }
                 var id = $"fw{++_fieldWaypointCounter}";
-                MapAuthoring.AppendMarchStage(draft, planned, center, id, width);
-                anchorIds.Add(id);
+                MapAuthoring.AppendMarchStage(draft, planned, center, id, width, facing);
+                anchorIds = new List<string> { id };
+            }
+            else
+            {
+                // Multi-select: spread the formations evenly along the drag line so they don't stack at
+                // one point (the same Core arraying the parchment map's drag-to-line uses).
+                var classes = new List<PlannedFormationClass>();
+                foreach (var f in plannable)
+                    classes.Add(FormationClassMap.ToPlanned(f.FormationIndex).Value);
+                anchorIds = new List<string>(MapAuthoring.AppendLineFormation(
+                    draft, classes,
+                    new MapVec(_gestureStart.AsVec2.x, _gestureStart.AsVec2.y),
+                    new MapVec(end.AsVec2.x, end.AsVec2.y),
+                    _ => $"fw{++_fieldWaypointCounter}"));
             }
 
             logic.ApplyPlan(draft.Build());
@@ -543,6 +557,21 @@ namespace RealisticBattlePlanning.UI
             return max;
         }
 
+        // The perpendicular to the drag line, disambiguated to point the way the formation is heading
+        // (toward the destination), so a dragged frontage executes facing forward — matching the ghost.
+        private static MapVec? ForwardFacing(Formation formation, Vec2 lineStart, Vec2 lineEnd, MapVec center)
+        {
+            var line = lineEnd - lineStart;
+            var perp = new Vec2(-line.y, line.x);
+            if (perp.Length < 0.01f)
+                return null;
+            perp.Normalize();
+            var moveDir = new Vec2(center.X - formation.CurrentPosition.x, center.Y - formation.CurrentPosition.y);
+            if (Vec2.DotProduct(perp, moveDir) < 0f)
+                perp = perp * -1f;
+            return new MapVec(perp.x, perp.y);
+        }
+
         private void HideCommitted()
         {
             foreach (var e in _committedEntities)
@@ -618,8 +647,8 @@ namespace RealisticBattlePlanning.UI
                 var verb = parts[0].ToLowerInvariant();
                 switch (verb)
                 {
-                    case "select" when parts.Length >= 2 && int.TryParse(parts[1], out var n):
-                        DevSelect(n);
+                    case "select" when parts.Length >= 2:
+                        DevSelect(parts);
                         break;
                     case "click" when parts.Length >= 3 && TryF(parts[1], out var sx) && TryF(parts[2], out var sy):
                         OnFieldClick(new Vec2(sx, sy), "dev");
@@ -649,18 +678,29 @@ namespace RealisticBattlePlanning.UI
             }
         }
 
-        private void DevSelect(int formationNumber)
+        // "select 1" or "select 1 3 4" — selects one or several formations (so multi-select arraying
+        // is testable over the file channel).
+        private void DevSelect(string[] parts)
         {
             var oc = Mission?.PlayerTeam?.PlayerOrderController;
-            var formation = Mission?.PlayerTeam?.GetFormation((FormationClass)(formationNumber - 1));
-            if (oc == null || formation == null)
+            if (oc == null)
             {
-                RbpLog.Info($"[FIELD] dev select {formationNumber}: no formation.");
+                RbpLog.Info("[FIELD] dev select: no order controller.");
                 return;
             }
             oc.ClearSelectedFormations();
-            oc.SelectFormation(formation);
-            RbpLog.Info($"[FIELD] dev selected formation {formationNumber} (count={formation.CountOfUnits}).");
+            var picked = 0;
+            for (var i = 1; i < parts.Length; i++)
+            {
+                if (!int.TryParse(parts[i], out var num))
+                    continue;
+                var formation = Mission?.PlayerTeam?.GetFormation((FormationClass)(num - 1));
+                if (formation == null)
+                    continue;
+                oc.SelectFormation(formation);
+                picked++;
+            }
+            RbpLog.Info($"[FIELD] dev selected {picked} formation(s) (count={SelectedCount()}).");
         }
 
         private void DevPreview(Vec2 screen0, Vec2 screen1)

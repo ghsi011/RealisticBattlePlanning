@@ -50,7 +50,11 @@ namespace RealisticBattlePlanning.Execution
                 case DirectiveType.MoveTo:
                 {
                     ApplyShape(formation, spec, fallbackArrangement: null);
-                    FaceEnemy(formation);
+                    // A field-planning drag carries the line's facing; honour it, else face the enemy.
+                    if (spec.FacingX is { } fx && spec.FacingY is { } fy && (fx != 0f || fy != 0f))
+                        formation.SetFacingOrder(FacingOrder.FacingOrderLookAtDirection(new Vec2(fx, fy)));
+                    else
+                        FaceEnemy(formation);
                     if (directive.FirstMoveTarget is { } target)
                         Move(formation, target);
                     else

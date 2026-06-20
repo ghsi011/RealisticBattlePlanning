@@ -134,6 +134,7 @@ namespace RealisticBattlePlanning.Planning
 
             if (d.Arrangement != null) details.Append($" ({d.Arrangement})");
             if (d.WidthMeters != null) details.Append($", {d.WidthMeters:0.#}m wide");
+            if (d.FacingX != null && d.FacingY != null) details.Append($", facing ({d.FacingX:0.0#},{d.FacingY:0.0#})");
             if (d.StandoffMeters != null) details.Append($", standoff {d.StandoffMeters:0.#}m");
             if (d.Speed != null) details.Append($", {d.Speed.ToString().ToLowerInvariant()}");
             // A fire policy attached to a non-FireControl directive (e.g. hold + free-fire).

@@ -43,21 +43,26 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
-        public void AppendMarchStageCarriesAPositiveWidthAndIgnoresNonPositive()
+        public void AppendMarchStageCarriesWidthAndFacingAndIgnoresDegenerateValues()
         {
             var draft = new PlanDraft();
 
-            // A field-planning drag passes its frontage width; it lands on the MoveTo directive.
-            MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(10f, 20f), "fw1", 42.5f);
-            // No width (a click) leaves it default.
+            // A field-planning drag passes its frontage width + facing; both land on the directive.
+            MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(10f, 20f), "fw1", 42.5f, new MapVec(0f, 1f));
+            // No width / no facing (a click) leaves them default.
             MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(30f, 40f), "fw2");
-            // A non-positive width is ignored (treated as "no width").
-            MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(50f, 60f), "fw3", 0f);
+            // A non-positive width and a zero facing vector are ignored.
+            MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(50f, 60f), "fw3", 0f, new MapVec(0f, 0f));
 
             var stages = draft.StagesOf(PlannedFormationClass.Infantry);
             Assert.Equal(42.5f, stages[0].Do.WidthMeters);
+            Assert.Equal(0f, stages[0].Do.FacingX);
+            Assert.Equal(1f, stages[0].Do.FacingY);
             Assert.Null(stages[1].Do.WidthMeters);
+            Assert.Null(stages[1].Do.FacingX);
             Assert.Null(stages[2].Do.WidthMeters);
+            Assert.Null(stages[2].Do.FacingX);
+            Assert.Null(stages[2].Do.FacingY);
             Assert.Empty(draft.Validate().Errors);
         }
 

@@ -32,7 +32,7 @@ namespace RealisticBattlePlanning.Planning.Editing
         /// forms the width you drew — what the soldier ghost showed is what executes). A
         /// non-positive width is ignored.
         /// </summary>
-        public static string AppendMarchStage(PlanDraft draft, PlannedFormationClass formation, MapVec worldPoint, string anchorId, float? widthMeters = null)
+        public static string AppendMarchStage(PlanDraft draft, PlannedFormationClass formation, MapVec worldPoint, string anchorId, float? widthMeters = null, MapVec? facing = null)
         {
             if (draft == null || string.IsNullOrWhiteSpace(anchorId))
                 return null;
@@ -44,6 +44,7 @@ namespace RealisticBattlePlanning.Planning.Editing
                 ? new TriggerSpec { Type = TriggerType.PositionReached, Anchor = previousWaypoint, ToleranceMeters = DefaultReachToleranceMeters }
                 : new TriggerSpec { Type = TriggerType.BattleStart };
 
+            var hasFacing = facing is { } f && (f.X != 0f || f.Y != 0f);
             draft.AddStage(formation, new Stage
             {
                 When = { trigger },
@@ -52,6 +53,8 @@ namespace RealisticBattlePlanning.Planning.Editing
                     Type = DirectiveType.MoveTo,
                     Anchor = anchorId,
                     WidthMeters = widthMeters is { } w && w > 0f ? widthMeters : null,
+                    FacingX = hasFacing ? facing.Value.X : (float?)null,
+                    FacingY = hasFacing ? facing.Value.Y : (float?)null,
                 },
             });
             return anchorId;

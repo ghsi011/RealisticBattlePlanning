@@ -62,6 +62,12 @@ namespace RealisticBattlePlanning.Planning.Model
         public Arrangement? Arrangement { get; set; }
         public float? WidthMeters { get; set; }
 
+        /// <summary>MoveTo facing: a world-space unit direction the formation looks toward at the
+        /// destination (the field-planning drag carries the line's orientation, so the arrived
+        /// formation faces the way the ghost showed). Both components set together, or neither.</summary>
+        public float? FacingX { get; set; }
+        public float? FacingY { get; set; }
+
         /// <summary>
         /// Target selector: enemy ("Nearest" or class name) for Skirmish /
         /// Charge / FlankArc; friendly formation for Screen / Follow.
