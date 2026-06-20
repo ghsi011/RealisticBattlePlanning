@@ -91,6 +91,9 @@ namespace RealisticBattlePlanning
                         // OnMissionAfterStarting (verified in decompiled
                         // MissionScreen).
                         mission.AddMissionBehavior(new UI.PlanningModeView());
+                        // Alternative authoring surface: plan move orders on the deployment
+                        // field by extending the vanilla placement gesture (field-planning-design.md).
+                        mission.AddMissionBehavior(new UI.FieldDeploymentPlanView());
                     }
                 }
                 else
