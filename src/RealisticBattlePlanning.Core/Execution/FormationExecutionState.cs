@@ -89,11 +89,17 @@ namespace RealisticBattlePlanning.Execution
             PendingStageIndex = -1;
         }
 
-        /// <summary>Resume (B5): the player's clean re-adoption — no carried reaction.</summary>
-        public void Resume()
+        /// <summary>
+        /// Resume (B5): the player's clean re-adoption — no carried reaction, and the
+        /// stage timer re-baselines to <paramref name="atSeconds"/> so a TimerElapsed
+        /// condition measures from the resume, not a stale pre-override activation (which
+        /// would read as already-elapsed and skip the stage being resumed into).
+        /// </summary>
+        public void Resume(float atSeconds)
         {
             Mode = FormationPlanMode.Active;
             ActiveFidelity = FidelityProfile.Perfect;
+            ActivatedAtSeconds = atSeconds;
         }
 
         /// <summary>Abort (B4): the formation leaves the plan for good; any queued reaction is dropped.</summary>

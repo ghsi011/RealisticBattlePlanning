@@ -48,6 +48,12 @@ namespace RealisticBattlePlanning.Execution
         private readonly List<(string RefKey, int EnemyId)> _staleApproachKeys = new();
         private readonly HashSet<PlannedFormationClass> _pendingOverrides = new();
         private readonly HashSet<PlannedFormationClass> _pendingResumes = new();
+        // Own-formation classes a CasualtiesAbove trigger watches, and which of them
+        // have actually fielded units. A formation absent now is 100% casualties only
+        // if it was once present (wiped out); one that never deployed can't be "wiped",
+        // so its CasualtiesAbove trigger must not fire at battle start.
+        private readonly HashSet<PlannedFormationClass> _casualtyTargets = new();
+        private readonly HashSet<PlannedFormationClass> _ownEverPresent = new();
         private readonly IFidelityModel _fidelity;
         private readonly Random _rng;
         private readonly Dictionary<PlannedFormationClass, CommanderProfile> _commanders = new();
@@ -66,6 +72,21 @@ namespace RealisticBattlePlanning.Execution
                 .Where(f => f.Stages.Count > 0)
                 .Select(f => new FormationExecutionState(f))
                 .ToList();
+
+            // Which own formations any CasualtiesAbove condition watches (null selector =
+            // the stage's own formation) — the presence set tracks exactly these.
+            foreach (var formation in plan.Formations)
+                foreach (var stage in formation.Stages)
+                    foreach (var condition in stage.When)
+                    {
+                        if (condition?.Type != TriggerType.CasualtiesAbove)
+                            continue;
+                        var target = condition.Formation == null
+                            ? formation.Formation
+                            : FormationSelector.ParseClass(condition.Formation);
+                        if (target != null)
+                            _casualtyTargets.Add(target.Value);
+                    }
         }
 
         /// <summary>
@@ -159,6 +180,7 @@ namespace RealisticBattlePlanning.Execution
             _pendingSignals.Clear();
 
             PurgeVanishedEnemyState(snapshot);
+            UpdateOwnPresence(snapshot);
             RegisterLateStartPositions(snapshot);
             ProcessOverrides(events);
             ProcessResumes(snapshot, events);
@@ -240,7 +262,7 @@ namespace RealisticBattlePlanning.Execution
                 if (EvaluateAborts(state, snapshot, events))
                     continue;
 
-                state.Resume(); // clean re-adoption: clears any carried reaction
+                state.Resume(snapshot.TimeSeconds); // clean re-adoption: clears any carried reaction, re-baselines timers
                 var stageIndex = SelectResumeStage(state, snapshot);
                 events.Add(new PlanResumed(state.Plan.Formation, stageIndex));
                 ActivateChecked(state, stageIndex, snapshot, events);
@@ -252,9 +274,10 @@ namespace RealisticBattlePlanning.Execution
         /// <summary>
         /// B5: the most recent stage whose trigger currently holds, else the
         /// stage that was active at suspension (or the first stage if the
-        /// plan never started). TimerElapsed is measured from the last
-        /// activation before the override — an approximation, stated in the
-        /// plan doc.
+        /// plan never started). TimerElapsed re-baselines to the resume moment
+        /// (<see cref="FormationExecutionState.Resume"/>), so a stage's timer
+        /// is re-run from the resume rather than counting the manual-control
+        /// interval and skipping the stage being resumed into.
         /// </summary>
         private int SelectResumeStage(FormationExecutionState state, IBattlefieldSnapshot snapshot)
         {
@@ -461,6 +484,21 @@ namespace RealisticBattlePlanning.Execution
         }
 
         /// <summary>
+        /// Marks each CasualtiesAbove-watched own formation present once it fields
+        /// units, so the trigger can tell a wiped-out formation (was here, now gone →
+        /// 100%) from one that never deployed (can't fire). No-op when no CasualtiesAbove
+        /// condition references an own formation.
+        /// </summary>
+        private void UpdateOwnPresence(IBattlefieldSnapshot snapshot)
+        {
+            if (_casualtyTargets.Count == 0)
+                return;
+            foreach (var cls in _casualtyTargets)
+                if (snapshot.GetOwn(cls) is { Exists: true })
+                    _ownEverPresent.Add(cls);
+        }
+
+        /// <summary>
         /// OwnStart geometry for a planned formation that had no units at
         /// battle start (reinforcement waves): its basis is wherever it first
         /// appears. Until then its stages stay unactivated (see TryAdvance) —
@@ -631,7 +669,13 @@ namespace RealisticBattlePlanning.Execution
                     var anchor = Anchors.Resolve(state.Plan.Formation, condition.Anchor);
                     if (anchor == null)
                         return false;
-                    var tolerance = condition.ToleranceMeters ?? TriggerDefaults.PositionToleranceMeters;
+                    // Widen arrival tolerance by the active stage's positional drift (D3):
+                    // a green formation settles its ordered point off by that much, so a
+                    // tight tolerance would never register "reached" and the next waypoint
+                    // in a click-march chain would stall. Pass-through drift is 0 — the
+                    // fidelity-off baseline is unchanged.
+                    var tolerance = (condition.ToleranceMeters ?? TriggerDefaults.PositionToleranceMeters)
+                        + state.ActiveFidelity.PositionErrorMeters;
                     return own.Position.DistanceTo(anchor.Value) <= tolerance;
                 }
 
@@ -689,9 +733,11 @@ namespace RealisticBattlePlanning.Execution
                     if (targetClass == null)
                         return false;
                     var target = snapshot.GetOwn(targetClass.Value);
-                    // A formation that existed and is now gone is 100% casualties.
-                    var casualties = target is { Exists: true } ? target.CasualtiesPercent : 100f;
-                    return casualties >= percent;
+                    if (target is { Exists: true })
+                        return target.CasualtiesPercent >= percent;
+                    // Absent: a total loss (100%) only if the formation was ever on the
+                    // field; a never-deployed one can't be "wiped out", so it never fires.
+                    return _ownEverPresent.Contains(targetClass.Value) && 100f >= percent;
                 }
 
                 case TriggerType.EnemyBroken:

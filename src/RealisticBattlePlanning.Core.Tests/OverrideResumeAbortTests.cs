@@ -142,6 +142,33 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void ResumeReBaselinesAShortTimerInsteadOfSkippingTheResumedStage()
+        {
+            // A short timer on a later stage must not read as already-elapsed off the
+            // pre-override activation time and skip the stage being resumed into. On
+            // resume the timer re-baselines, so the formation re-enters its suspended
+            // stage and the timer re-runs from the resume.
+            var monitor = new PlanMonitor(Plan(Formation(
+                PlannedFormationClass.Infantry,
+                StageOf(null, Hold()),                 // stage 0: activates at battle start
+                StageOf(Timer(5f), Charge()))));       // stage 1: 5 s after stage 0
+
+            monitor.Tick(Infantry(0f));                // stage 0 active (activated at t=0)
+            monitor.NotifyPlayerOverride(PlannedFormationClass.Infantry);
+            monitor.Tick(Infantry(1f));                // suspended
+
+            // The player holds the formation well past the 5 s mark, then resumes.
+            monitor.RequestResume(PlannedFormationClass.Infantry);
+            var resumeTick = monitor.Tick(Infantry(50f));
+            Assert.Equal(0, Assert.Single(resumeTick.OfType<PlanResumed>()).StageIndex);
+            Assert.Equal(0, Assert.Single(resumeTick.OfType<StageActivated>()).StageIndex); // NOT skipped to 1
+
+            // The 5 s timer now counts from the resume (t=50), not the original t=0.
+            Assert.Empty(monitor.Tick(Infantry(54f)).OfType<StageActivated>());
+            Assert.Equal(1, Assert.Single(monitor.Tick(Infantry(56f)).OfType<StageActivated>()).StageIndex);
+        }
+
+        [Fact]
         public void ResumeIsRefusedAfterAnAbort()
         {
             var monitor = Monitor(HoldThenTimerCharge());

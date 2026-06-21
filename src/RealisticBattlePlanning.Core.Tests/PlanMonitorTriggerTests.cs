@@ -156,6 +156,22 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void CasualtiesAboveDoesNotFireForAFormationThatNeverDeployed()
+        {
+            // A never-fielded formation reads as absent — but "absent" is only 100%
+            // casualties when it was once present. Watching a formation the army never
+            // brought must NOT advance the stage at battle start.
+            var plan = Plan(Formation(PlannedFormationClass.Ranged,
+                StageOf(null, Hold()),
+                StageOf(new[] { new TriggerSpec { Type = TriggerType.CasualtiesAbove, Formation = "Cavalry", Percent = 50f } }, Charge())));
+            var monitor = new PlanMonitor(plan);
+
+            monitor.Tick(new FakeBattlefield(0).WithOwn(PlannedFormationClass.Ranged, 0, 0)); // no cavalry, ever
+            Assert.Empty(monitor.Tick(new FakeBattlefield(1).WithOwn(PlannedFormationClass.Ranged, 0, 0)).OfType<StageActivated>());
+            Assert.Empty(monitor.Tick(new FakeBattlefield(500).WithOwn(PlannedFormationClass.Ranged, 0, 0)).OfType<StageActivated>());
+        }
+
+        [Fact]
         public void AdvancingForwardEmitsStageCompletedForTheStageLeft()
         {
             var monitor = Monitor(

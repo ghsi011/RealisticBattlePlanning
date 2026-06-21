@@ -123,7 +123,7 @@ namespace RealisticBattlePlanning.Execution
                 // was last applied (SessionPlanStore). The hand-written debug plan only loads when
                 // explicitly enabled for dev — never by default — so a fresh game has no plan.
                 _plan = harnessPlan
-                        ?? SessionPlanStore.Current
+                        ?? SessionPlanStore.CurrentFor(SessionKey())
                         ?? (DebugPlanLoader.Enabled ? DebugPlanLoader.TryLoad() : null);
                 if (_plan == null)
                 {
@@ -622,6 +622,16 @@ namespace RealisticBattlePlanning.Execution
             return _battleSeed.Value;
         }
 
+        /// <summary>
+        /// Identity for the session-scoped plan carry (G): a campaign's stable unique id,
+        /// or one shared bucket for non-campaign battles (custom battles). Keeps a plan
+        /// from carrying out of the game it was authored in — a campaign plan must not
+        /// surface in a later custom battle, and vice-versa — while still carrying it
+        /// across that same game's consecutive battles.
+        /// </summary>
+        private static string SessionKey()
+            => Campaign.Current is { } campaign ? "campaign:" + campaign.UniqueGameId : "custom";
+
         internal void ApplyPlan(BattlePlan newPlan)
         {
             if (newPlan == null)
@@ -629,8 +639,9 @@ namespace RealisticBattlePlanning.Execution
             try
             {
                 _plan = newPlan;
-                // Carry the applied plan to the next battle of this session (spec Area G).
-                SessionPlanStore.Current = newPlan;
+                // Carry the applied plan to the next battle of this session (spec Area G),
+                // keyed to the game identity so it can't leak into a different game.
+                SessionPlanStore.Set(SessionKey(), newPlan);
                 _fidelityActive = FidelityConfig.Enabled;
                 _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), BattleSeed());
                 // A battle that started blank never ran AfterStart's executor init (it returns early

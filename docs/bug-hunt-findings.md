@@ -30,30 +30,34 @@ they aren't lost.
 - **`AddComponent(null)` if the flag mesh is ever missing (Codex LOW).** A future
   asset rename would NRE every tick. Fix: `if (mesh != null) e.AddComponent(mesh)`.
 
+## Fixed 2026-06-21 (the deferred Core debt + the HIGH plan leak)
+
+- **HIGH — Cross-session plan leak.** `SessionPlanStore` is now **keyed** to a session
+  identity the engine derives (`"campaign:" + Campaign.UniqueGameId`, or one `"custom"`
+  bucket for non-campaign battles): `Set(key, plan)` / `CurrentFor(key)` / `HasPlanFor(key)`.
+  A plan carries across consecutive battles of the *same* game but reads as blank in a
+  *different* game, so a campaign plan can't surface in a later custom battle (and
+  vice-versa). The intended battle→battle carry is preserved (same key). 3 unit tests.
+- **MEDIUM — `CasualtiesAbove` on an absent formation fired immediately.** The monitor
+  now tracks which watched own-formation classes have actually fielded units
+  (`_ownEverPresent`, updated each tick for the classes any CasualtiesAbove condition
+  references). Absent = 100% casualties only when the formation was once present; a
+  never-deployed one can't fire. The "vanished = total loss" case still works.
+- **MEDIUM — `TimerElapsed` baseline stale on resume.** `FormationExecutionState.Resume`
+  now re-baselines `ActivatedAtSeconds` to the resume moment, so a short timer on a
+  later stage no longer reads as already-elapsed and skips the stage being resumed into
+  — the timer re-runs from the resume.
+- **MEDIUM — Click-to-march chains stalled under fidelity drift.** `PositionReached`
+  now widens its arrival tolerance by the active stage's positional drift
+  (`state.ActiveFidelity.PositionErrorMeters`), so a drifted formation still registers
+  as "reached" and the chain advances. Pass-through drift is 0, so the fidelity-off
+  baseline is byte-identical.
+- **MEDIUM — Validator gaps.** `CasualtiesAbove` now errors on a non-class selector
+  (`"Player"`/`"Nearest"`/typo — null still means "this formation"); `PositionReached`
+  errors on `toleranceMeters <= 0`.
+
 ## Deferred (real, but riskier or lower-value — fix deliberately)
 
-- **HIGH — Cross-session plan leak.** `SessionPlanStore` is static and never cleared,
-  so a plan from one game leaks into the first plannable battle of a *different* game
-  in the same process (e.g. campaign plan showing in a later custom battle). NOT a
-  simple "clear on OnGameStart": that same never-clears behaviour is *why* the
-  intended battle→battle carry works across consecutive custom battles (each a new
-  game). The correct fix keys the carry to the game/campaign identity (or clears only
-  on a real session boundary) — needs care to not break the verified carry.
-- **MEDIUM — `CasualtiesAbove` on an absent formation fires immediately**
-  (`PlanMonitor.cs:693`). A formation that was never present reads as 100% casualties
-  (same as "existed and now gone"), so a cross-formation casualty trigger watching an
-  un-deployed formation advances at battle start. Fix needs the monitor to track
-  "ever present" to distinguish never-deployed from wiped-out.
-- **MEDIUM — `TimerElapsed` baseline stale on resume** (`PlanMonitor` resume path). A
-  resumed formation with a short timer can read elapsed on the first post-resume tick
-  and skip the stage it was re-entered into. Fix: re-baseline the timer on resume.
-- **MEDIUM — Click-to-march chains can stall under fidelity drift**
-  (`MapAuthoring.cs:43`). `PositionReached` tolerance may be below the configured
-  drift, so the next waypoint never triggers. Only with fidelity ON (default OFF).
-  Fix: widen tolerance to cover drift, or chain off stage-completion not arrival.
-- **MEDIUM — Validator gaps.** `CasualtiesAbove` doesn't validate its formation
-  selector (a typo or `"Player"` passes, then silently never fires); `PositionReached`
-  accepts `toleranceMeters <= 0`. Add validator errors/warnings.
 - **MEDIUM — Enemy formation id scheme** (`MissionSnapshot.cs:91`,
   `TeamIndex*16 + FormationIndex`) is safe for field battles (≤16 enemy teams) but
   fragile; prefer a struct key or assert.

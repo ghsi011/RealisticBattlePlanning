@@ -285,11 +285,17 @@ namespace RealisticBattlePlanning.Planning
                         result.Errors.Add($"{where}: PositionReached needs an anchor.");
                     else if (!anchorIds.Contains(trigger.Anchor))
                         result.Errors.Add($"{where}: anchor '{trigger.Anchor}' is not defined.");
+                    if (trigger.ToleranceMeters is <= 0)
+                        result.Errors.Add($"{where}: PositionReached toleranceMeters must be > 0 when given.");
                     break;
 
                 case TriggerType.CasualtiesAbove:
                     if (trigger.Percent is not (> 0 and <= 100))
                         result.Errors.Add($"{where}: CasualtiesAbove needs percent in (0, 100].");
+                    // null = "this formation"; otherwise it must be an own-team formation
+                    // class. "Player"/"Nearest"/a typo parse to no class and never fire.
+                    if (trigger.Formation != null && FormationSelector.ParseClass(trigger.Formation) == null)
+                        result.Errors.Add($"{where}: CasualtiesAbove formation '{trigger.Formation}' must be a formation class (or omitted to watch this formation).");
                     break;
 
                 case TriggerType.EnemyBroken:

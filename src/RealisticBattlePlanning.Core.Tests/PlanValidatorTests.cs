@@ -316,6 +316,41 @@ namespace RealisticBattlePlanning.Tests
             Assert.Contains(result.Errors, e => e.Contains("(0, 100]"));
         }
 
+        [Theory]
+        [InlineData("Player")]
+        [InlineData("Nearest")]
+        [InlineData("Infntry")]   // typo — parses to no class, would silently never fire
+        public void CasualtiesAboveWithANonClassSelectorIsAnError(string selector)
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec { Type = TriggerType.CasualtiesAbove, Percent = 50f, Formation = selector };
+
+            var result = PlanValidator.Validate(plan);
+            Assert.Contains(result.Errors, e => e.Contains("CasualtiesAbove") && e.Contains("formation class"));
+        }
+
+        [Fact]
+        public void CasualtiesAboveWatchingAnotherFormationClassIsValid()
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec { Type = TriggerType.CasualtiesAbove, Percent = 50f, Formation = "Ranged" };
+
+            var result = PlanValidator.Validate(plan);
+            Assert.DoesNotContain(result.Errors, e => e.Contains("CasualtiesAbove") && e.Contains("formation class"));
+        }
+
+        [Theory]
+        [InlineData(0f)]
+        [InlineData(-5f)]
+        public void PositionReachedWithNonPositiveToleranceIsAnError(float tolerance)
+        {
+            var plan = TestPlans.SimpleValid();
+            plan.Formations[0].Stages[1].When[0] = new TriggerSpec { Type = TriggerType.PositionReached, Anchor = "advance-50", ToleranceMeters = tolerance };
+
+            var result = PlanValidator.Validate(plan);
+            Assert.Contains(result.Errors, e => e.Contains("toleranceMeters must be > 0"));
+        }
+
         [Fact]
         public void DistanceTriggerWithoutMetersIsAnError()
         {
