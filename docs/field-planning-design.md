@@ -88,10 +88,19 @@ abort, signals) the field gesture doesn't cover.
    formation looks the way the ghost showed; a **multi-select** drag spreads the
    formations evenly along the line (reusing `MapAuthoring.AppendLineFormation`)
    instead of stacking them at one point.
-6. **Remaining polish** — per-formation soldier ghosts for a multi-select placement
-   (today it drops one marker per formation); a custom planning banner mesh.
+6. **Per-formation multi-select ghosts** ✅ — a multi-select placement now freezes EACH
+   formation's full soldier block at its own spot along the line (keyed to its own anchor,
+   so each deletes independently), instead of dropping one marker per formation. Done by
+   simulating each formation alone via the static
+   `OrderController.SimulateNewOrderWithPositionAndDirection(formations, simulationFormations, …)`
+   overload, reusing the order controller's existing per-formation simulation clones (no
+   selection mutation). Verified in-game: a 3-formation drag froze 200 ghosts (150+49+1)
+   across fw1/fw2/fw3 and all three marched to distinct spots, no faults.
+7. **Remaining polish** — a custom planning banner mesh (the ghosts reuse the vanilla
+   `order_flag_small` tinted blue, which reads dark). Deferred by the user (doc-for-later).
 
 ## Follow-ups (not blocking)
+- ~~Per-formation soldier ghosts for a multi-select placement~~ — done (iteration 6 above).
 - **Custom planning banner** (user request 2026-06-20): the ghost/committed
   markers currently reuse the vanilla `order_flag_small` mesh tinted blue (reads
   dark, not blue). Author our own flag/banner mesh or sprite for planning orders

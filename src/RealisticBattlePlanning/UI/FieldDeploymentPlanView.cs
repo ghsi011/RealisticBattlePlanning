@@ -263,6 +263,8 @@ namespace RealisticBattlePlanning.UI
             // The drag centre is where the formation centre lands (a click is start==end).
             var center = new MapVec((_gestureStart.AsVec2.x + end.AsVec2.x) * 0.5f,
                                     (_gestureStart.AsVec2.y + end.AsVec2.y) * 0.5f);
+            var lineA = new MapVec(_gestureStart.AsVec2.x, _gestureStart.AsVec2.y);
+            var lineB = new MapVec(end.AsVec2.x, end.AsVec2.y);
 
             // Collect the plannable selected formations first, so we can tell single- from multi-select.
             var plannable = new List<Formation>();
@@ -307,35 +309,53 @@ namespace RealisticBattlePlanning.UI
                 foreach (var f in plannable)
                     classes.Add(FormationClassMap.ToPlanned(f.FormationIndex).Value);
                 anchorIds = new List<string>(MapAuthoring.AppendLineFormation(
-                    draft, classes,
-                    new MapVec(_gestureStart.AsVec2.x, _gestureStart.AsVec2.y),
-                    new MapVec(end.AsVec2.x, end.AsVec2.y),
-                    _ => $"fw{++_fieldWaypointCounter}"));
+                    draft, classes, lineA, lineB, _ => $"fw{++_fieldWaypointCounter}"));
             }
 
             logic.ApplyPlan(draft.Build());
 
-            // Freeze the soldier ghost the live preview was showing, so it persists at the waypoint
-            // for the rest of deployment — keyed to its anchor so deleting that stage clears exactly
-            // its soldiers. Only for a SINGLE-formation placement: the engine simulates all selected
-            // formations into one combined frame set, which can't be split per anchor, so a
-            // multi-select placement would leave one formation's ghosts behind when only its stage is
-            // deleted. For multi-select we skip the frozen ghost; each anchor then shows a single
-            // fallback marker that deletes independently. (Per-formation ghosts for multi-select is a
-            // follow-up that needs per-formation frame slicing.)
+            // Freeze the soldier ghost so it persists at the waypoint for the rest of deployment,
+            // keyed to the anchor(s) it created so deleting that stage clears exactly its soldiers.
+            // Single-formation: the whole drag line (carries the authored width/facing). Multi-select:
+            // each formation forms a default-width block at its OWN spot along the line, so simulate
+            // and freeze each one separately (one anchor each → each deletes independently). Per
+            // formation we reuse the order controller's existing simulation clone (populated for every
+            // selected formation), so no selection mutation is needed; if a clone is somehow missing
+            // we skip that one and its fallback marker still shows.
             var froze = 0;
-            if (anchorIds.Count == 1)
+            if (plannable.Count == 1)
             {
                 oc.SimulateNewOrderWithPositionAndDirection(_gestureStart, end, out var frames, isFormationLayoutVertical: true);
-                var positions = new List<Vec3>(frames?.Count ?? 0);
-                if (frames != null)
-                    foreach (var f in frames)
-                        positions.Add(f.GetGroundVec3());
-                _placements.Add(new PlacedPreview { AnchorIds = anchorIds, Frames = positions });
-                froze = positions.Count;
+                froze += FreezeGhost(anchorIds, frames);
+            }
+            else
+            {
+                var spots = MapAuthoring.LinePositions(lineA, lineB, plannable.Count);
+                for (var i = 0; i < plannable.Count && i < anchorIds.Count && i < spots.Count; i++)
+                {
+                    if (oc.simulationFormations == null || !oc.simulationFormations.ContainsKey(plannable[i]))
+                        continue;
+                    var spot = new WorldPosition(Mission.Scene, UIntPtr.Zero, new Vec3(spots[i].X, spots[i].Y, 0f), hasValidZ: false);
+                    OrderController.SimulateNewOrderWithPositionAndDirection(
+                        new List<Formation> { plannable[i] }, oc.simulationFormations,
+                        spot, spot, out var frames, isFormationLayoutVertical: true);
+                    froze += FreezeGhost(new List<string> { anchorIds[i] }, frames);
+                }
             }
 
             RbpLog.Info($"[FIELD] committed move waypoint at ({center.X:0},{center.Y:0}) for {anchorIds.Count} formation(s), {froze} soldier ghost(s) frozen, width={(width.HasValue ? $"{width.Value:0.0}m" : "default")}; plan now has {draft.Formations.Count} planned formation(s).");
+        }
+
+        // Freeze a simulated soldier line as a persistent placement, keyed to the anchor(s) it
+        // belongs to (rendered while any survives in the plan). Returns the soldier count frozen.
+        private int FreezeGhost(List<string> anchorIds, List<WorldPosition> frames)
+        {
+            var positions = new List<Vec3>(frames?.Count ?? 0);
+            if (frames != null)
+                foreach (var f in frames)
+                    positions.Add(f.GetGroundVec3());
+            _placements.Add(new PlacedPreview { AnchorIds = anchorIds, Frames = positions });
+            return positions.Count;
         }
 
         // Right-click removal: drop the field waypoint nearest the click and re-link the march

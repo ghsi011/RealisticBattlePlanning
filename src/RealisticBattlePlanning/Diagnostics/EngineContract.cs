@@ -194,6 +194,8 @@ namespace RealisticBattlePlanning.Diagnostics
             InstanceByName(typeof(OrderController), "SelectFormation");
             InstanceByName(typeof(OrderController), "ClearSelectedFormations");
             Property(typeof(OrderController), "SelectedFormations");
+            // Per-formation multi-select ghost: the static SimulateNewOrder overload reuses these clones.
+            Property(typeof(OrderController), "simulationFormations");
             // Vanilla deploy cursor we suppress over a waypoint spot.
             var orderFlagType = typeof(MissionScreen).GetProperty("OrderFlag", BindingFlags.Public | BindingFlags.Instance)?.PropertyType;
             if (orderFlagType == null)
