@@ -96,13 +96,23 @@ abort, signals) the field gesture doesn't cover.
    overload, reusing the order controller's existing per-formation simulation clones (no
    selection mutation). Verified in-game: a 3-formation drag froze 200 ghosts (150+49+1)
    across fw1/fw2/fw3 and all three marched to distinct spots, no faults.
-7. **Remaining polish** — a custom planning banner mesh (the ghosts reuse the vanilla
-   `order_flag_small` tinted blue, which reads dark). Deferred by the user (doc-for-later).
+7. **Custom planning banner mesh** — NEEDS AN ASSET, not code (investigated + verified
+   in-game 2026-06-21). The ghosts reuse the vanilla `order_flag_small` mesh tinted via
+   `MetaMesh.SetFactor1`, which reads dark/pale-pink, not a clean blue. Tried code-only
+   recoloring across four in-game iterations — saturated `SetFactor1`, the selection
+   `SetContourColor`+`SetContourState` glow (RTSCamera's marker recipe), and
+   `SetVisibilityMask(VisibilityMaskFlags.Final)` — and `order_flag_small`'s material
+   renders pink/pale regardless (the contour shows a fixed pale default on a standalone
+   scene `GameEntity`, not the colour passed; it honours the colour only on agent visuals).
+   A clean, distinct planning banner therefore requires a **custom mesh + material asset**
+   authored in TpacTool (a small flag/banner whose material takes a `Factor1` albedo tint,
+   or a baked-blue texture), dropped into the module's `AssetPackages/` and loaded by id in
+   place of `order_flag_small`. That is outside code-only scope; tracked as a follow-up task.
 
 ## Follow-ups (not blocking)
 - ~~Per-formation soldier ghosts for a multi-select placement~~ — done (iteration 6 above).
-- **Custom planning banner** (user request 2026-06-20): the ghost/committed
-  markers currently reuse the vanilla `order_flag_small` mesh tinted blue (reads
-  dark, not blue). Author our own flag/banner mesh or sprite for planning orders
-  so a planned move is visually distinct from a vanilla deploy flag — not
-  critical, a polish pass.
+- **Custom planning banner** (user request 2026-06-20): the ghost/committed markers
+  reuse the vanilla `order_flag_small` mesh, which can't be cleanly recoloured from code
+  (see iteration 7 above — verified in-game). Needs a custom mesh+material asset authored
+  in TpacTool so a planned move is visually distinct from a vanilla deploy flag — not
+  critical, a polish pass, and an asset task rather than a code one.
