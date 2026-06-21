@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using TaleWorlds.Library;
+using RealisticBattlePlanning.Planning;
 
 namespace RealisticBattlePlanning.Execution
 {
@@ -25,6 +26,23 @@ namespace RealisticBattlePlanning.Execution
         [CommandLineFunctionality.CommandLineArgumentFunction("plan_status", "rbp")]
         public static string Status(List<string> args)
             => PlanMissionLogic.Active?.DescribePlanStates() ?? "no plan is active this battle";
+
+        /// <summary>
+        /// Reports the session-scoped plan-carry state (Area G): the session key the carry
+        /// is bound to ("custom", or "campaign:&lt;id&gt;" in a campaign) and whether a plan is
+        /// carried for it. Works from anywhere (menu, battle, campaign map) so the key
+        /// derivation and the no-cross-game-leak behaviour are directly observable.
+        /// </summary>
+        [CommandLineFunctionality.CommandLineArgumentFunction("session", "rbp")]
+        public static string Session(List<string> args)
+        {
+            var key = PlanMissionLogic.SessionKey();
+            var carried = SessionPlanStore.CurrentFor(key);
+            var plan = carried == null
+                ? "none"
+                : $"yes ({carried.Formations.Count} formation(s))";
+            return $"session key: {key} | carried plan: {plan}";
+        }
 
         /// <summary>
         /// Signal Palette fallback and the C7 drill-cue mechanism (B9):

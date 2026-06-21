@@ -629,7 +629,7 @@ namespace RealisticBattlePlanning.Execution
         /// surface in a later custom battle, and vice-versa — while still carrying it
         /// across that same game's consecutive battles.
         /// </summary>
-        private static string SessionKey()
+        internal static string SessionKey()
             => Campaign.Current is { } campaign ? "campaign:" + campaign.UniqueGameId : "custom";
 
         internal void ApplyPlan(BattlePlan newPlan)

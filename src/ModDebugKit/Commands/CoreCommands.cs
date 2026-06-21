@@ -5,6 +5,7 @@ using System.Linq;
 using ModDebugKit.Io;
 using ModDebugKit.Observability;
 using TaleWorlds.Core;
+using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 
 namespace ModDebugKit.Commands
@@ -24,6 +25,39 @@ namespace ModDebugKit.Commands
             dispatcher.Register("dbg.help", "dbg.help - list every registered command", _ => Help(dispatcher));
             dispatcher.Register("dbg.snapshot", "dbg.snapshot [path] [all|player|enemy] - write battle state to JSON (default Debug/battle_state.json, all teams)", Snapshot);
             dispatcher.Register("dbg.track", "dbg.track <seconds> [interval=1] [all|player|enemy] - sample formations over time to Debug/track.jsonl", Track);
+            dispatcher.Register("dbg.exec", "dbg.exec <console-command> [args...] - run any registered game console command (e.g. rbp.session) and capture its result", Exec);
+        }
+
+        /// <summary>
+        /// Runs any registered game console command through the engine's own dispatcher
+        /// (<see cref="CommandLineFunctionality.CallFunction(string, System.Collections.Generic.List{string}, out bool)"/>)
+        /// and captures its return string. Lets the file channel reach another mod's
+        /// <c>name.command</c> diagnostics (e.g. RBP's <c>rbp.session</c>/<c>rbp.plan_status</c>)
+        /// without console keystrokes. Runs on the main thread like every dbg command.
+        /// </summary>
+        private static DbgOutcome Exec(DbgCommand command)
+        {
+            if (command.Args.Count < 1 || string.IsNullOrWhiteSpace(command.Arg(0)))
+                return DbgOutcome.Failure("usage: dbg.exec <console-command> [args...]  e.g. dbg.exec rbp.session");
+
+            var name = command.Arg(0);
+            var args = command.Args.Skip(1).ToList();
+
+            string result;
+            bool found;
+            try
+            {
+                result = CommandLineFunctionality.CallFunction(name, args, out found);
+            }
+            catch (Exception e)
+            {
+                return DbgOutcome.Failure($"{name} threw: {e.Message}");
+            }
+
+            if (!found)
+                return DbgOutcome.Failure($"unknown console command '{name}' (the mod that owns it may not be loaded)");
+
+            return DbgOutcome.Success($"{name} -> {result}", new { command = name, args, result });
         }
 
         private static DbgOutcome Ping(DbgCommand command)
