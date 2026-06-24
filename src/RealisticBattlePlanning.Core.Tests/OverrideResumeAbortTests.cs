@@ -169,6 +169,52 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void ResumeIntoAnEmittingStageDoesNotRebroadcastItsSignal()
+        {
+            // B5: resume can re-enter a stage that already executed and emitted. Its signal must NOT
+            // be re-broadcast (latching makes it benign in-game, but the recorded event stream would
+            // show a phantom emission).
+            var stage0 = new Stage { Do = Hold() };
+            stage0.Emit.Add("ready");
+            var monitor = new PlanMonitor(Plan(Formation(
+                PlannedFormationClass.Infantry,
+                stage0,
+                StageOf(new[] { new TriggerSpec { Type = TriggerType.SignalReceived, Signal = "go" } }, Charge()))));
+
+            var start = monitor.Tick(Infantry(0f));
+            Assert.Contains(start.OfType<SignalEmitted>(), e => e.Signal == "ready"); // emitted once at first activation
+
+            monitor.NotifyPlayerOverride(PlannedFormationClass.Infantry);
+            monitor.Tick(Infantry(1f));
+            monitor.RequestResume(PlannedFormationClass.Infantry);
+            var resumeTick = monitor.Tick(Infantry(2f)); // no later trigger holds -> resumes into stage 0
+
+            Assert.Equal(0, Assert.Single(resumeTick.OfType<PlanResumed>()).StageIndex);
+            Assert.DoesNotContain(resumeTick.OfType<SignalEmitted>(), e => e.Signal == "ready"); // not re-emitted
+        }
+
+        [Fact]
+        public void ResumeDoesNotSelectALaterExplicitBattleStartStage()
+        {
+            // A hand-authored plan can put an explicit BattleStart on a later stage; battle start is
+            // long past, so the resume scan must not treat it as "currently holding" and jump there.
+            var monitor = new PlanMonitor(Plan(Formation(
+                PlannedFormationClass.Infantry,
+                StageOf(null, Hold()),                                                                          // 0
+                StageOf(new[] { new TriggerSpec { Type = TriggerType.TimerElapsed, Seconds = 999f } }, Hold()), // 1 (won't hold)
+                StageOf(new[] { new TriggerSpec { Type = TriggerType.BattleStart } }, Charge()))));             // 2 explicit BattleStart
+
+            monitor.Tick(Infantry(0f));
+            monitor.NotifyPlayerOverride(PlannedFormationClass.Infantry);
+            monitor.Tick(Infantry(1f));
+            monitor.RequestResume(PlannedFormationClass.Infantry);
+            var events = monitor.Tick(Infantry(2f));
+
+            Assert.Equal(0, Assert.Single(events.OfType<PlanResumed>()).StageIndex);          // falls back to the suspended stage
+            Assert.Equal(0, Assert.Single(events.OfType<StageActivated>()).StageIndex);       // not the BattleStart Charge
+        }
+
+        [Fact]
         public void ResumeIsRefusedAfterAnAbort()
         {
             var monitor = Monitor(HoldThenTimerCharge());

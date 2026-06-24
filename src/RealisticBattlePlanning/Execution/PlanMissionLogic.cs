@@ -353,7 +353,11 @@ namespace RealisticBattlePlanning.Execution
         public override void OnMissionTick(float dt)
         {
             base.OnMissionTick(dt);
-            if (_monitor == null)
+            // Monitor and executor are created together (AfterStart / ApplyPlan), so monitor-non-null
+            // implies executor-non-null today — guard both explicitly so the invariant is enforced,
+            // not load-bearing by luck: a future path that builds one without the other can't NRE the
+            // tick and silently disable the plan.
+            if (_monitor == null || _executor == null)
                 return;
 
             PollSignalPalette();

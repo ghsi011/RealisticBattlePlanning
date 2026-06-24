@@ -284,7 +284,10 @@ namespace RealisticBattlePlanning.Execution
             for (var i = state.Plan.Stages.Count - 1; i >= 0; i--)
             {
                 var stage = state.Plan.Stages[i];
-                if (stage.When.Count == 0)
+                // A stage that only fires "at battle start" (implicit empty trigger, or an explicit
+                // BattleStart) isn't a resume target — battle start is long past — so it's never
+                // "currently holding"; treat it like the first-stage default (selectable only at i==0).
+                if (stage.When.Count == 0 || stage.When.All(t => t != null && t.Type == TriggerType.BattleStart))
                 {
                     if (i == 0)
                         return 0;
@@ -602,6 +605,12 @@ namespace RealisticBattlePlanning.Execution
             // per-stage scratch (waypoint, steering target, pending reaction).
             var directive = ApplyPositionError(ResolveDirective(state.Plan.Formation, stage.Do), state.ActiveFidelity);
 
+            // Forward progress = the first activation, or advancing to a later stage. A resume/
+            // re-entry into the same-or-earlier stage is NOT forward (captured before BeginStage
+            // overwrites ActiveStageIndex). Used to gate both the StageCompleted event and signal
+            // emission below.
+            var forwardActivation = state.ActiveStageIndex < 0 || stageIndex > state.ActiveStageIndex;
+
             // Advancing off an earlier stage to a later one completes that stage
             // (forward progress only — re-activation/resume of the same index, or a
             // skip-to-hold, doesn't count; skipped stages get StageSkipped instead).
@@ -612,11 +621,16 @@ namespace RealisticBattlePlanning.Execution
             state.BeginStage(stageIndex, snapshot.TimeSeconds, directive);
 
             events.Add(new StageActivated(state.Plan.Formation, stageIndex, stage, state.ActiveDirective));
-            foreach (var signal in stage.Emit)
-            {
-                _pendingSignals.Add(signal);
-                events.Add(new SignalEmitted(state.Plan.Formation, signal));
-            }
+            // Only broadcast a stage's signals on a genuine forward activation. Resuming into a
+            // stage that already ran (B5: SelectResumeStage can pick the same or an earlier stage)
+            // must not re-emit its signals — latching makes the gameplay benign, but the recorded
+            // event stream (AAR / harness) would show a phantom re-broadcast.
+            if (forwardActivation)
+                foreach (var signal in stage.Emit)
+                {
+                    _pendingSignals.Add(signal);
+                    events.Add(new SignalEmitted(state.Plan.Formation, signal));
+                }
         }
 
         private bool TriggerFires(Stage stage, FormationExecutionState state, IBattlefieldSnapshot snapshot)

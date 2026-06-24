@@ -164,12 +164,22 @@ namespace RealisticBattlePlanning.Planning.Editing
         /// previous stage ends", the point a follow-on march waits to reach.</summary>
         private static string PreviousWaypointAnchor(IReadOnlyList<Stage> stages)
         {
-            var last = stages.LastOrDefault();
-            if (last?.Do is not { Type: DirectiveType.MoveTo } move)
-                return null;
-            if (!string.IsNullOrWhiteSpace(move.Anchor))
-                return move.Anchor;
-            return move.Path?.LastOrDefault(w => !string.IsNullOrWhiteSpace(w));
+            // Walk back to the most recent MoveTo — not just the last stage. A click-march appended
+            // after a non-move stage (e.g. a menu-authored Hold/Skirmish between waypoints) must
+            // still chain off the last real waypoint via PositionReached; only checking the last
+            // stage would return null and silently downgrade the new stage to a BattleStart trigger
+            // (a non-first stage that then activates immediately instead of after the prior leg).
+            for (var i = stages.Count - 1; i >= 0; i--)
+            {
+                if (stages[i]?.Do is not { Type: DirectiveType.MoveTo } move)
+                    continue;
+                if (!string.IsNullOrWhiteSpace(move.Anchor))
+                    return move.Anchor;
+                var lastWaypoint = move.Path?.LastOrDefault(w => !string.IsNullOrWhiteSpace(w));
+                if (!string.IsNullOrWhiteSpace(lastWaypoint))
+                    return lastWaypoint;
+            }
+            return null;
         }
     }
 }

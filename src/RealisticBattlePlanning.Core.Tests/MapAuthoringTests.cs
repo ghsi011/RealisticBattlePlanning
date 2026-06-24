@@ -43,6 +43,30 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void ClickMarchAfterANonMoveStageChainsToTheLastWaypointNotBattleStart()
+        {
+            // Mixed authoring: a menu-authored Hold sits between a placed waypoint and a new
+            // click-march. The new march must still gate on reaching the prior waypoint, not
+            // silently downgrade to BattleStart (a non-first stage that would then fire at once).
+            var draft = new PlanDraft();
+            MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(50f, 60f), "wp1");
+            draft.AddStage(PlannedFormationClass.Infantry, new Stage
+            {
+                When = { new TriggerSpec { Type = TriggerType.TimerElapsed, Seconds = 10f } },
+                Do = new DirectiveSpec { Type = DirectiveType.Hold },
+            });
+
+            MapAuthoring.AppendMarchStage(draft, PlannedFormationClass.Infantry, new MapVec(80f, 100f), "wp2");
+
+            var stages = draft.StagesOf(PlannedFormationClass.Infantry);
+            Assert.Equal(3, stages.Count);
+            Assert.Equal(DirectiveType.Hold, stages[1].Do.Type);          // the non-move stage in between
+            var trigger = Assert.Single(stages[2].When);
+            Assert.Equal(TriggerType.PositionReached, trigger.Type);      // not BattleStart
+            Assert.Equal("wp1", trigger.Anchor);                          // chained past the Hold to the last waypoint
+        }
+
+        [Fact]
         public void AppendMarchStageCarriesWidthAndFacingAndIgnoresDegenerateValues()
         {
             var draft = new PlanDraft();
