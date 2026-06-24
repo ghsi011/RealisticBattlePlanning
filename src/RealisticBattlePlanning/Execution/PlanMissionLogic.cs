@@ -61,6 +61,15 @@ namespace RealisticBattlePlanning.Execution
         private FormationOrderExecutor _executor;
 
         /// <summary>
+        /// Always-on recorder for the end-of-battle After-Action Report (B10) — fed the same
+        /// snapshots+events the monitor produces, so the report is exactly what the plan did. Only
+        /// for real battles (not harness runs, which have their own recorder + results). Built with
+        /// the monitor; the AAR is logged on mission teardown.
+        /// </summary>
+        private RunRecorder _aarRecorder;
+        private string _battleResult;
+
+        /// <summary>
         /// The campaign's D4 progression service, resolved at deployment — null in
         /// Custom Battle / the harness (no campaign) and when fidelity is off (D
         /// progression is part of the fidelity subsystem; off means zero-touch, G3).
@@ -150,6 +159,7 @@ namespace RealisticBattlePlanning.Execution
                 if (_fidelityActive)
                     RbpLog.Info($"Fidelity: {FidelityConfig.Describe()}.");
                 _executor = new FormationOrderExecutor();
+                _aarRecorder = _isHarnessRun ? null : new RunRecorder("battle", _plan);
             }
             catch (Exception e)
             {
@@ -205,8 +215,32 @@ namespace RealisticBattlePlanning.Execution
             }
         }
 
+        public override void OnMissionResultReady(MissionResult missionResult)
+        {
+            base.OnMissionResultReady(missionResult);
+            if (missionResult == null)
+                return;
+            _battleResult = missionResult.PlayerVictory ? "victory"
+                : missionResult.PlayerDefeated ? "defeat"
+                : missionResult.BattleState.ToString();
+        }
+
         public override void OnRemoveBehavior()
         {
+            try
+            {
+                // After-Action Report (B10): a plain-language end-of-battle summary of what each
+                // commander actually did, built from the recorded run (the same events the monitor
+                // produced). Logged for now — the dossier screen is a later iteration. Only when the
+                // battle actually ran (recorder Started); harness runs use their own results path.
+                if (_aarRecorder != null && _aarRecorder.Started)
+                    RbpLog.Info(AfterActionReport.Build(_aarRecorder.Complete(_battleResult ?? "ended")).Describe());
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Building the After-Action Report failed.", e);
+            }
+
             try
             {
                 var controller = Mission.PlayerTeam?.PlayerOrderController;
@@ -382,6 +416,7 @@ namespace RealisticBattlePlanning.Execution
                 // null) and harmless if a formation has no mapped commander.
                 _progression?.OnBattleEvents(events, _commanders);
 
+                _aarRecorder?.Tick(snapshot, events);
                 MonitorTicked?.Invoke(snapshot, events);
             }
             catch (Exception e)
@@ -654,6 +689,7 @@ namespace RealisticBattlePlanning.Execution
                 // and the next tick NRE, the tick-fault nulls _monitor, and the reopened planner shows
                 // empty (the reported "plan vanished on Ready" bug). Create it here, once.
                 _executor ??= new FormationOrderExecutor();
+                _aarRecorder = _isHarnessRun ? null : new RunRecorder("battle", _plan);
                 RbpLog.Info("Plan applied from the editor:\n" + PlanFormatter.Describe(_plan));
                 if (_deploymentFinished)
                 {
