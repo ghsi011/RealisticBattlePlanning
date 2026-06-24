@@ -165,6 +165,7 @@ namespace RealisticBattlePlanning.UI
                     case "rightclick": DevClick(arg, rightClick: true); break;
                     case "drag": DevDrag(arg); break;
                     case "apply": _dataSource?.ExecuteApply(); break;
+                    case "removestage" when int.TryParse(arg, out var rmSlot): _dataSource?.DevRemoveStage(rmSlot); break;
                     case "shot": Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     case "reshot": Hide(); Show(); Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     default: RbpLog.Info($"[DEV] planner.cmd: unknown verb '{verb}'."); return;

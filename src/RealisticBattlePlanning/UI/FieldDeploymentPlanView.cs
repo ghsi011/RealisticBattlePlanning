@@ -530,6 +530,10 @@ namespace RealisticBattlePlanning.UI
 
             for (var i = shown; i < _committedEntities.Count; i++)
                 _committedEntities[i].SetVisibilityExcludeParents(visible: false);
+
+            // Fires only when the committed set changes (past the dirty-check), so it traces every
+            // commit/delete/apply without per-tick spam — the window into "do the field flags clear?".
+            RbpLog.Info($"[FIELD] committed render: {_placements.Count} placement(s), {shown} flag(s) shown, live scene anchors=[{string.Join(",", _liveAnchorIds)}].");
         }
 
         private bool AnyAlive(List<string> anchorIds)

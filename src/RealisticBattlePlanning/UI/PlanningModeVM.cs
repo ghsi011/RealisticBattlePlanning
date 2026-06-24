@@ -396,6 +396,7 @@ namespace RealisticBattlePlanning.UI
             foreach (var cls in _selectedFormations.OrderBy(c => (int)c))
                 MapAuthoring.AppendMarchStage(_draft, cls, world, $"{WaypointAnchorPrefix}{++_waypointCounter}");
             Refresh();
+            LiveSyncDuringDeployment();
         }
 
         // A right-click on the map (A2.6.2): remove the click-placed waypoint nearest the
@@ -420,6 +421,7 @@ namespace RealisticBattlePlanning.UI
                 PruneOrphanedWaypoints();
                 StatusText = $"Removed waypoint '{nearest}'.";
                 Refresh();
+                LiveSyncDuringDeployment();
             }
         }
 
@@ -458,6 +460,7 @@ namespace RealisticBattlePlanning.UI
             MapAuthoring.AppendLineFormation(_draft, selection, a, b, _ => $"{WaypointAnchorPrefix}{++_waypointCounter}");
             StatusText = $"Arrayed {selection.Count} formation(s) along a line.";
             Refresh();
+            LiveSyncDuringDeployment();
         }
 
         /// <summary>Prefix for the Scene anchors a map click auto-creates (A2.6.2): "wp1",
@@ -489,6 +492,38 @@ namespace RealisticBattlePlanning.UI
         /// <summary>Drops any waypoint anchor no stage references any more — called after a
         /// removal so deleting a click-placed waypoint doesn't leave a dangling-anchor warning.</summary>
         private void PruneOrphanedWaypoints() => _draft.RemoveUnreferencedAnchors(IsAutoWaypointAnchor);
+
+        /// <summary>
+        /// During deployment the field-planning view (FieldDeploymentPlanView) mirrors the LIVE
+        /// plan, so a direct waypoint edit on the parchment map (add / remove / array) or a removed
+        /// stage must reach it at once — the field gesture already applies on commit, and the two
+        /// surfaces have to agree (else a waypoint deleted on the parchment leaves its field flags
+        /// standing). Apply is otherwise deferred to the button because re-applying mid-battle
+        /// rebuilds the monitor and resets live formation state; during deployment nothing is
+        /// executing, so the sync is free. An invalid draft is skipped, so the field keeps its last
+        /// good state until the edit is valid (the Apply button still reports the blocker).
+        /// </summary>
+        private void LiveSyncDuringDeployment()
+        {
+            if (TaleWorlds.MountAndBlade.Mission.Current?.Mode != TaleWorlds.Core.MissionMode.Deployment)
+                return;
+            var plan = _draft.Build();
+            if (PlanValidator.Validate(plan).IsValid)
+                _onApply?.Invoke(plan);
+        }
+
+        /// <summary>Dev/test hook (planner.cmd "removestage &lt;slot&gt;"): remove a formation's last
+        /// stage by its 1-8 slot number, so the parchment delete path is drivable over the file
+        /// channel without targeting a map marker by pixel.</summary>
+        internal void DevRemoveStage(int slotNumber)
+        {
+            if (slotNumber < 1 || slotNumber > 8)
+            {
+                StatusText = $"removestage: slot {slotNumber} out of range (1-8).";
+                return;
+            }
+            RemoveStage((PlannedFormationClass)(slotNumber - 1));
+        }
 
         /// <summary>Highest N among existing "wpN" anchors (0 if none) — so a reopened draft
         /// keeps numbering waypoints upward instead of colliding from 1.</summary>
@@ -525,6 +560,7 @@ namespace RealisticBattlePlanning.UI
             PruneOrphanedWaypoints();
             StatusText = $"Removed a stage from Formation {SlotNumber(cls)}.";
             Refresh();
+            LiveSyncDuringDeployment();
         }
 
         // Drops a formation's whole plan; the card stays (it has troops) but
@@ -535,6 +571,7 @@ namespace RealisticBattlePlanning.UI
             PruneOrphanedWaypoints();
             StatusText = $"Formation {SlotNumber(cls)} cleared — now uncommanded.";
             Refresh();
+            LiveSyncDuringDeployment();
         }
 
         // Stages execute strictly in order (A3.3); ▲/▼ reorder them.
