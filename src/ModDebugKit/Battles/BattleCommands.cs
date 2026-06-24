@@ -22,6 +22,17 @@ namespace ModDebugKit.Battles
         /// <summary>The last preset launched, for dbg.restart.</summary>
         public static BattlePreset LastPreset { get; private set; }
 
+        /// <summary>
+        /// True once the engine view layer is initialized enough to push a new game/mission state.
+        /// Pushing earlier (a cold launch, before the menu fully loads) NREs deep in the engine —
+        /// GameStateScreenManager.OnPushState -> ThumbnailCacheManager.Current.ClearUnusedCache() on
+        /// a null Current — and the partial state push WEDGES the game (the file channel stops
+        /// pumping, forcing a kill+relaunch). ThumbnailCacheManager.Current is set once the view
+        /// layer is up and stays set, so it's a sound "safe to push a state" gate. Commands that
+        /// StartNewGame (dbg.battle, dbg.camp.load) check this and fail cleanly + retryably.
+        /// </summary>
+        internal static bool ViewLayerReady() => ThumbnailCacheManager.Current != null;
+
         // dbg.restart ends the current mission, then relaunches once the game is back at the
         // custom-battle menu — which takes a few frames. The pump polls TickRestart() until then.
         private static bool _restartPending;
@@ -51,13 +62,7 @@ namespace ModDebugKit.Battles
             if (Mission.Current != null)
                 return DbgOutcome.Failure("already in a mission; finish it first");
 
-            // Cold-launch race guard: pushing a battle state before the view layer has finished
-            // initializing NREs deep in the engine (GameStateScreenManager.OnPushState ->
-            // ThumbnailCacheManager.Current.ClearUnusedCache() on a null Current), and the partial
-            // state push WEDGES the game — the channel stops pumping, forcing a kill+relaunch.
-            // ThumbnailCacheManager.Current is set once the view layer is up and stays set, so it's
-            // a sound "ready to launch" gate. Fail cleanly (retryable) instead of NRE-ing.
-            if (ThumbnailCacheManager.Current == null)
+            if (!ViewLayerReady())
                 return DbgOutcome.Failure("engine view layer still loading; retry dbg.battle in a few seconds");
 
             BattlePreset preset;

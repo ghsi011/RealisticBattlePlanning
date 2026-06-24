@@ -46,6 +46,12 @@ namespace ModDebugKit.CampaignControl
             if (Mission.Current != null)
                 return DbgOutcome.Failure("in a mission; leave it first");
 
+            // Same cold-launch push race as dbg.battle (see BattleCommands.ViewLayerReady): loading
+            // a campaign before the view layer is up NREs in the engine state push and wedges the
+            // channel. Fail cleanly + retryably instead.
+            if (!BattleCommands.ViewLayerReady())
+                return DbgOutcome.Failure("engine view layer still loading; retry dbg.camp.load in a few seconds");
+
             var saves = MBSaveLoad.GetSaveFiles();
             if (saves.Length == 0)
                 return DbgOutcome.Failure("no save files found");
