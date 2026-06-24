@@ -325,25 +325,38 @@ namespace RealisticBattlePlanning.UI
             var froze = 0;
             if (plannable.Count == 1)
             {
-                oc.SimulateNewOrderWithPositionAndDirection(_gestureStart, end, out var frames, isFormationLayoutVertical: true);
-                froze += FreezeGhost(anchorIds, frames);
+                // Single-formation: freeze along the whole drag line (carries the authored width/facing).
+                froze += TryFreezeGhost(oc, plannable[0], _gestureStart, end, anchorIds);
             }
             else
             {
                 var spots = MapAuthoring.LinePositions(lineA, lineB, plannable.Count);
                 for (var i = 0; i < plannable.Count && i < anchorIds.Count && i < spots.Count; i++)
                 {
-                    if (oc.simulationFormations == null || !oc.simulationFormations.ContainsKey(plannable[i]))
-                        continue;
                     var spot = new WorldPosition(Mission.Scene, UIntPtr.Zero, new Vec3(spots[i].X, spots[i].Y, 0f), hasValidZ: false);
-                    OrderController.SimulateNewOrderWithPositionAndDirection(
-                        new List<Formation> { plannable[i] }, oc.simulationFormations,
-                        spot, spot, out var frames, isFormationLayoutVertical: true);
-                    froze += FreezeGhost(new List<string> { anchorIds[i] }, frames);
+                    froze += TryFreezeGhost(oc, plannable[i], spot, spot, new List<string> { anchorIds[i] });
                 }
             }
 
             RbpLog.Info($"[FIELD] committed move waypoint at ({center.X:0},{center.Y:0}) for {anchorIds.Count} formation(s), {froze} soldier ghost(s) frozen, width={(width.HasValue ? $"{width.Value:0.0}m" : "default")}; plan now has {draft.Formations.Count} planned formation(s).");
+        }
+
+        // Simulate ONE formation's soldier line via the static overload (reusing the order
+        // controller's existing per-formation clone) and freeze it, keyed to its anchor(s). The
+        // clone's presence is guarded: the instance overload resolves it as simulationFormations[f]
+        // and throws KeyNotFoundException when the dict is populated but missing this formation (a
+        // selection the vanilla placer hasn't simulated yet) — which, after ApplyPlan already ran,
+        // would silently abort the commit (no ghost, no log). Skips cleanly (0 frozen) if missing,
+        // so the waypoint still shows its fallback marker. One formation only, so a co-selected
+        // non-plannable slot never bloats a single placement's ghost.
+        private int TryFreezeGhost(OrderController oc, Formation formation, WorldPosition begin, WorldPosition end, List<string> anchorIds)
+        {
+            if (oc?.simulationFormations == null || !oc.simulationFormations.ContainsKey(formation))
+                return 0;
+            OrderController.SimulateNewOrderWithPositionAndDirection(
+                new List<Formation> { formation }, oc.simulationFormations,
+                begin, end, out var frames, isFormationLayoutVertical: true);
+            return FreezeGhost(anchorIds, frames);
         }
 
         // Freeze a simulated soldier line as a persistent placement, keyed to the anchor(s) it
@@ -418,11 +431,21 @@ namespace RealisticBattlePlanning.UI
         private void RenderPreviewFor(WorldPosition lineBegin, WorldPosition lineEnd)
         {
             var oc = Mission?.PlayerTeam?.PlayerOrderController;
-            if (oc == null)
+            if (oc?.simulationFormations == null)
             {
                 HidePreview();
                 return;
             }
+            // The instance simulate resolves each selected formation as simulationFormations[f] and
+            // throws KeyNotFoundException if one isn't cloned yet (a selection the vanilla placer
+            // hasn't simulated this tick). Skip the preview this tick if so — it draws next tick once
+            // the clone exists, rather than throwing out of the gesture handler.
+            foreach (var f in oc.SelectedFormations)
+                if (!oc.simulationFormations.ContainsKey(f))
+                {
+                    HidePreview();
+                    return;
+                }
             oc.SimulateNewOrderWithPositionAndDirection(lineBegin, lineEnd, out var frames, isFormationLayoutVertical: true);
             RenderPreview(frames);
         }
