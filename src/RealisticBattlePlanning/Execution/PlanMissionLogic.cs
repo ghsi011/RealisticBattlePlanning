@@ -26,12 +26,11 @@ namespace RealisticBattlePlanning.Execution
         private const float MonitorIntervalSeconds = 0.25f;
 
         /// <summary>
-        /// Signal Palette keybinds (B9, R7: one input per signal). Numpad to
-        /// avoid the vanilla battle keys (1-0 select formations, F-keys open
-        /// order menus); MCM rebinding arrives with Area F.
+        /// Signal Palette keybinds (B9, R7: one input per signal). Numpad
+        /// defaults avoid the vanilla battle keys (1-0 select formations,
+        /// F-keys open order menus); rebindable via Config\rbp.cfg.
         /// </summary>
-        private static readonly InputKey[] PaletteKeys =
-            { InputKey.Numpad1, InputKey.Numpad2, InputKey.Numpad3, InputKey.Numpad4 };
+        private static InputKey[] PaletteKeys => Settings.RbpConfig.SignalKeys;
 
         /// <summary>
         /// Player orders that REDIRECT a formation (movement/targeting)
@@ -649,7 +648,7 @@ namespace RealisticBattlePlanning.Execution
             if (bark == null)
                 return;
             if (planEvent is PlanSuspended)
-                bark += " (Numpad5 resumes the plan)";
+                bark += $" ({Settings.RbpConfig.ResumeKey} resumes the plan)";
             Notify(bark);
         }
 
@@ -694,10 +693,10 @@ namespace RealisticBattlePlanning.Execution
         }
 
         /// <summary>
-        /// B5 without the console: Numpad5 resumes every suspended formation
-        /// (Numpad0 is the planner toggle, Numpad1-4 the signal palette). Only
-        /// polled once something is actually suspended, so a stray press in
-        /// normal play costs nothing and says nothing.
+        /// B5 without the console: the resume key (Config\rbp.cfg, default
+        /// Numpad5) resumes every suspended formation. Only acts once something
+        /// is actually suspended, so a stray press in normal play costs nothing
+        /// and says nothing.
         /// </summary>
         private void PollResumeKey()
         {
@@ -705,7 +704,7 @@ namespace RealisticBattlePlanning.Execution
                 return;
             try
             {
-                if (!Input.IsKeyReleased(InputKey.Numpad5))
+                if (!Input.IsKeyReleased(Settings.RbpConfig.ResumeKey))
                     return;
                 if (!AnySuspended)
                     return;
@@ -721,11 +720,11 @@ namespace RealisticBattlePlanning.Execution
         {
             if (_signalPalette.Count == 0)
                 return;
-            var legend = new System.Text.StringBuilder("[SIGNAL] numpad palette: ");
+            var legend = new System.Text.StringBuilder("[SIGNAL] key palette: ");
             for (var i = 0; i < _signalPalette.Count && i < PaletteKeys.Length; i++)
             {
                 if (i > 0) legend.Append(", ");
-                legend.Append("Numpad").Append(i + 1).Append('=').Append(_signalPalette[i]);
+                legend.Append(PaletteKeys[i]).Append('=').Append(_signalPalette[i]);
             }
             RbpLog.Info(legend.ToString());
             if (_signalPalette.Count > PaletteKeys.Length)

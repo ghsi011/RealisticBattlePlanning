@@ -38,6 +38,8 @@ namespace RealisticBattlePlanning.UI
         private string _hintText;
         private string _signalsText;
         private string _patternsText;
+        private string _presetsText;
+        private bool _showFirstHint;
         private string _anchorsText;
         private string _statusText;
         private string _warningsText;
@@ -189,6 +191,14 @@ namespace RealisticBattlePlanning.UI
                 ? $"PATTERNS    (click to insert a ready-made maneuver into the {_selectedFormations.Count} selected formation(s))"
                 : "PATTERNS    (select formations on the map, then click to insert a ready-made maneuver)";
 
+            var savedSlots = 0;
+            for (var slot = 1; slot <= 5; slot++)
+                if (PresetSummary(slot) != null)
+                    savedSlots++;
+            PresetsText = savedSlots > 0
+                ? $"PRESETS    {savedSlots} saved plan(s)        (click to save/load)"
+                : "PRESETS    (none — click to save this plan for future battles)";
+
             SignalsText = plan.PlayerSignals.Count > 0
                 ? "SIGNALS    " + string.Join("     ", plan.PlayerSignals.Select(s => $"[ {s} ]")) + "        (click to manage)"
                 : "SIGNALS    (none — click to add player signals)";
@@ -207,9 +217,38 @@ namespace RealisticBattlePlanning.UI
             HasWarnings = validation.Warnings.Count > 0;
             WarningsText = HasWarnings ? $"{validation.Warnings.Count} warning(s):   " + string.Join("      ", validation.Warnings) : "";
 
+            // One-level undo (A3.9): Refresh runs after every mutation, so the
+            // previously rendered plan IS the pre-mutation state. Selection/view
+            // refreshes don't change the serialization, so they don't clobber it.
+            var json = PlanSerializer.Serialize(plan);
+            if (json != _currentPlanJson)
+            {
+                _previousPlanJson = _currentPlanJson;
+                _currentPlanJson = json;
+            }
+
             // Deployment-time edits go live immediately (dedup inside makes this
             // a no-op for pure selection/view refreshes).
             LiveSyncDuringDeployment(plan, !HasErrors);
+        }
+
+        private string _currentPlanJson;
+        private string _previousPlanJson;
+
+        /// <summary>Undo the last plan-changing action (A3.9: misclicks are constant on a
+        /// click-to-author surface). One level, and pressing it again redoes — a toggle.</summary>
+        public void ExecuteUndo()
+        {
+            if (_previousPlanJson == null
+                || !PlanSerializer.TryDeserialize(_previousPlanJson, out var plan, out _))
+            {
+                StatusText = "Nothing to undo yet.";
+                return;
+            }
+            _draft.ReplaceWith(plan);
+            _waypointCounter = MaxWaypointNumber(_draft.Build().Anchors);
+            StatusText = "Undid the last change (Undo again to redo).";
+            Refresh();
         }
 
         // Projects the live deployment geometry into the map view: one marker per
@@ -328,6 +367,17 @@ namespace RealisticBattlePlanning.UI
 
         // "All" chip (A3.6 speed): one click selects every formation on the map, so
         // "everyone, form a line there" is a two-gesture plan. Click again to clear.
+        // ---- first-open onboarding (R5: no manual required) ----
+
+        /// <summary>Set by the view when this is the player's first planner open; dismissing persists the flag.</summary>
+        public Action FirstHintDismissed { get; set; }
+
+        public void ExecuteDismissFirstHint()
+        {
+            ShowFirstHint = false;
+            FirstHintDismissed?.Invoke();
+        }
+
         public void ExecuteSelectAll()
         {
             IReadOnlyList<PlannedFormationClass> all = _geometry != null && _geometry.HasFormations
@@ -958,6 +1008,92 @@ namespace RealisticBattlePlanning.UI
         private void AddPickerOption(string label, bool isCurrent, Action set) =>
             _pickerOptions.Add(new PickerOptionVM(label, isCurrent, set));
 
+        // ---- battle-plan presets (A3.9/H10: a saved doctrine onto a new battle
+        // in under 30s). Five fixed slots on disk; loading runs the same carry
+        // hygiene as cross-battle carry, so map-specific waypoints are dropped
+        // with a report instead of pointing at the previous battlefield.
+
+        private static string PresetPath(int slot)
+            => System.IO.Path.Combine(TaleWorlds.ModuleManager.ModuleHelper.GetModuleFullPath(SubModule.ModId),
+                "Config", "Presets", $"slot{slot}.json");
+
+        private string PresetSummary(int slot)
+        {
+            try
+            {
+                var path = PresetPath(slot);
+                if (!System.IO.File.Exists(path))
+                    return null;
+                if (!PlanSerializer.TryDeserialize(System.IO.File.ReadAllText(path), out var plan, out _))
+                    return null;
+                var stages = plan.Formations.Sum(f => f.Stages.Count);
+                return $"{plan.Formations.Count} formation(s), {stages} stage(s)";
+            }
+            catch (Exception) { return null; }
+        }
+
+        public void ExecuteEditPresets()
+        {
+            _pickerOptions.Clear();
+            for (var slot = 1; slot <= 5; slot++)
+            {
+                var s = slot;
+                var summary = PresetSummary(s);
+                if (summary != null)
+                    AddPickerOption($"Load slot {s}      ({summary})", false, () => LoadPreset(s));
+                AddPickerOption($"Save current plan → slot {s}" + (summary != null ? "      (overwrites)" : "      (empty)"),
+                    false, () => SavePreset(s));
+            }
+            PickerTitle = "Battle plan presets  ·  saved on this PC, usable in any battle";
+            PickerOpen = true;
+        }
+
+        private void SavePreset(int slot)
+        {
+            try
+            {
+                var path = PresetPath(slot);
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+                System.IO.File.WriteAllText(path, PlanSerializer.Serialize(_draft.Build()));
+                StatusText = $"Plan saved to preset slot {slot}.";
+            }
+            catch (Exception e)
+            {
+                Diagnostics.RbpLog.Error($"Saving preset slot {slot} failed.", e);
+                StatusText = $"Saving preset slot {slot} failed — see rbp.log.";
+            }
+            ClosePicker();
+            Refresh();
+        }
+
+        private void LoadPreset(int slot)
+        {
+            try
+            {
+                if (!PlanSerializer.TryDeserialize(System.IO.File.ReadAllText(PresetPath(slot)), out var plan, out var error))
+                {
+                    StatusText = $"Preset slot {slot} is not a valid plan: {error}";
+                    ClosePicker();
+                    return;
+                }
+                // Same hygiene as cross-battle carry: this preset may have been
+                // saved on a different battlefield.
+                var carried = PlanRemapper.StripSceneAnchors(plan);
+                _draft.ReplaceWith(carried.Plan);
+                _waypointCounter = MaxWaypointNumber(_draft.Build().Anchors);
+                StatusText = carried.Changed
+                    ? $"Preset {slot} loaded — {carried.RemovedAnchors.Count} map-specific waypoint(s) dropped (different battlefield)."
+                    : $"Preset {slot} loaded.";
+            }
+            catch (Exception e)
+            {
+                Diagnostics.RbpLog.Error($"Loading preset slot {slot} failed.", e);
+                StatusText = $"Loading preset slot {slot} failed — see rbp.log.";
+            }
+            ClosePicker();
+            Refresh();
+        }
+
         // ---- pattern inserts (A3.9/R4: the complexity shield — a competent
         // multi-stage plan in two clicks). Applied to the map selection so the
         // flow is: select formations → PATTERNS → pick one.
@@ -1336,6 +1472,8 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public string TitleText { get => _titleText; set { if (value != _titleText) { _titleText = value; OnPropertyChangedWithValue(value, "TitleText"); } } }
         [DataSourceProperty] public string HintText { get => _hintText; set { if (value != _hintText) { _hintText = value; OnPropertyChangedWithValue(value, "HintText"); } } }
         [DataSourceProperty] public string PatternsText { get => _patternsText; set { if (value != _patternsText) { _patternsText = value; OnPropertyChangedWithValue(value, "PatternsText"); } } }
+        [DataSourceProperty] public bool ShowFirstHint { get => _showFirstHint; set { if (value != _showFirstHint) { _showFirstHint = value; OnPropertyChangedWithValue(value, "ShowFirstHint"); } } }
+        [DataSourceProperty] public string PresetsText { get => _presetsText; set { if (value != _presetsText) { _presetsText = value; OnPropertyChangedWithValue(value, "PresetsText"); } } }
         [DataSourceProperty] public string SignalsText { get => _signalsText; set { if (value != _signalsText) { _signalsText = value; OnPropertyChangedWithValue(value, "SignalsText"); } } }
         [DataSourceProperty] public string AnchorsText { get => _anchorsText; set { if (value != _anchorsText) { _anchorsText = value; OnPropertyChangedWithValue(value, "AnchorsText"); } } }
         [DataSourceProperty] public string WarningsText { get => _warningsText; set { if (value != _warningsText) { _warningsText = value; OnPropertyChangedWithValue(value, "WarningsText"); } } }

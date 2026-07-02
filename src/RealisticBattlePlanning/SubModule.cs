@@ -28,6 +28,7 @@ namespace RealisticBattlePlanning
             RbpLog.MirrorSink = message => Debug.Print(message);
             RbpLog.Init(ModuleHelper.GetModuleFullPath(ModId));
             RbpLog.Info("OnSubModuleLoad");
+            Settings.RbpConfig.Load();
 
             try
             {

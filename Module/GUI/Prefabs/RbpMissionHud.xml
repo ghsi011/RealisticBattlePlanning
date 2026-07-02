@@ -37,6 +37,27 @@
           </Children>
         </ButtonWidget>
 
+        <!-- B7: per-formation plan status, left edge, one compact row each -->
+        <Widget IsVisible="@ShowPlanRows" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
+                HorizontalAlignment="Left" VerticalAlignment="Center" MarginLeft="10">
+          <Children>
+            <ListPanel DataSource="{PlanRows}" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
+                       StackLayout.LayoutMethod="VerticalTopToBottom">
+              <ItemTemplate>
+                <Widget WidthSizePolicy="CoverChildren" HeightSizePolicy="Fixed" SuggestedHeight="24"
+                        MarginBottom="2" Sprite="BlankWhiteSquare_9" Color="#14110CB4">
+                  <Children>
+                    <TextWidget Text="@Text" WidthSizePolicy="CoverChildren" HeightSizePolicy="StretchToParent"
+                                MarginLeft="8" MarginRight="8"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="13" Brush.FontColor="@Color"
+                                Brush.TextHorizontalAlignment="Left" Brush.TextVerticalAlignment="Center" />
+                  </Children>
+                </Widget>
+              </ItemTemplate>
+            </ListPanel>
+          </Children>
+        </Widget>
+
         <!-- Signal-palette legend -->
         <Widget IsVisible="@ShowPalette" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
                 HorizontalAlignment="Center" VerticalAlignment="Top" MarginTop="8">

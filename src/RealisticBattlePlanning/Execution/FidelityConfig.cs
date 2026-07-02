@@ -5,13 +5,15 @@ namespace RealisticBattlePlanning.Execution
 {
     /// <summary>
     /// Runtime master switch for the fidelity/progression system (spec F).
-    /// Default OFF = pass-through, so normal play and the Layer-2 harness
-    /// baseline stay byte-for-byte unchanged until the system is deliberately
-    /// switched on. Toggled via the rbp.fidelity console command (a dev
-    /// affordance until the MCM menu arrives in Area F). The per-battle seed
-    /// defaults to a varied value so a campaign never replays the identical
-    /// fidelity rolls every battle (audit H2/H3); a harness run can pin it for
-    /// reproducibility.
+    /// The default is CONTEXTUAL ("auto" in Config\rbp.cfg): ON at competence
+    /// in a campaign — the officer pillar (D) is the mod's second half and must
+    /// not ship dark — and OFF (pass-through) everywhere else, so Custom Battle
+    /// stays a clean tactics sandbox and the Layer-2 harness baseline is
+    /// byte-for-byte unchanged. rbp.fidelity (console) sets an explicit
+    /// override for the session; the config file can pin a mode permanently.
+    /// The per-battle seed defaults to a varied value so a campaign never
+    /// replays the identical fidelity rolls every battle (audit H2/H3); a
+    /// harness run can pin it for reproducibility.
     /// </summary>
     public static class FidelityConfig
     {
@@ -25,7 +27,27 @@ namespace RealisticBattlePlanning.Execution
             Fixed,
         }
 
-        public static FidelityMode Mode { get; set; } = FidelityMode.Off;
+        private static FidelityMode? _sessionOverride;
+
+        public static FidelityMode Mode
+        {
+            get => _sessionOverride ?? ConfiguredDefault();
+            set => _sessionOverride = value;
+        }
+
+        private static FidelityMode ConfiguredDefault()
+        {
+            switch (Settings.RbpConfig.FidelityMode)
+            {
+                case "off": return FidelityMode.Off;
+                case "competence": return FidelityMode.Competence;
+                case "fixed": return FidelityMode.Fixed;
+                default: // "auto"
+                    return TaleWorlds.CampaignSystem.Campaign.Current != null
+                        ? FidelityMode.Competence
+                        : FidelityMode.Off;
+            }
+        }
 
         public static FidelityTier FixedTier { get; set; } = FidelityTier.Untrained;
 

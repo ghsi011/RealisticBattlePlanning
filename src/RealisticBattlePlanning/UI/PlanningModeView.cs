@@ -33,8 +33,8 @@ namespace RealisticBattlePlanning.UI
     {
         private const string MovieName = "RbpPlanningPanel";
 
-        /// <summary>Toggle key. Numpad0 to avoid the deployment hotkeys; MCM rebinding arrives with Area F.</summary>
-        private static readonly InputKey ToggleKey = InputKey.Numpad0;
+        /// <summary>Toggle key (Config\rbp.cfg planKey; Numpad0 default avoids the deployment hotkeys).</summary>
+        private static InputKey ToggleKey => Settings.RbpConfig.PlanKey;
 
         /// <summary>Gauntlet layer local order — high so the editor sits above the deployment HUD for input and rendering.</summary>
         private const int PlanningLayerOrder = 1000;
@@ -177,6 +177,8 @@ namespace RealisticBattlePlanning.UI
                     case "removestage" when int.TryParse(arg, out var rmSlot): _dataSource?.DevRemoveStage(rmSlot); break;
                     case "selectall": _dataSource?.ExecuteSelectAll(); break;
                     case "patterns": _dataSource?.ExecuteEditPatterns(); break;
+                    case "presets": _dataSource?.ExecuteEditPresets(); break;
+                    case "undo": _dataSource?.ExecuteUndo(); break;
                     case "pick" when int.TryParse(arg, out var optIndex): _dataSource?.DevPickOption(optIndex); break;
                     case "shot": Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     case "reshot": Hide(); Show(); Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
@@ -305,6 +307,27 @@ namespace RealisticBattlePlanning.UI
                     ? $"Edits apply live · {ToggleKey} to close"
                     : $"Apply commits · {ToggleKey} to close";
                 _dataSource = new PlanningModeVM("Battle Plan", hint, draft, ApplyEditedPlan, Hide, labels, geometry);
+                // First-ever open: a three-step orientation card over the map,
+                // dismissed once per install (R5 — the mod must teach itself).
+                try
+                {
+                    var configDir = System.IO.Path.Combine(ModuleHelper.GetModuleFullPath(SubModule.ModId), "Config");
+                    var seenFlag = System.IO.Path.Combine(configDir, "planner-seen.flag");
+                    if (!System.IO.File.Exists(seenFlag))
+                    {
+                        _dataSource.ShowFirstHint = true;
+                        _dataSource.FirstHintDismissed = () =>
+                        {
+                            try
+                            {
+                                System.IO.Directory.CreateDirectory(configDir);
+                                System.IO.File.WriteAllText(seenFlag, "seen");
+                            }
+                            catch (Exception e) { RbpLog.Error("Persisting the first-open flag failed.", e); }
+                        };
+                    }
+                }
+                catch (Exception e) { RbpLog.Error("First-open hint check failed; skipping the card.", e); }
                 // Route bare-canvas map clicks (the custom MapCanvasWidget) into the VM's
                 // point-and-click move authoring. Cleared in Hide so a stale closure can't fire.
                 MapCanvasWidget.Clicked = (x, y) => _dataSource?.OnMapClicked(x, y);

@@ -259,6 +259,24 @@ namespace RealisticBattlePlanning.Planning.Editing
             return this;
         }
 
+        /// <summary>
+        /// Replaces the draft's entire contents with a deep copy of the given
+        /// plan (preset load, A3.9). The backing plan object is kept — mutated
+        /// in place — so an editor session holding this draft sees the new plan
+        /// on its next Build()/render without reconstruction.
+        /// </summary>
+        public PlanDraft ReplaceWith(BattlePlan plan)
+        {
+            var copy = PlanSerializer.DeepCopy(plan) ?? new BattlePlan();
+            _plan.Formations.Clear();
+            _plan.Formations.AddRange(copy.Formations);
+            _plan.Anchors.Clear();
+            _plan.Anchors.AddRange(copy.Anchors);
+            _plan.PlayerSignals.Clear();
+            _plan.PlayerSignals.AddRange(copy.PlayerSignals);
+            return this;
+        }
+
         public PlanDraft AddAnchor(MapAnchor anchor)
         {
             if (anchor != null && !string.IsNullOrWhiteSpace(anchor.Id)

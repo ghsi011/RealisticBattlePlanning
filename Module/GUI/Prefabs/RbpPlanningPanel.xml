@@ -39,6 +39,16 @@
                                 Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                   </Children>
                 </ButtonWidget>
+                <!-- One-level undo of the last plan change -->
+                <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteUndo" Brush="Rbp.Btn.Neutral"
+                              HorizontalAlignment="Right" VerticalAlignment="Center" MarginRight="318"
+                              WidthSizePolicy="Fixed" SuggestedWidth="76" HeightSizePolicy="Fixed" SuggestedHeight="30">
+                  <Children>
+                    <TextWidget Text="Undo" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#D7E1EDFF"
+                                Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                  </Children>
+                </ButtonWidget>
               </Children>
             </Widget>
             <!-- Accent line under the header -->
@@ -538,6 +548,15 @@
                                     Brush.TextHorizontalAlignment="Left" />
                       </Children>
                     </ButtonWidget>
+                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditPresets" Brush="Rbp.Field" MarginTop="3"
+                                  WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren">
+                      <Children>
+                        <TextWidget Text="@PresetsText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                    MarginLeft="6" MarginRight="6" MarginTop="1" MarginBottom="1"
+                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#9CB0A0FF"
+                                    Brush.TextHorizontalAlignment="Left" />
+                      </Children>
+                    </ButtonWidget>
                     <TextWidget Text="@ErrorsText" IsVisible="@HasErrors" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren" MarginTop="3"
                                 Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#E2603CFF"
                                 Brush.TextHorizontalAlignment="Left" />
@@ -635,6 +654,39 @@
                         </ButtonWidget>
                       </ItemTemplate>
                     </ListPanel>
+                  </Children>
+                </Widget>
+              </Children>
+            </Widget>
+
+            <!-- First-open orientation card (R5): three steps, one Got-it, never again. -->
+            <Widget IsVisible="@ShowFirstHint" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent">
+              <Children>
+                <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                        Sprite="BlankWhiteSquare_9" Color="#000000A8" />
+                <Widget WidthSizePolicy="Fixed" SuggestedWidth="620" HeightSizePolicy="Fixed" SuggestedHeight="252"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Sprite="BlankWhiteSquare_9" Color="#1C160DFF">
+                  <Children>
+                    <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="2"
+                            VerticalAlignment="Top" MarginTop="44" Sprite="BlankWhiteSquare_9" Color="#9A7B33FF" />
+                    <TextWidget Text="Plan your battle in 30 seconds" WidthSizePolicy="StretchToParent" HeightSizePolicy="Fixed" SuggestedHeight="42"
+                                VerticalAlignment="Top" MarginLeft="22"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="21" Brush.FontColor="#E0B85EFF"
+                                Brush.TextHorizontalAlignment="Left" Brush.TextVerticalAlignment="Center" />
+                    <TextWidget Text="1.  Click a formation's number to select it — or the All chip for the whole army.&#10;&#10;2.  Click the map to send it there; drag to array several into a line.&#10;&#10;3.  PATTERNS inserts a ready-made maneuver; SIGNALS arm keys you press mid-battle to spring the next step.&#10;&#10;Close and press Ready — your plan executes itself, and your orders still override anything."
+                                WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                VerticalAlignment="Top" MarginTop="54" MarginLeft="22" MarginRight="22"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#DCD2B4FF"
+                                Brush.TextHorizontalAlignment="Left" />
+                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteDismissFirstHint" Brush="Rbp.Btn.Confirm"
+                                  WidthSizePolicy="Fixed" SuggestedWidth="120" HeightSizePolicy="Fixed" SuggestedHeight="34"
+                                  HorizontalAlignment="Center" VerticalAlignment="Bottom" MarginBottom="12">
+                      <Children>
+                        <TextWidget Text="Got it" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#ECF6DDFF"
+                                    Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                      </Children>
+                    </ButtonWidget>
                   </Children>
                 </Widget>
               </Children>

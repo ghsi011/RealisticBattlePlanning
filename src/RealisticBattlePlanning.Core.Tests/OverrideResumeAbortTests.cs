@@ -314,6 +314,27 @@ namespace RealisticBattlePlanning.Tests
             Assert.Equal(0, Assert.Single(events.OfType<StageActivated>()).StageIndex);
         }
 
+        [Fact]
+        public void StatusesDescribeDoingAndWaiting()
+        {
+            // B7 HUD read: an active formation reports its stage + the next
+            // trigger; a suspended one reports "under your command".
+            var monitor = new PlanMonitor(Plan(Formation(
+                PlannedFormationClass.Infantry,
+                StageOf(null, Hold()),
+                StageOf(new[] { new TriggerSpec { Type = TriggerType.SignalReceived, Signal = "go" } }, Charge()))));
+
+            monitor.Tick(Infantry(0f));
+            var status = Assert.Single(monitor.Statuses());
+            Assert.Equal(FormationPlanMode.Active, status.Mode);
+            Assert.StartsWith("1/2", status.Doing);
+            Assert.Contains("go", status.Waiting);
+
+            monitor.NotifyPlayerOverride(PlannedFormationClass.Infantry);
+            monitor.Tick(Infantry(1f));
+            Assert.Equal("under your command", Assert.Single(monitor.Statuses()).Doing);
+        }
+
         // ---- battle end (D4) ----
 
         [Fact]

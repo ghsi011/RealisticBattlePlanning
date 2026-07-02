@@ -96,7 +96,7 @@ namespace RealisticBattlePlanning.UI
 
             _dataSource.ShowEntry = deployment && !plannerOpen;
             if (_dataSource.ShowEntry)
-                _dataSource.EntryText = "Battle Plan  (Numpad0)";
+                _dataSource.EntryText = $"Battle Plan  ({Settings.RbpConfig.PlanKey})";
 
             // Signal legend: appears once the battle runs and the plan wired
             // numpad signals. Rebuilt only when membership or fired-state changes.
@@ -112,10 +112,11 @@ namespace RealisticBattlePlanning.UI
                 {
                     _pillsSignature = signature;
                     _dataSource.Pills.Clear();
-                    for (var i = 0; i < signals.Count && i < 4; i++)
+                    var keys = Settings.RbpConfig.SignalKeys;
+                    for (var i = 0; i < signals.Count && i < keys.Length; i++)
                     {
                         var fired = _planLogic.SignalRaised(signals[i]);
-                        _dataSource.Pills.Add(new SignalPillVM($"Num{i + 1} · {signals[i]}" + (fired ? "  ✓" : ""), fired));
+                        _dataSource.Pills.Add(new SignalPillVM($"{keys[i]} · {signals[i]}" + (fired ? "  ✓" : ""), fired));
                     }
                 }
             }
@@ -123,7 +124,47 @@ namespace RealisticBattlePlanning.UI
             var suspended = !deployment && _planLogic.AnySuspended;
             _dataSource.ShowResume = suspended;
             if (suspended)
-                _dataSource.ResumeText = "Resume plan  (Numpad5)";
+                _dataSource.ResumeText = $"Resume plan  ({Settings.RbpConfig.ResumeKey})";
+
+            UpdatePlanRows(deployment);
+        }
+
+        // B7: one left-edge row per governed formation — what it believes it is
+        // doing and what it waits for. Rebuilt only when the composed text changes.
+        private string _rowsSignature = "";
+
+        private void UpdatePlanRows(bool deployment)
+        {
+            var monitor = _planLogic.Monitor;
+            var show = !deployment && monitor != null && _planLogic.DeploymentFinished;
+            _dataSource.ShowPlanRows = show;
+            if (!show)
+            {
+                _rowsSignature = "";
+                return;
+            }
+
+            var statuses = monitor.Statuses();
+            var signature = new System.Text.StringBuilder();
+            foreach (var status in statuses)
+                signature.Append(status.Formation).Append(status.Mode).Append(status.Doing).Append(status.Waiting).Append('|');
+            var composed = signature.ToString();
+            if (composed == _rowsSignature)
+                return;
+            _rowsSignature = composed;
+
+            _dataSource.PlanRows.Clear();
+            foreach (var status in statuses)
+            {
+                // ASCII-safe glyphs: the game font renders ▶/⏸/✖ as hollow boxes.
+                var glyph = status.Mode == FormationPlanMode.Suspended ? "||"
+                    : status.Mode == FormationPlanMode.Aborted ? "x" : ">";
+                var color = status.Mode == FormationPlanMode.Suspended ? "#E8C568FF"
+                    : status.Mode == FormationPlanMode.Aborted ? "#B98A80FF" : "#C9D8B4FF";
+                var text = $"{(int)status.Formation + 1} {glyph}  {status.Doing}"
+                           + (status.Waiting != null ? $"   ·   awaiting: {status.Waiting}" : "");
+                _dataSource.PlanRows.Add(new PlanRowVM(text, color));
+            }
         }
 
         private void Create()

@@ -4,6 +4,7 @@ using System.Linq;
 using static System.FormattableString;
 using RealisticBattlePlanning.Diagnostics;
 using RealisticBattlePlanning.Fidelity;
+using RealisticBattlePlanning.Planning;
 using RealisticBattlePlanning.Planning.Model;
 
 namespace RealisticBattlePlanning.Execution
@@ -14,6 +15,17 @@ namespace RealisticBattlePlanning.Execution
         Active,
         Suspended,
         Aborted,
+    }
+
+    /// <summary>A formation's live plan status for the B7 HUD: what it believes it is doing and what it waits for.</summary>
+    public sealed class FormationStatus
+    {
+        public PlannedFormationClass Formation;
+        public FormationPlanMode Mode;
+        /// <summary>e.g. "2/3  Skirmish Nearest", "under your command", "holding (no stage applies)".</summary>
+        public string Doing;
+        /// <summary>The next stage's trigger ("Enemy commits"), or null when nothing is pending.</summary>
+        public string Waiting;
     }
 
     /// <summary>
@@ -151,6 +163,56 @@ namespace RealisticBattlePlanning.Execution
         /// <summary>True when the signal has been raised this battle (signals latch, A3.4) — the HUD's palette pills read this.</summary>
         public bool SignalRaised(string signal)
             => signal != null && (_signals.Contains(signal) || _pendingSignals.Contains(signal));
+
+        /// <summary>
+        /// One live status line per governed formation (B7 legibility): what it
+        /// believes it is doing and what it waits for. Read-only; wording via
+        /// PlanFormatter so the HUD, log, and editor agree.
+        /// </summary>
+        public IReadOnlyList<FormationStatus> Statuses()
+        {
+            var statuses = new List<FormationStatus>(_states.Count);
+            foreach (var state in _states)
+            {
+                var status = new FormationStatus { Formation = state.Plan.Formation, Mode = state.Mode };
+                var stages = state.Plan.Stages;
+                if (state.Mode == FormationPlanMode.Aborted)
+                {
+                    status.Doing = "plan aborted";
+                }
+                else if (state.Mode == FormationPlanMode.Suspended)
+                {
+                    status.Doing = "under your command";
+                }
+                else if (state.Holding)
+                {
+                    status.Doing = "holding (no stage applies)";
+                }
+                else if (state.PendingStageIndex >= 0)
+                {
+                    status.Doing = $"forming up for {PlanFormatter.DescribeDirective(stages[state.PendingStageIndex].Do)}";
+                }
+                else if (state.ActiveStageIndex < 0)
+                {
+                    status.Doing = "awaiting battle start";
+                }
+                else
+                {
+                    status.Doing = $"{state.ActiveStageIndex + 1}/{stages.Count}  {PlanFormatter.DescribeDirective(stages[state.ActiveStageIndex].Do)}";
+                    var next = state.ActiveStageIndex + 1;
+                    if (next < stages.Count && stages[next].When.Count > 0)
+                    {
+                        var conditions = new List<string>();
+                        foreach (var condition in stages[next].When)
+                            if (condition != null)
+                                conditions.Add(PlanFormatter.DescribeTrigger(condition));
+                        status.Waiting = string.Join(" + ", conditions);
+                    }
+                }
+                statuses.Add(status);
+            }
+            return statuses;
+        }
 
         /// <summary>True when this formation has stages in the plan.</summary>
         public bool Governs(PlannedFormationClass formation)
