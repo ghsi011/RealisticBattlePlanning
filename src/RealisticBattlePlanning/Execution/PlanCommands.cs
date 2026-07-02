@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using TaleWorlds.Library;
 using RealisticBattlePlanning.Planning;
+using RealisticBattlePlanning.Planning.Model;
 
 namespace RealisticBattlePlanning.Execution
 {
@@ -42,6 +43,54 @@ namespace RealisticBattlePlanning.Execution
                 ? "none"
                 : $"yes ({carried.Formations.Count} formation(s))";
             return $"session key: {key} | carried plan: {plan}";
+        }
+
+        /// <summary>
+        /// Dev/test plan injection: validate a plan JSON file and stage it for
+        /// the NEXT battle via the session carry — or apply it to the current
+        /// battle immediately when one is running. Turns "try this plan tweak"
+        /// into: edit JSON → rbp.plan_load &lt;file&gt; → dbg.restart. With no
+        /// argument it loads the classic debug plan
+        /// (ModuleData\rbp_debug_plan.json) — the reachable replacement for
+        /// DebugPlanLoader.Enabled, which nothing could ever set.
+        /// </summary>
+        [CommandLineFunctionality.CommandLineArgumentFunction("plan_load", "rbp")]
+        public static string PlanLoad(List<string> args)
+        {
+            BattlePlan plan;
+            if (args.Count == 0)
+            {
+                plan = DebugPlanLoader.TryLoad();
+                if (plan == null)
+                    return $"no debug plan (ModuleData\\{DebugPlanLoader.FileName}) or it failed to parse — see rbp.log";
+            }
+            else
+            {
+                var path = string.Join(" ", args);
+                if (!System.IO.File.Exists(path))
+                    return $"file not found: {path}";
+                string json;
+                try { json = System.IO.File.ReadAllText(path); }
+                catch (System.Exception e) { return $"read failed: {e.Message}"; }
+                if (!PlanSerializer.TryDeserialize(json, out plan, out var error))
+                    return $"not a valid plan: {error}";
+            }
+
+            var validation = PlanValidator.Validate(plan);
+            if (!validation.IsValid)
+                return "plan invalid: " + validation.Errors[0];
+            var warnings = validation.Warnings.Count > 0 ? $" ({validation.Warnings.Count} warning(s) — see rbp.log)" : "";
+            foreach (var warning in validation.Warnings)
+                Diagnostics.RbpLog.Warn($"plan_load: {warning}");
+
+            var host = PlanMissionLogic.Active;
+            if (host != null)
+                return host.ApplyPlan(plan)
+                    ? $"plan applied to the CURRENT battle and carried to the next{warnings}"
+                    : "apply refused (battle not plannable?) — see rbp.log";
+
+            SessionPlanStore.Set(PlanMissionLogic.SessionKey(), plan);
+            return $"plan staged for the next battle (session '{PlanMissionLogic.SessionKey()}', {plan.Formations.Count} formation(s)){warnings}";
         }
 
         /// <summary>

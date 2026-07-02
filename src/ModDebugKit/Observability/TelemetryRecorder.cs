@@ -1,3 +1,7 @@
+using System.Collections.Generic;
+using System.IO;
+using ModDebugKit.Diagnostics;
+using ModDebugKit.Io;
 using ModDebugKit.Telemetry;
 using TaleWorlds.Core;
 using TaleWorlds.MountAndBlade;
@@ -65,13 +69,54 @@ namespace ModDebugKit.Observability
         public override void OnMissionResultReady(MissionResult missionResult)
         {
             base.OnMissionResultReady(missionResult);
-            TelemetryLog.Write(TelemetryKinds.MissionResult, Mission.CurrentTime, Describe(missionResult));
+            _result = Describe(missionResult);
+            TelemetryLog.Write(TelemetryKinds.MissionResult, Mission.CurrentTime, _result);
         }
 
         protected override void OnEndMission()
         {
+            WriteBattleResult();
             TelemetryLog.Write(TelemetryKinds.MissionEnd, Mission?.CurrentTime);
             base.OnEndMission();
+        }
+
+        private string _result;
+
+        /// <summary>
+        /// Structured end-of-battle outcome (battle_result.json, overwritten per
+        /// mission): result + duration + each surviving formation's side/number/
+        /// composition/count/casualties. An agent Reads one file instead of
+        /// aggregating telemetry.jsonl's agent_removed stream by hand.
+        /// </summary>
+        private void WriteBattleResult()
+        {
+            try
+            {
+                if (ModDebugKitRuntime.Paths == null || Mission == null)
+                    return;
+                var dto = BattleSnapshotReader.Capture(Mission);
+                var formations = new List<object>();
+                foreach (var f in dto.Formations)
+                    formations.Add(new
+                    {
+                        n = f.Number,
+                        side = f.Side,
+                        comp = f.Composition?.Label,
+                        count = f.Count,
+                        cas = f.CasualtiesPercent,
+                    });
+                File.WriteAllText(ModDebugKitRuntime.Paths.BattleResult, DbgJson.Line(new
+                {
+                    result = _result,   // null when the mission ended unresolved (player left early)
+                    t = Mission.CurrentTime,
+                    scene = Mission.SceneName,
+                    formations,
+                }));
+            }
+            catch (System.Exception e)
+            {
+                DbgLog.Error("Writing battle_result.json failed.", e);
+            }
         }
 
         private static string Describe(MissionResult result)

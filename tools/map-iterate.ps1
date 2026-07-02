@@ -70,6 +70,13 @@ if ($Cmd -in @('close','open','toggle','reopen')) {
   return
 }
 
+# Delete any previous capture with this name BEFORE asking for a new one: the
+# existence-wait below would otherwise pass instantly on a STALE BMP from an
+# earlier iteration and the agent would Read an outdated UI image — the worst
+# failure mode a visual loop can have.
+$bmp = Join-Path $moduleDir "Logs\Screenshots\$Name.bmp"
+Remove-Item $bmp -Force -ErrorAction SilentlyContinue
+
 # reshot = reopen (so a hot-reloaded prefab/brush is re-read) THEN, after Gauntlet has
 # built + rendered the panel (a few frames), shot. Doing both in one C# tick captured
 # before the layer rendered, so the script orchestrates the gap explicitly.
@@ -83,9 +90,9 @@ if ($Cmd -eq 'reshot') {
   Send-Verb "shot $Name"
 }
 
-# 3) Wait for the screenshot (engine writes it a frame or two after the sentinel is consumed).
+# 3) Wait for the screenshot (engine writes it a frame or two after the sentinel is
+# consumed; the file is guaranteed fresh because we deleted the old one above).
 Start-Sleep -Milliseconds $WaitMs
-$bmp = Join-Path $moduleDir "Logs\Screenshots\$Name.bmp"
 $png = Join-Path $repo "temp\$Name.png"
 New-Item -ItemType Directory -Force -Path (Split-Path $png) | Out-Null
 
@@ -95,10 +102,12 @@ if (-not (Test-Path $bmp)) { throw "screenshot not produced: $bmp (is the planne
 
 Add-Type -AssemblyName System.Drawing
 # Retry the load: the engine may still be flushing the BMP when we first touch it.
+$img = $null
 for ($i = 0; $i -lt 10; $i++) {
   try { $img = [System.Drawing.Image]::FromFile($bmp); break }
   catch { Start-Sleep -Milliseconds 250 }
 }
+if (-not $img) { throw "screenshot exists but never became readable (still flushing?): $bmp" }
 $img.Save($png, [System.Drawing.Imaging.ImageFormat]::Png)
 $w = $img.Width; $h = $img.Height
 $img.Dispose()

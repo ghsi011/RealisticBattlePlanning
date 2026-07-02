@@ -1,8 +1,9 @@
 {
   "name": "rbp-gameplay-check",
-  "comment": "Dogfood: drive a ModDebugKit cav-clash battle while RealisticBattlePlanning's debug plan governs it, and capture the three playtest fixes as one trajectory. Layout (queued during deployment, auto-applied at ready) puts cav in the Skirmisher slot (5, FlankArc) and HA in the LightCavalry slot (7, circle) to match rbp_debug_plan.json. Read track.jsonl: formation 1 (Infantry) holds; formation 5 (Cavalry) order goes Move -> Charge as it flanks home; formation 7 (Horse Archer) keeps moving/orbiting at standoff, never charging. rbp-check-final.json is the player-only end state.",
+  "comment": "Dogfood: drive a ModDebugKit cav-clash battle governed by RBP's debug plan and capture the three playtest fixes as one trajectory. The dbg.exec rbp.plan_load step is what makes the plan govern (DebugPlanLoader is OFF by default and nothing sets it - a run without this step is an UNGOVERNED battle whose telemetry looks plausible but tests nothing). Layout (queued during deployment, auto-applied at ready) puts cav in the Skirmisher slot (5, FlankArc) and HA in the LightCavalry slot (7, circle) to match rbp_debug_plan.json. Read track.jsonl: formation 1 (Infantry) holds; formation 5 (Cavalry) order goes Move -> Charge as it flanks home; formation 7 (Horse Archer) keeps moving/orbiting at standoff, never charging. rbp-check-final.json is the player-only end state; battle_result.json has the outcome.",
   "steps": [
     { "at": 0.0,  "do": "dbg.telemetry clear" },
+    { "at": 0.2,  "do": "dbg.exec rbp.plan_load" },
     { "at": 0.3,  "do": "dbg.battle cav-clash" },
     { "at": 14.0, "do": "dbg.layout inf=1 cav=5 ha=7" },
     { "at": 18.0, "do": "dbg.ready" },

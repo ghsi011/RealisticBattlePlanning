@@ -1,0 +1,21 @@
+{
+  "scene": "battle_terrain_029",
+  "season": "summer",
+  "timeOfDay": 9.0,
+  "playerSide": "Defender",
+  "playerType": "Commander",
+  "player": {
+    "culture": "empire",
+    "commander": "commander_1",
+    "troops": [
+      { "troop": "imperial_veteran_infantryman", "count": 50 },
+      { "troop": "imperial_archer", "count": 30 },
+      { "troop": "imperial_heavy_horseman", "count": 12 }
+    ]
+  },
+  "enemy": {
+    "culture": "battania",
+    "commander": "commander_11",
+    "counts": [100, 25, 0, 0]
+  }
+}

@@ -231,16 +231,45 @@ namespace RealisticBattlePlanning.Execution
                 : missionResult.BattleState.ToString();
         }
 
+        /// <summary>
+        /// Structured end-of-battle artifacts (dev-loop visibility): the full
+        /// battle record as JSON and the AAR text, overwritten each battle at
+        /// Logs\last-battle.record.json / Logs\aar.txt. One Read replaces
+        /// grepping rbp.log for "who won and what did each formation do".
+        /// </summary>
+        private static void WriteBattleArtifacts(Harness.BattleRecord record, string aarText)
+        {
+            try
+            {
+                var logs = System.IO.Path.Combine(
+                    TaleWorlds.ModuleManager.ModuleHelper.GetModuleFullPath(SubModule.ModId), "Logs");
+                System.IO.Directory.CreateDirectory(logs);
+                System.IO.File.WriteAllText(System.IO.Path.Combine(logs, "last-battle.record.json"),
+                    Harness.HarnessSerializer.Serialize(record));
+                System.IO.File.WriteAllText(System.IO.Path.Combine(logs, "aar.txt"), aarText);
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Writing battle artifacts failed.", e);
+            }
+        }
+
         public override void OnRemoveBehavior()
         {
             try
             {
                 // After-Action Report (B10): a plain-language end-of-battle summary of what each
                 // commander actually did, built from the recorded run (the same events the monitor
-                // produced). Logged for now — the dossier screen is a later iteration. Only when the
-                // battle actually ran (recorder Started); harness runs use their own results path.
+                // produced). Logged + written as structured artifacts so an agent (or a later
+                // dossier screen) reads one file instead of parsing rbp.log. Only when the battle
+                // actually ran (recorder Started); harness runs use their own results path.
                 if (_aarRecorder != null && _aarRecorder.Started)
-                    RbpLog.Info(AfterActionReport.Build(_aarRecorder.Complete(_battleResult ?? "ended")).Describe());
+                {
+                    var record = _aarRecorder.Complete(_battleResult ?? "ended");
+                    var aarText = AfterActionReport.Build(record).Describe();
+                    RbpLog.Info(aarText);
+                    WriteBattleArtifacts(record, aarText);
+                }
             }
             catch (Exception e)
             {

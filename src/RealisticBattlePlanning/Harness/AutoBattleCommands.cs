@@ -6,6 +6,7 @@ using TaleWorlds.Library;
 using TaleWorlds.MountAndBlade;
 using TaleWorlds.MountAndBlade.CustomBattle;
 using TaleWorlds.MountAndBlade.CustomBattle.CustomBattle;
+using TaleWorlds.MountAndBlade.View.Tableaus;
 
 namespace RealisticBattlePlanning.Harness
 {
@@ -28,6 +29,15 @@ namespace RealisticBattlePlanning.Harness
                 // available in-battle): that corrupts the state stack.
                 if (Mission.Current != null)
                     return "already in a mission; finish it first";
+
+                // Cold-launch guard (same race ModDebugKit's dbg.battle guards):
+                // pushing a game state before the view layer is up NREs deep in
+                // GameStateScreenManager.OnPushState (null ThumbnailCacheManager
+                // .Current) and WEDGES the game. Reachable file-first via
+                // dbg.exec rbp.autobattle right after the menu appears — fail
+                // cleanly + retryably instead.
+                if (ThumbnailCacheManager.Current == null)
+                    return "engine view layer still loading; retry rbp.autobattle in a few seconds";
 
                 // If the Custom Battle menu is the active state, the custom game
                 // is loaded — launch the mission directly. Otherwise (main menu),

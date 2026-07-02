@@ -18,15 +18,35 @@ environment variable (set before launch) to redirect output anywhere.
     in.txt          # append commands here
     out.jsonl       # one result object per line
   battle_state.json # last dbg.snapshot
+  battle_result.json # end-of-battle outcome, overwritten at every mission end
   campaign_state.json # last dbg.camp.status
   error_snapshot.json # battle state auto-captured on the first fault
   moddebugkit.log   # session log
   telemetry.jsonl   # (M2) flight recorder
   errors.jsonl      # (M2) captured exceptions
+  track.jsonl       # dbg.track time-series (path overridable per command)
   shots/            # (M3) screenshots
   presets/          # dbg.battle <name> reads presets/<name>.json
   scripts/          # dbg.run <name> reads scripts/<name>.json
 ```
+
+### `battle_result.json` — end-of-battle outcome
+
+Written once at every mission end (TelemetryRecorder.OnEndMission), overwritten
+per mission. One object: `{ result, t, scene, formations: [{ n, side, comp,
+count, cas }] }`. `result` is `PlayerVictory` / `PlayerDefeated` / a battle
+state, or `null` when the mission ended unresolved (player left early).
+`formations` lists the SURVIVING formations with their final counts and
+casualty percentages against the deployment baseline. RBP additionally writes
+its own `Modules/RealisticBattlePlanning/Logs/last-battle.record.json` (the
+full plan-event record) and `Logs/aar.txt` (the After-Action Report text) for
+plan-governed battles.
+
+### `track.jsonl` — formation time-series (`dbg.track <duration> [interval] [all|player|enemy]`)
+
+Samples every formation matching the filter at the given interval into JSONL
+lines `{ t, n, side, comp, order, x, y, cas }` — one whole maneuver in one
+command instead of a manual wait+snapshot loop.
 
 ## The command channel
 

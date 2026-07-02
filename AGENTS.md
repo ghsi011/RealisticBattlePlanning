@@ -103,13 +103,22 @@ still fails the build (a typo'd `local.props` must not silently
 build-without-deploy); a real install always wins and enables the deploy step.
 
 Launch via BLSE. In-game verification is semi-automated by the Layer-2
-harness (I5): in the dev console, `rbp.harness_arm all`, start a field battle
-you command, and everything after clicking Ready is unattended (scenario plan
-injection, fast-forward, recording, assertion evaluation); then
-`rbp.harness_diff` against the known-good baseline, `rbp.harness_accept` to
-promote a run. Results live in `Modules\RealisticBattlePlanning\Logs\Harness`.
-The harness does not yet spawn battles itself, and anything it doesn't cover
-still needs a manual launch — say "verified by launching" or say you couldn't.
+harness (I5): `rbp.harness_arm all` (console, or `dbg.exec rbp.harness_arm all`
+over the file channel), start a field battle you command, and everything after
+Ready is unattended (scenario plan injection, fast-forward, recording,
+assertion evaluation); then `rbp.harness_diff` against the known-good baseline,
+`rbp.harness_accept` to promote a run. Results live in
+`Modules\RealisticBattlePlanning\Logs\Harness`. A fully hands-off armed run
+needs no human: `dbg.exec rbp.harness_arm <scenario>` → `dbg.battle` (or
+`rbp.autobattle`) → `dbg.ready`. Structured outcomes land in
+`Logs\last-battle.record.json` + `Logs\aar.txt` (RBP, plan-governed battles)
+and `ModDebugKit\Debug\battle_result.json` (every battle) — read those instead
+of parsing rbp.log. `rbp.plan_load [file]` stages an arbitrary plan JSON for
+the next battle (no args = `ModuleData\rbp_debug_plan.json`). For ad-hoc
+channel driving use `tools\mdk.ps1 <command...>` (send-and-await,
+JSON-checked) — never hand-roll tail-polling loops. Anything the harness
+doesn't cover still needs a manual launch — say "verified by launching" or say
+you couldn't.
 
 **Seeing the game yourself (UI work):** the in-game `rbp.screenshot [name]`
 console command saves a frame to `Modules\RealisticBattlePlanning\Logs\

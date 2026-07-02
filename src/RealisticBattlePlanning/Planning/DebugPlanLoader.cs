@@ -20,7 +20,9 @@ namespace RealisticBattlePlanning.Planning
 
         /// <summary>Off by default: the hand-written debug plan is a dev convenience and must
         /// NOT load in normal play, so a fresh game starts with a blank plan (the session store
-        /// carries plans battle-to-battle). Flip in a dev session to seed from the JSON file.</summary>
+        /// carries plans battle-to-battle). Nothing in the codebase sets this — the reachable
+        /// dev path is the <c>rbp.plan_load</c> console command (no args = this file), which
+        /// stages/applies through the same validation as the editor.</summary>
         public static bool Enabled { get; set; } = false;
 
         public static BattlePlan TryLoad()

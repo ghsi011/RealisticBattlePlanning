@@ -29,6 +29,11 @@ namespace ModDebugKit.Io
         /// <summary>Default destination for <c>dbg.snapshot</c>.</summary>
         public string BattleState => Path.Combine(Root, "battle_state.json");
 
+        /// <summary>Structured end-of-battle outcome, overwritten at every mission end:
+        /// result + per-formation final counts/casualties. One Read replaces parsing
+        /// telemetry.jsonl for "who won and at what cost".</summary>
+        public string BattleResult => Path.Combine(Root, "battle_result.json");
+
         /// <summary>Continuous flight-recorder stream (M2).</summary>
         public string Telemetry => Path.Combine(Root, "telemetry.jsonl");
 
