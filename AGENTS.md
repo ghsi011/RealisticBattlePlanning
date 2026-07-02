@@ -133,7 +133,11 @@ unreliable when the game is driven over automation/remote (keystrokes and the
 open the planner. Instead `PlanningModeView` polls a sentinel file
 `Modules\RealisticBattlePlanning\Debug\planner.cmd` (inert in normal play) for
 one verb per write: `open｜close｜toggle｜reopen｜brushes｜shot <name>｜reshot <name>｜
-click <nx> <ny>｜rightclick <nx> <ny>`. Two wrapper scripts drive it:
+click <nx> <ny>｜rightclick <nx> <ny>｜drag <nx0> <ny0> <nx1> <ny1>｜apply｜
+removestage <slot>｜selectall｜patterns｜presets｜undo｜pick <i>` (`pick` invokes
+the i-th open picker option, so every picker flow — patterns, presets, signals,
+triggers — is file-drivable without pixel targeting). Two wrapper scripts
+drive it:
 
 - **`tools\map-iterate.ps1 <name>`** — one command per *visual* iteration on the
   map/panel: `deploy-ui` (hot-copy `Module\GUI\**`) → `brushes` (hot-reload
@@ -144,7 +148,11 @@ click <nx> <ny>｜rightclick <nx> <ny>`. Two wrapper scripts drive it:
   skip the GUI copy.
 - **`tools\respawn.ps1`** — one command for a *C# change*: `dev-relaunch.ps1`
   (kill → build+deploy → launch → dismiss safe-mode → pin window) then spawn a
-  `cav-clash` battle and wait for deployment. A loaded .NET assembly can't be
+  `cav-clash` battle and wait for deployment. Preset choice matters: in
+  `cav-clash` the player ATTACKS — the enemy is a vanilla Defender and turtles
+  (fine for authoring-UI work, useless for engagement). Use `-Preset m12`
+  (player Defender, stronger enemy Attacker) when the test needs the enemy to
+  actually advance into the plan — trap plays, EnemyCommits, combat outcomes. A loaded .NET assembly can't be
   hot-swapped, so C# still needs this (~90s); XML/brush use `map-iterate` only.
 - **`tools\crop-zoom.ps1 <name>`** — upscale the map-panel region of a capture so
   marker/glyph/rail detail is legible when Read.
@@ -155,6 +163,13 @@ VM, so select/place/remove are testable deterministically over the file channel
 and `tools\focus-game.ps1` still exist for manual use. In the dev console (when
 the keyboard works), `rbp.autobattle` spawns a field battle and `rbp.plan`
 toggles the editor. Keep the game open between iterations; close it when done.
+
+**Player-facing settings** live in `Modules\RealisticBattlePlanning\Config\
+rbp.cfg` (auto-created with commented defaults at first launch): rebindable
+keys (planKey/resumeKey/signalKey1-4) and `fidelity=auto|off|competence|fixed`
+(auto = Competence in campaigns, Off in custom battles/harness). Console
+`rbp.fidelity` is a session override on top. The first-open planner hint is
+gated by `Config\planner-seen.flag`; delete it to re-test onboarding.
 
 **Committing:** PowerShell here-strings mangle `-`, `/`, `!`, and `()` in a
 commit body — write the message to `COMMIT_MSG.tmp` (gitignored) and
