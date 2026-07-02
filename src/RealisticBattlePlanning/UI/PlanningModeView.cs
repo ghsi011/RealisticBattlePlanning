@@ -306,7 +306,8 @@ namespace RealisticBattlePlanning.UI
                 var hint = Mission?.Mode == MissionMode.Deployment
                     ? $"Edits apply live · {ToggleKey} to close"
                     : $"Apply commits · {ToggleKey} to close";
-                _dataSource = new PlanningModeVM("Battle Plan", hint, draft, ApplyEditedPlan, Hide, labels, geometry);
+                _dataSource = new PlanningModeVM("Battle Plan", hint, draft, ApplyEditedPlan, Hide, labels, geometry,
+                    FormationReader.CaptainNames(Mission?.PlayerTeam));
                 // First-ever open: a three-step orientation card over the map,
                 // dismissed once per install (R5 — the mod must teach itself).
                 try

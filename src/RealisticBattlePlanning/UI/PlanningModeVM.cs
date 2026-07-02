@@ -33,6 +33,8 @@ namespace RealisticBattlePlanning.UI
         // Composition label per slot for the formations that actually have troops
         // (e.g. {Infantry: "Ranged-Infantry"}). Empty/absent slots are not keys.
         private readonly Dictionary<PlannedFormationClass, string> _compositionLabels;
+        // Captain name per slot (campaign officers); absent = unnamed.
+        private readonly Dictionary<PlannedFormationClass, string> _captainNames;
 
         private string _titleText;
         private string _hintText;
@@ -80,12 +82,14 @@ namespace RealisticBattlePlanning.UI
         // KSP-style stage rail (A2.6.4/A2.6.5): the selected formation(s) stages as a vertical
         // list that follows the selection; multi-select shows shared stages in full colour.
         private MBBindingList<StageRailRowVM> _stageRail;
+        private MBBindingList<PathDotVM> _pathDots;
         private bool _hasStageRail;
         private string _stageRailTitle;
 
         public PlanningModeVM(string title, string hint, PlanDraft draft, Func<BattlePlan, bool> onApply, Action onClose,
             Dictionary<PlannedFormationClass, string> compositionLabels = null,
-            BattlefieldGeometry geometry = null)
+            BattlefieldGeometry geometry = null,
+            Dictionary<PlannedFormationClass, string> captainNames = null)
         {
             _titleText = title;
             _hintText = hint;
@@ -93,6 +97,7 @@ namespace RealisticBattlePlanning.UI
             _onApply = onApply;
             _onClose = onClose;
             _compositionLabels = compositionLabels ?? new Dictionary<PlannedFormationClass, string>();
+            _captainNames = captainNames ?? new Dictionary<PlannedFormationClass, string>();
             _geometry = geometry;
             // Resume the waypoint counter past any wp anchors the loaded plan already carries
             // (e.g. after Apply + reopen), so a fresh map click never collides with an existing
@@ -107,6 +112,7 @@ namespace RealisticBattlePlanning.UI
             _enemyMarkers = new MBBindingList<MapMarkerVM>();
             _anchorMarkers = new MBBindingList<MapMarkerVM>();
             _stageRail = new MBBindingList<StageRailRowVM>();
+            _pathDots = new MBBindingList<PathDotVM>();
             // Open on the map (the primary authoring surface, A2.6); falls back to the
             // list automatically when there's no live geometry (UpdateBodyVisibility).
             _showMap = true;
@@ -295,10 +301,15 @@ namespace RealisticBattlePlanning.UI
                 var cls = ordered[i].Key;
                 var mx = spread[i].X - MarkerSize / 2f;
                 var my = spread[i].Y - MarkerSize / 2f;
+                // "composition · Captain" when an officer is assigned (A2.2/D5:
+                // you entrust plans to people, not numbers).
+                var sub = _compositionLabels.TryGetValue(cls, out var l) ? l : cls.ToString();
+                if (_captainNames.TryGetValue(cls, out var captain))
+                    sub += " · " + captain;
                 _mapMarkers.Add(new MapMarkerVM(
                     x: mx, y: my,
                     label: SlotNumber(cls).ToString(),
-                    sub: _compositionLabels.TryGetValue(cls, out var l) ? l : cls.ToString(),
+                    sub: sub,
                     baseColor: _geometry.FriendlyColor,
                     onSelect: () => SelectFormation(cls),
                     isSelected: _selectedFormations.Contains(cls),
@@ -320,21 +331,79 @@ namespace RealisticBattlePlanning.UI
                     classIcon: cls.HasValue ? ClassIconSprite(cls.Value) : ""));
             }
 
+            var anchorDesign = new Dictionary<string, MapVec>(StringComparer.OrdinalIgnoreCase);
             foreach (var a in anchors)
             {
                 var p = projection.Project(AnchorDisplayPosition(a));
                 var acx = MapOffsetX + Clamp(p.X, 0.03f, 0.97f) * MapScale;
                 var acy = (1f - Clamp(p.Y, 0.03f, 0.97f)) * MapScale;
+                anchorDesign[a.Id] = new MapVec(acx, acy);
                 _anchorMarkers.Add(new MapMarkerVM(
                     x: acx - AnchorSize / 2f, y: acy - AnchorSize / 2f,
                     label: a.Id, sub: ""));
                 _anchorHits.Add((a.Id, acx, acy));
             }
 
+            BuildMarchPaths(_draft.Build(), ordered, spread, anchorDesign);
+
             SelectedText = _selectedFormations.Count == 0
                 ? "Click a formation number to select it, then click the map to add a move waypoint."
                 : "Selected:  " + string.Join(", ", _selectedFormations.OrderBy(c => (int)c).Select(SlotNumber))
                   + "    —    click the map to add a move waypoint (default: after the previous one).";
+        }
+
+        /// <summary>
+        /// A2.4/A2.6 legibility: each formation's planned march as a dotted route
+        /// on the parchment — marker → wp1 → wp2 in plan order — so the plan's
+        /// SHAPE reads at a glance instead of as isolated anchor dots. Dots
+        /// (fixed spacing along each segment) sidestep Gauntlet's lack of a line
+        /// primitive and read like a staff-map route. Selected formations draw
+        /// brighter.
+        /// </summary>
+        private void BuildMarchPaths(BattlePlan plan,
+            List<KeyValuePair<PlannedFormationClass, MapVec>> ordered,
+            IReadOnlyList<MapVec> spread,
+            Dictionary<string, MapVec> anchorDesign)
+        {
+            _pathDots.Clear();
+            const float dotSpacing = 11f;
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                var cls = ordered[i].Key;
+                var formationPlan = plan.Formations.FirstOrDefault(f => f.Formation == cls);
+                if (formationPlan == null)
+                    continue;
+
+                var current = spread[i];
+                var selected = _selectedFormations.Contains(cls);
+                foreach (var stage in formationPlan.Stages)
+                {
+                    if (stage.Do is not { } spec)
+                        continue;
+                    var waypointIds = spec.Path is { Count: > 0 }
+                        ? (IEnumerable<string>)spec.Path
+                        : spec.Anchor != null ? new[] { spec.Anchor } : null;
+                    if (waypointIds == null || spec.Type is not (DirectiveType.MoveTo or DirectiveType.FeignRetreat or DirectiveType.PullBack))
+                        continue;
+                    foreach (var id in waypointIds)
+                    {
+                        if (id == null || !anchorDesign.TryGetValue(id, out var target))
+                            continue;
+                        var delta = target - current;
+                        var length = delta.Length;
+                        if (length > dotSpacing)
+                        {
+                            var direction = delta.Normalized();
+                            for (var d = dotSpacing; d < length - 2f; d += dotSpacing)
+                            {
+                                var dot = current + direction * d;
+                                _pathDots.Add(new PathDotVM(dot.X - 2f, dot.Y - 2f, selected ? "#F0D890FF" : "#8A7B5ACC"));
+                            }
+                        }
+                        current = target;
+                    }
+                }
+            }
         }
 
         /// <summary>A single map position for an anchor. Scene anchors are absolute;
@@ -1111,8 +1180,39 @@ namespace RealisticBattlePlanning.UI
                 () => ApplyPattern(holdCharge: true));
             AddPickerOption("Skirmish, then withdraw to the rear on enemy contact", false,
                 () => ApplyPattern(holdCharge: false));
+            if (n >= 2)
+                AddPickerOption("FEIGNED RETREAT  —  mounted bait lure the enemy onto your infantry anvil (A6)", false,
+                    ApplyFeignedRetreat);
             PickerTitle = $"Insert pattern  ·  {n} selected formation(s)";
             PickerOpen = true;
+        }
+
+        // The A6 showpiece play. Roles come from live COMPOSITION (what a
+        // formation holds), not its slot name — the slot-vs-composition gotcha.
+        private void ApplyFeignedRetreat()
+        {
+            var selection = _selectedFormations.OrderBy(c => (int)c)
+                .Select(cls =>
+                {
+                    var label = _compositionLabels.TryGetValue(cls, out var l) ? l : cls.ToString();
+                    var mounted = label.IndexOf("Cavalry", StringComparison.OrdinalIgnoreCase) >= 0
+                                  || label.IndexOf("Horse", StringComparison.OrdinalIgnoreCase) >= 0;
+                    return (Cls: cls, Mounted: mounted);
+                })
+                .ToList();
+
+            var play = PlayBook.FeignedRetreat(_draft, selection);
+            if (!play.Ok)
+            {
+                StatusText = $"Feigned Retreat not inserted: {play.Problem}.";
+                ClosePicker();
+                return;
+            }
+            StatusText = $"Feigned Retreat: bait = {string.Join(", ", play.Bait.Select(SlotNumber))} (lure them in), " +
+                         $"anvil = {string.Join(", ", play.Anvil.Select(SlotNumber))} (hold, then spring). " +
+                         $"'{PlayBook.SpringTrapSignal}' also springs it by hand.";
+            ClosePicker();
+            Refresh();
         }
 
         private void ApplyPattern(bool holdCharge)
@@ -1487,6 +1587,7 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public MBBindingList<MapMarkerVM> MapMarkers { get => _mapMarkers; set { if (value != _mapMarkers) { _mapMarkers = value; OnPropertyChangedWithValue(value, "MapMarkers"); } } }
         [DataSourceProperty] public MBBindingList<MapMarkerVM> EnemyMarkers { get => _enemyMarkers; set { if (value != _enemyMarkers) { _enemyMarkers = value; OnPropertyChangedWithValue(value, "EnemyMarkers"); } } }
         [DataSourceProperty] public MBBindingList<MapMarkerVM> AnchorMarkers { get => _anchorMarkers; set { if (value != _anchorMarkers) { _anchorMarkers = value; OnPropertyChangedWithValue(value, "AnchorMarkers"); } } }
+        [DataSourceProperty] public MBBindingList<PathDotVM> PathDots { get => _pathDots; set { if (value != _pathDots) { _pathDots = value; OnPropertyChangedWithValue(value, "PathDots"); } } }
         [DataSourceProperty] public bool HasMap { get => _hasMap; set { if (value != _hasMap) { _hasMap = value; OnPropertyChangedWithValue(value, "HasMap"); } } }
         [DataSourceProperty] public bool ShowMapBody { get => _showMapBody; set { if (value != _showMapBody) { _showMapBody = value; OnPropertyChangedWithValue(value, "ShowMapBody"); } } }
         [DataSourceProperty] public bool ShowListBody { get => _showListBody; set { if (value != _showListBody) { _showListBody = value; OnPropertyChangedWithValue(value, "ShowListBody"); } } }
@@ -1612,6 +1713,21 @@ namespace RealisticBattlePlanning.UI
 
     /// <summary>One selectable row in a picker menu. Type pickers carry a one-line
     /// description (inline help); value pickers leave it blank.</summary>
+    /// <summary>One dot of a dotted march route on the parchment map (A2.6 legibility).</summary>
+    public sealed class PathDotVM : ViewModel
+    {
+        public PathDotVM(float x, float y, string color)
+        {
+            X = x;
+            Y = y;
+            Color = color;
+        }
+
+        [DataSourceProperty] public float X { get; }
+        [DataSourceProperty] public float Y { get; }
+        [DataSourceProperty] public string Color { get; }
+    }
+
     public sealed class PickerOptionVM : ViewModel
     {
         private readonly Action _onSelect;

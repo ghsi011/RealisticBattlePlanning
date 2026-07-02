@@ -67,5 +67,33 @@ namespace RealisticBattlePlanning.UI
 
             return labels;
         }
+
+        /// <summary>
+        /// Captain name per planned slot, for the map blocks (A2.2/D5: you plan
+        /// with OFFICERS, not anonymous numbers). Slots without an assigned
+        /// captain are omitted — mostly a campaign feature; custom-battle
+        /// formations usually have none during deployment.
+        /// </summary>
+        public static Dictionary<PlannedFormationClass, string> CaptainNames(Team team)
+        {
+            var names = new Dictionary<PlannedFormationClass, string>();
+            if (team == null)
+                return names;
+            try
+            {
+                foreach (var (planned, engine) in FormationClassMap.All)
+                {
+                    var captain = team.GetFormation(engine)?.Captain;
+                    var name = captain?.Name?.ToString();
+                    if (!string.IsNullOrEmpty(name))
+                        names[planned] = name;
+                }
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Reading formation captains failed; markers stay unnamed.", e);
+            }
+            return names;
+        }
     }
 }

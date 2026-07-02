@@ -368,6 +368,19 @@
                                     Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
                       </Children>
                     </ButtonWidget>
+                    <!-- dotted march routes (drawn under every marker) -->
+                    <ListPanel DataSource="{PathDots}" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                               HorizontalAlignment="Left" VerticalAlignment="Top" StackLayout.LayoutMethod="VerticalTopToBottom">
+                      <ItemTemplate>
+                        <Widget WidthSizePolicy="Fixed" SuggestedWidth="0" HeightSizePolicy="Fixed" SuggestedHeight="0">
+                          <Children>
+                            <Widget HorizontalAlignment="Left" VerticalAlignment="Top" PositionXOffset="@X" PositionYOffset="@Y"
+                                    WidthSizePolicy="Fixed" SuggestedWidth="4" HeightSizePolicy="Fixed" SuggestedHeight="4"
+                                    Sprite="BlankWhiteSquare_9" Color="@Color" />
+                          </Children>
+                        </Widget>
+                      </ItemTemplate>
+                    </ListPanel>
                     <!-- enemy markers (drawn first, under the friendly ones) -->
                     <ListPanel DataSource="{EnemyMarkers}" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
                                HorizontalAlignment="Left" VerticalAlignment="Top" StackLayout.LayoutMethod="VerticalTopToBottom">
