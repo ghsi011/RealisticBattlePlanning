@@ -159,6 +159,30 @@ namespace RealisticBattlePlanning.Execution
             return false;
         }
 
+        /// <summary>
+        /// Battle end (D4): the stage a formation is genuinely executing when
+        /// the battle concludes counts as completed. Advancing off a stage is
+        /// the only other completion path, so without this the plan's final
+        /// stage — and any single-stage plan — would never earn familiarity
+        /// XP. Deliberately not part of <see cref="Tick"/>: the engine calls
+        /// it once at battle end and feeds the events to progression only, so
+        /// recorded harness timelines are unchanged.
+        /// </summary>
+        public IReadOnlyList<PlanEvent> CompleteActiveStages()
+        {
+            var events = new List<PlanEvent>();
+            foreach (var state in _states)
+            {
+                if (state.Mode != FormationPlanMode.Active || state.Holding)
+                    continue;
+                if (state.ActiveStageIndex < 0)
+                    continue;
+                events.Add(new StageCompleted(state.Plan.Formation, state.ActiveStageIndex,
+                    state.Plan.Stages[state.ActiveStageIndex]));
+            }
+            return events;
+        }
+
         public IReadOnlyList<PlanEvent> Tick(IBattlefieldSnapshot snapshot)
         {
             var events = new List<PlanEvent>();
@@ -232,10 +256,41 @@ namespace RealisticBattlePlanning.Execution
                     continue;
 
                 state.Suspend(); // also drops any queued reaction — that was the plan's, not the player's
+                PurgeSustainStateFor(state);
                 events.Add(new PlanSuspended(state.Plan.Formation));
             }
 
             _pendingOverrides.Clear();
+        }
+
+        /// <summary>
+        /// Drops EnemyCommits sustain entries owned by a suspended formation's
+        /// conditions. Suspension stops their continuous evaluation, so an entry
+        /// would freeze at its pre-override value and the resume scan's read-only
+        /// peek could mistake a minutes-old one-second approach for "currently
+        /// holds" (and resume into a charge against a long-stationary enemy).
+        /// Keys are matched by the spec's reference identity — each TriggerSpec
+        /// instance belongs to exactly one formation's stages.
+        /// </summary>
+        private void PurgeSustainStateFor(FormationExecutionState state)
+        {
+            if (_sustainedSince.Count == 0)
+                return;
+
+            _staleSustainKeys.Clear();
+            foreach (var key in _sustainedSince.Keys)
+            {
+                foreach (var stage in state.Plan.Stages)
+                {
+                    if (stage.When.Contains(key.Spec))
+                    {
+                        _staleSustainKeys.Add(key);
+                        break;
+                    }
+                }
+            }
+            foreach (var key in _staleSustainKeys)
+                _sustainedSince.Remove(key);
         }
 
         private void ProcessResumes(IBattlefieldSnapshot snapshot, List<PlanEvent> events)
@@ -413,7 +468,7 @@ namespace RealisticBattlePlanning.Execution
         /// re-baseline at skip time. Phase 2 reaction delays layer on top of
         /// activation, never on trigger arming.
         /// </summary>
-        private void ActivateChecked(FormationExecutionState state, int startIndex, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        private void ActivateChecked(FormationExecutionState state, int startIndex, IBattlefieldSnapshot snapshot, List<PlanEvent> events, bool currentStageSkipped = false)
         {
             for (var i = startIndex; i < state.Plan.Stages.Count; i++)
             {
@@ -428,7 +483,7 @@ namespace RealisticBattlePlanning.Execution
                     // the way the resume/steering-skip paths do.)
                     if (i != startIndex)
                         state.CarryFidelity(FidelityProfile.Perfect);
-                    Activate(state, i, stage, snapshot, events);
+                    Activate(state, i, stage, snapshot, events, currentStageSkipped);
                     return;
                 }
                 events.Add(new StageSkipped(state.Plan.Formation, i, reason));
@@ -558,8 +613,10 @@ namespace RealisticBattlePlanning.Execution
             // activation this tick — return false). The opening posture (first
             // stage on battle start) is deployment, not a reaction to the
             // field, so it activates immediately — the lag is for responding
-            // to triggers.
-            var isOpeningPosture = state.ActiveStageIndex < 0 && stage.When.Count == 0;
+            // to triggers. An explicit BattleStart trigger is the same posture
+            // spelled out (mirrors SelectResumeStage's equivalence).
+            var isOpeningPosture = state.ActiveStageIndex < 0
+                && (stage.When.Count == 0 || stage.When.All(t => t != null && t.Type == TriggerType.BattleStart));
             var fidelity = isOpeningPosture ? FidelityProfile.Perfect : RollFidelity(state, nextIndex, events);
             if (fidelity.ReactionDelaySeconds > 0f)
             {
@@ -598,7 +655,7 @@ namespace RealisticBattlePlanning.Execution
             return false;
         }
 
-        private void Activate(FormationExecutionState state, int stageIndex, Stage stage, IBattlefieldSnapshot snapshot, List<PlanEvent> events)
+        private void Activate(FormationExecutionState state, int stageIndex, Stage stage, IBattlefieldSnapshot snapshot, List<PlanEvent> events, bool currentStageSkipped = false)
         {
             // Resolve the directive against the carried fidelity BEFORE adopting
             // the stage; BeginStage takes the finished directive and clears the
@@ -611,10 +668,14 @@ namespace RealisticBattlePlanning.Execution
             // emission below.
             var forwardActivation = state.ActiveStageIndex < 0 || stageIndex > state.ActiveStageIndex;
 
-            // Advancing off an earlier stage to a later one completes that stage
-            // (forward progress only — re-activation/resume of the same index, or a
-            // skip-to-hold, doesn't count; skipped stages get StageSkipped instead).
-            if (state.ActiveStageIndex >= 0 && stageIndex > state.ActiveStageIndex)
+            // Advancing off an earlier stage to a later one completes that stage —
+            // but only one that genuinely executed: not a stage the caller just
+            // skipped out of (steering invalidation emits StageSkipped for it), and
+            // not a hold index (EnterHold clamps onto a stage that never ran; a
+            // Completed for it would contradict its own StageSkipped and over-award
+            // progression XP).
+            if (state.ActiveStageIndex >= 0 && stageIndex > state.ActiveStageIndex
+                && !currentStageSkipped && !state.Holding)
                 events.Add(new StageCompleted(state.Plan.Formation, state.ActiveStageIndex,
                     state.Plan.Stages[state.ActiveStageIndex]));
 
@@ -964,7 +1025,7 @@ namespace RealisticBattlePlanning.Execution
                 // never with the previous stage's stale drift.
                 events.Add(new StageSkipped(state.Plan.Formation, state.ActiveStageIndex, SteeringReferenceGone(directive.Spec)));
                 state.CarryFidelity(FidelityProfile.Perfect);
-                ActivateChecked(state, state.ActiveStageIndex + 1, snapshot, events);
+                ActivateChecked(state, state.ActiveStageIndex + 1, snapshot, events, currentStageSkipped: true);
                 return;
             }
 

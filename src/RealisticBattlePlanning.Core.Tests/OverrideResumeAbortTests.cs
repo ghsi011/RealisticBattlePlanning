@@ -284,6 +284,68 @@ namespace RealisticBattlePlanning.Tests
             Assert.Single(fired.OfType<StageActivated>());
         }
 
+        [Fact]
+        public void ResumeDoesNotTrustSustainStateFrozenBySuspension()
+        {
+            // Suspension skips all condition evaluation, so an EnemyCommits
+            // sustain entry seeded before the override freezes at its
+            // pre-override value. The resume scan's read-only peek must not
+            // mistake that minutes-old one-second approach for "currently
+            // holds" — the enemy stopped long ago.
+            var monitor = new PlanMonitor(Plan(Formation(
+                PlannedFormationClass.Infantry,
+                StageOf(null, Hold()),
+                StageOf(new[] { new TriggerSpec { Type = TriggerType.EnemyCommits, SpeedThreshold = 2f, SustainSeconds = 4f } }, Charge()))));
+
+            // Enemy closes fast in range: the approach tracker seeds at t=1 and
+            // the sustain entry at t=2 (closing speed needs two samples).
+            monitor.Tick(Infantry(0f).WithEnemy(1, 0, 100));
+            monitor.Tick(Infantry(1f).WithEnemy(1, 0, 90));
+            monitor.Tick(Infantry(2f).WithEnemy(1, 0, 88));
+            monitor.NotifyPlayerOverride(PlannedFormationClass.Infantry);
+            monitor.Tick(Infantry(3f).WithEnemy(1, 0, 88)); // suspended; sustain entry would freeze here
+
+            // The enemy halts for a minute; then the player resumes.
+            monitor.RequestResume(PlannedFormationClass.Infantry);
+            var events = monitor.Tick(Infantry(60f).WithEnemy(1, 0, 88));
+
+            // EnemyCommits does not "currently hold": fall back to the suspended stage.
+            Assert.Equal(0, Assert.Single(events.OfType<PlanResumed>()).StageIndex);
+            Assert.Equal(0, Assert.Single(events.OfType<StageActivated>()).StageIndex);
+        }
+
+        // ---- battle end (D4) ----
+
+        [Fact]
+        public void CompleteActiveStagesCompletesOnlyGenuinelyExecutingStages()
+        {
+            // Infantry executes stage 0 to the end; Ranged is under player
+            // override; Cavalry skipped into a hold (its Screen target never
+            // fielded). Only Infantry's stage counts as completed at battle end.
+            var monitor = new PlanMonitor(Plan(
+                Formation(PlannedFormationClass.Infantry, StageOf(null, Hold())),
+                Formation(PlannedFormationClass.Ranged, StageOf(null, Hold())),
+                Formation(PlannedFormationClass.Cavalry,
+                    StageOf(null, new DirectiveSpec { Type = DirectiveType.Screen, Target = "HorseArcher", GapMeters = 25f }))));
+
+            var field = new FakeBattlefield(0f)
+                .WithOwn(PlannedFormationClass.Infantry, 0, 0)
+                .WithOwn(PlannedFormationClass.Ranged, 10, 0)
+                .WithOwn(PlannedFormationClass.Cavalry, 20, 0);
+            monitor.Tick(field);
+            monitor.NotifyPlayerOverride(PlannedFormationClass.Ranged);
+            monitor.Tick(new FakeBattlefield(1f)
+                .WithOwn(PlannedFormationClass.Infantry, 0, 0)
+                .WithOwn(PlannedFormationClass.Ranged, 10, 0)
+                .WithOwn(PlannedFormationClass.Cavalry, 20, 0));
+
+            var completed = monitor.CompleteActiveStages();
+
+            var single = Assert.Single(completed.OfType<StageCompleted>());
+            Assert.Equal(PlannedFormationClass.Infantry, single.Formation);
+            Assert.Equal(0, single.StageIndex);
+        }
+
         // ---- invalidation (B6) ----
 
         [Fact]
@@ -313,6 +375,58 @@ namespace RealisticBattlePlanning.Tests
             var activated = Assert.Single(events.OfType<StageActivated>());
             Assert.Equal(1, activated.StageIndex);
             Assert.Equal(DirectiveType.MoveTo, activated.Directive.Spec.Type);
+        }
+
+        [Fact]
+        public void ASkippedStageIsNotAlsoCompleted()
+        {
+            // Steering invalidation emits StageSkipped for the active stage and
+            // activates the next; the same stage must not ALSO get a
+            // StageCompleted — a contradictory event stream that would award
+            // failed-stage AND completed-stage progression XP at once.
+            var plan = Plan(
+                Formation(PlannedFormationClass.Cavalry,
+                    StageOf(null, new DirectiveSpec { Type = DirectiveType.Screen, Target = "Infantry", GapMeters = 25f }),
+                    StageOf(Timer(9999f), new DirectiveSpec { Type = DirectiveType.MoveTo, Anchor = "rear" })),
+                new MapAnchor { Id = "rear", Basis = AnchorBasis.TeamCenter, Forward = -40f });
+            var monitor = new PlanMonitor(plan);
+
+            monitor.Tick(new FakeBattlefield(0f)
+                .WithOwn(PlannedFormationClass.Cavalry, 0, 0)
+                .WithOwn(PlannedFormationClass.Infantry, 0, 20)
+                .WithEnemy(1, 0, 100));
+
+            // The escorted infantry is wiped out: skip forward, no completion.
+            var events = monitor.Tick(new FakeBattlefield(5f)
+                .WithOwn(PlannedFormationClass.Cavalry, 0, 10)
+                .WithEnemy(1, 0, 100));
+
+            Assert.Single(events.OfType<StageSkipped>());
+            Assert.Single(events.OfType<StageActivated>());
+            Assert.Empty(events.OfType<StageCompleted>());
+        }
+
+        [Fact]
+        public void LeavingAHoldDoesNotCompleteTheHeldStage()
+        {
+            // Stage 1 (Skirmish, no enemies) skips into a hold that clamps the
+            // index onto it. When an enemy appears and stage 2 activates, the
+            // held stage — which never executed — must not emit StageCompleted.
+            var monitor = new PlanMonitor(Plan(Formation(
+                PlannedFormationClass.Infantry,
+                StageOf(null, Hold()),
+                StageOf(Timer(5f), new DirectiveSpec { Type = DirectiveType.Skirmish }),
+                StageOf(Timer(1f), new DirectiveSpec { Type = DirectiveType.Skirmish }))));
+
+            monitor.Tick(Infantry(0f));
+            var holdTick = monitor.Tick(Infantry(6f)); // both skirmish stages inevaluable
+            Assert.Single(holdTick.OfType<PlanHolding>());
+            Assert.Empty(holdTick.OfType<StageCompleted>());
+
+            // An enemy appears: stage 2 becomes evaluable and activates.
+            var events = monitor.Tick(Infantry(8f).WithEnemy(1, 0, 60));
+            Assert.Single(events.OfType<StageActivated>());
+            Assert.Empty(events.OfType<StageCompleted>());
         }
 
         [Fact]

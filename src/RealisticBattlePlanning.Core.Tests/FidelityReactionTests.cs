@@ -92,6 +92,37 @@ namespace RealisticBattlePlanning.Tests
         }
 
         [Fact]
+        public void AnExplicitBattleStartOpenerActivatesInstantlyLikeTheImplicitForm()
+        {
+            // The opening posture is deployment, not a reaction (D3) — spelling
+            // it out as an explicit BattleStart trigger must not roll a
+            // reaction delay or drift, exactly like the implicit empty-When form.
+            var plan = new BattlePlan
+            {
+                Formations =
+                {
+                    new FormationPlan
+                    {
+                        Formation = PlannedFormationClass.Infantry,
+                        Stages =
+                        {
+                            new Stage
+                            {
+                                When = { new TriggerSpec { Type = TriggerType.BattleStart } },
+                                Do = new DirectiveSpec { Type = DirectiveType.Hold },
+                            },
+                        },
+                    },
+                },
+            };
+            var monitor = new PlanMonitor(plan, new FixedTierFidelityModel(FidelityTier.Untrained), seed: 1);
+
+            var first = monitor.Tick(Field(0f));
+            Assert.Single(first.OfType<StageActivated>());
+            Assert.Empty(first.OfType<ReactionDelayed>());
+        }
+
+        [Fact]
         public void CurrentDirectiveKeepsRunningDuringTheReactionDelay()
         {
             // While the commander is slow to react to stage 2, stage 1's

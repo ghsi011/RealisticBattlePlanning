@@ -261,6 +261,14 @@ namespace RealisticBattlePlanning.Execution
                 if (_progression != null && _deploymentFinished && !_battleCounted)
                 {
                     _battleCounted = true;
+                    // The stage each formation is still executing at battle end
+                    // counts as completed (D4) — advancing off a stage is the only
+                    // other completion path, so a plan's final stage (and any
+                    // single-stage plan) would otherwise never earn familiarity.
+                    // Fed to progression only, never recorded: harness timelines
+                    // are unchanged.
+                    if (_monitor != null)
+                        _progression.OnBattleEvents(_monitor.CompleteActiveStages(), _commanders);
                     _progression.OnBattleConcluded(_commanders);
                 }
             }

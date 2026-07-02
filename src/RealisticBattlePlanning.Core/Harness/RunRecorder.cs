@@ -111,12 +111,16 @@ namespace RealisticBattlePlanning.Harness
                     break;
 
                 case MoveTargetChanged moved:
+                    // WaypointIndex is the NEW (0-based) target; the waypoint just
+                    // reached is the one before it — 1-based, that's the index
+                    // itself. Recording the target's number instead reported
+                    // "reached waypoint 2" the moment waypoint 1 was reached.
                     _record.Events.Add(new RecordedEvent
                     {
                         TimeSeconds = time,
                         Formation = moved.Formation,
                         Kind = RecordedEventKind.WaypointReached,
-                        Waypoint = moved.WaypointIndex + 1,
+                        Waypoint = moved.WaypointIndex,
                     });
                     break;
 

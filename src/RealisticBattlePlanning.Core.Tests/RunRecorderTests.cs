@@ -92,8 +92,10 @@ namespace RealisticBattlePlanning.Tests
             Assert.Equal("moving", signal.Name);
             Assert.Equal(0f, signal.TimeSeconds, 3);
 
+            // At y=15 the formation is within tolerance of wp1 (y=20): the
+            // record must say waypoint 1 was reached, not the next target's number.
             var waypoint = record.Events.Single(e => e.Kind == RecordedEventKind.WaypointReached);
-            Assert.Equal(2, waypoint.Waypoint);
+            Assert.Equal(1, waypoint.Waypoint);
             Assert.Equal(10f, waypoint.TimeSeconds, 3);
         }
 
