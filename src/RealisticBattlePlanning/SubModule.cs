@@ -44,7 +44,18 @@ namespace RealisticBattlePlanning
             // private method with no event/extension point, the only justified patch).
             // Everything else rides vanilla events (e.g. order-override detection uses
             // OrderController.OnOrderIssued, not a patch).
-            Harmony.PatchAll(typeof(SubModule).Assembly);
+            // Guarded: the patch is a camera-comfort feature the mod runs fine
+            // without, so a game update that removes/renames the target must degrade
+            // to a readable log line (the contract check's whole point), not a
+            // startup crash.
+            try
+            {
+                Harmony.PatchAll(typeof(SubModule).Assembly);
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("Harmony patching failed; deployment-camera reach stays vanilla this session.", e);
+            }
 
             UIExtender.Register(typeof(SubModule).Assembly);
             UIExtender.Enable();

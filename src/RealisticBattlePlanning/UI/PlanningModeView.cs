@@ -3,6 +3,7 @@ using RealisticBattlePlanning.Diagnostics;
 using RealisticBattlePlanning.Execution;
 using RealisticBattlePlanning.Planning.Editing;
 using RealisticBattlePlanning.Planning.Model;
+using TaleWorlds.Core;
 using TaleWorlds.Engine.GauntletUI;
 using TaleWorlds.GauntletUI.Data;
 using TaleWorlds.InputSystem;
@@ -18,13 +19,15 @@ namespace RealisticBattlePlanning.UI
     /// <summary>
     /// Planning Mode editor (spec A1/A3): during the deployment phase of a
     /// plannable battle, the toggle key opens an interactive panel over a deep
-    /// copy of the loaded plan (PlanDraft). The player adds/removes formations
-    /// and stages and clicks Apply to commit — at which point the edited plan
-    /// governs this battle. Edits never touch the live plan until Apply, so
-    /// closing without applying discards them. The layer takes input focus
-    /// while open (deployment is already paused, A1.1) and releases it on
-    /// close. Every Gauntlet call is guarded — a UI fault must never take the
-    /// mission down.
+    /// copy of the loaded plan (PlanDraft). During deployment every valid edit
+    /// commits to the live plan immediately (nothing is executing yet, so the
+    /// sync is free and "what you see is what will execute" — the field ghosts
+    /// agree with the parchment). Mid-battle, edits stay in the draft until
+    /// Apply (re-applying rebuilds the monitor and resets live formation
+    /// state), so closing without applying discards them. The layer takes
+    /// input focus while open (deployment is already paused, A1.1) and
+    /// releases it on close. Every Gauntlet call is guarded — a UI fault must
+    /// never take the mission down.
     /// </summary>
     public sealed class PlanningModeView : MissionView
     {
@@ -246,6 +249,17 @@ namespace RealisticBattlePlanning.UI
                 return;
             try
             {
+                // G6: no planner in a battle the player does not command — the
+                // apply seam would refuse anyway, but opening a dead editor is
+                // just confusing.
+                if (_planLogic is not { Plannable: true })
+                {
+                    RbpLog.Info("Planning Mode unavailable: the player does not command this battle.");
+                    InformationManager.DisplayMessage(new InformationMessage(
+                        "Battle planning is unavailable — you don't command this battle.", Colors.Yellow));
+                    return;
+                }
+
                 // The view's MissionScreen property can be null: when we add
                 // the view at OnMissionBehaviorInitialize, the screen's
                 // RegisterView pass (which sets it) has already run, so only
@@ -274,7 +288,11 @@ namespace RealisticBattlePlanning.UI
                             draft.RemoveFormation(f);
                 // Live deployment geometry for the battlefield map view.
                 var geometry = BattlefieldReader.Read(Mission?.PlayerTeam);
-                _dataSource = new PlanningModeVM("Battle Plan", $"{ToggleKey} to close", draft, ApplyEditedPlan, Hide, labels, geometry);
+                // During deployment edits commit live; mid-battle they wait for Apply.
+                var hint = Mission?.Mode == MissionMode.Deployment
+                    ? $"Edits apply live · {ToggleKey} to close"
+                    : $"Apply commits · {ToggleKey} to close";
+                _dataSource = new PlanningModeVM("Battle Plan", hint, draft, ApplyEditedPlan, Hide, labels, geometry);
                 // Route bare-canvas map clicks (the custom MapCanvasWidget) into the VM's
                 // point-and-click move authoring. Cleared in Hide so a stale closure can't fire.
                 MapCanvasWidget.Clicked = (x, y) => _dataSource?.OnMapClicked(x, y);
@@ -307,17 +325,19 @@ namespace RealisticBattlePlanning.UI
         }
 
         // Apply callback handed to the VM: commit the edited plan to the
-        // mission so it governs this battle. Guarded — an apply fault must not
-        // crash the panel or the mission.
-        private void ApplyEditedPlan(BattlePlan plan)
+        // mission so it governs this battle. Returns whether it took — the VM
+        // keeps the editing session alive on failure. Guarded — an apply fault
+        // must not crash the panel or the mission.
+        private bool ApplyEditedPlan(BattlePlan plan)
         {
             try
             {
-                _planLogic?.ApplyPlan(plan);
+                return _planLogic?.ApplyPlan(plan) == true;
             }
             catch (Exception e)
             {
                 RbpLog.Error("[FAULT] Applying the edited plan failed.", e);
+                return false;
             }
         }
 

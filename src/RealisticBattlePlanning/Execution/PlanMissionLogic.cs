@@ -77,6 +77,11 @@ namespace RealisticBattlePlanning.Execution
         /// raises the competence the fidelity model rolls against next time.
         /// </summary>
         private ProgressionService _progression;
+        // G6: the AfterStart plannability gate's verdict. ApplyPlan honours it so
+        // the planner (whose views attach on the looser CheckOnAttach) can never
+        // revive the deliberately-inert logic in a battle the player does not
+        // command — hijacking the AI general's formations and colliding with RBM.
+        private bool _plannable;
         private bool _battleCounted;
         private bool _deploymentFinished;
         private bool _isHarnessRun;
@@ -125,6 +130,7 @@ namespace RealisticBattlePlanning.Execution
                     RbpLog.Info($"Plan logic stays inert: {reason}.");
                     return;
                 }
+                _plannable = true;
 
                 var harnessPlan = HarnessSession.PlanForNextBattle();
                 _isHarnessRun = harnessPlan != null;
@@ -679,16 +685,28 @@ namespace RealisticBattlePlanning.Execution
         internal static string SessionKey()
             => Campaign.Current is { } campaign ? "campaign:" + campaign.UniqueGameId : "custom";
 
-        internal void ApplyPlan(BattlePlan newPlan)
+        /// <summary>True when the plannability gate passed for this mission (G6).</summary>
+        internal bool Plannable => _plannable;
+
+        /// <summary>Returns whether the plan now governs the battle.</summary>
+        internal bool ApplyPlan(BattlePlan newPlan)
         {
             if (newPlan == null)
-                return;
+                return false;
+            if (!_plannable)
+            {
+                RbpLog.Warn("Apply refused: the player does not command this battle (G6).");
+                return false;
+            }
             try
             {
-                _plan = newPlan;
+                // Own a private copy: the editor keeps mutating its draft after
+                // handing the plan over, and the monitor holds the reference —
+                // aliasing would let un-applied edits reach execution unvalidated.
+                _plan = PlanSerializer.DeepCopy(newPlan);
                 // Carry the applied plan to the next battle of this session (spec Area G),
                 // keyed to the game identity so it can't leak into a different game.
-                SessionPlanStore.Set(SessionKey(), newPlan);
+                SessionPlanStore.Set(SessionKey(), _plan);
                 _fidelityActive = FidelityConfig.Enabled;
                 _monitor = new PlanMonitor(_plan, FidelityConfig.CreateModel(), BattleSeed());
                 // A battle that started blank never ran AfterStart's executor init (it returns early
@@ -709,10 +727,12 @@ namespace RealisticBattlePlanning.Execution
                     // the editor has created one, subscribe (idempotent).
                     SubscribeToPlayerOrders();
                 }
+                return true;
             }
             catch (Exception e)
             {
                 RbpLog.Error("[FAULT] Applying the edited plan failed.", e);
+                return false;
             }
         }
 

@@ -28,7 +28,11 @@ namespace RealisticBattlePlanning.Harness
         private string _result;
         private float? _battleStartSeconds;
         private float _battleTimeSeconds;
-        private float _clockSeconds;
+        // Genuinely wall-clock (Stopwatch): OnMissionTick's dt is MISSION time —
+        // scaled ~9x under fast-forward and frozen on pause — so accumulating it
+        // made the "wall-clock" cap fire at ~180 battle-seconds (truncating slow
+        // scenarios whose assertion windows reach 240s) and never during a pause.
+        private System.Diagnostics.Stopwatch _realClock;
         private bool _deployed;
         private bool _resolved;
         private bool _forceEnd;
@@ -74,6 +78,7 @@ namespace RealisticBattlePlanning.Harness
                 return;
 
             _deployed = true; // the wall-clock backstop runs from here (monitor-independent)
+            _realClock = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 Mission.SetFastForwardingFromUI(true);
@@ -123,7 +128,9 @@ namespace RealisticBattlePlanning.Harness
                 RbpLog.Error("[FAULT] Harness recorder tick failed; recording stops.", e);
                 Unsubscribe();
                 _recorder = null;
-                _scenario = null;
+                // _scenario deliberately stays set: OnMissionTick early-returns on a
+                // null scenario, so nulling it here would dead-code the _forceEnd
+                // auto-leave below and wedge the run at fast-forward forever.
                 _forceEnd = true; // a dead recorder must still let the auto-leave tear the mission down
             }
         }
@@ -148,29 +155,28 @@ namespace RealisticBattlePlanning.Harness
         /// scenario's clock runs out, the recorder faulted, or a wall-clock
         /// backstop trips — rather than waiting for a manual Victory -> Done.
         /// FinalizeRun then evaluates and writes results. The wall-clock
-        /// backstop (RealTimeCapSeconds) is driven by this tick's dt, NOT the
-        /// monitor feed, so a plan fault that kills the feed can't wedge the run
-        /// at fast-forward forever.
+        /// backstop (RealTimeCapSeconds) is a real Stopwatch, independent of
+        /// both the monitor feed and mission-time scaling, so a plan fault that
+        /// kills the feed — or a pause — can't wedge the run forever.
         /// </summary>
         public override void OnMissionTick(float dt)
         {
             base.OnMissionTick(dt);
             if (_ended || _scenario == null)
                 return;
-            if (_deployed)
-                _clockSeconds += dt;
+            var realSeconds = _deployed && _realClock != null ? (float)_realClock.Elapsed.TotalSeconds : 0f;
 
             var limit = _scenario.TimeLimitSeconds ?? 0f;
             var timeUp = (limit > 0f && _battleTimeSeconds >= limit)
                          || _battleTimeSeconds >= BattleTimeCapSeconds
-                         || _clockSeconds >= RealTimeCapSeconds;
+                         || realSeconds >= RealTimeCapSeconds;
             if (!_resolved && !_forceEnd && !timeUp)
                 return;
 
             _ended = true;
             var why = _resolved ? _result
                 : _forceEnd ? "recorder faulted"
-                : _clockSeconds >= RealTimeCapSeconds ? $"{_clockSeconds:0}s wall-clock cap"
+                : realSeconds >= RealTimeCapSeconds ? $"{realSeconds:0}s wall-clock cap"
                 : $"{_battleTimeSeconds:0}s battle elapsed";
             RbpLog.Info($"Harness: '{_scenario.Name}' finished ({why}); ending the mission.");
             try

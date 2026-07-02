@@ -24,8 +24,12 @@ namespace RealisticBattlePlanning.UI
     public sealed class PlanningModeVM : ViewModel
     {
         private readonly PlanDraft _draft;
-        private readonly Action<BattlePlan> _onApply;
+        private readonly Func<BattlePlan, bool> _onApply;
         private readonly Action _onClose;
+        // JSON of the last successfully live-synced plan: Refresh() syncs on every
+        // draft edit during deployment, and this dedup keeps unchanged plans (pure
+        // selection/view changes) from re-applying — no monitor churn, no log spam.
+        private string _lastSyncedPlanJson;
         // Composition label per slot for the formations that actually have troops
         // (e.g. {Infantry: "Ranged-Infantry"}). Empty/absent slots are not keys.
         private readonly Dictionary<PlannedFormationClass, string> _compositionLabels;
@@ -76,7 +80,7 @@ namespace RealisticBattlePlanning.UI
         private bool _hasStageRail;
         private string _stageRailTitle;
 
-        public PlanningModeVM(string title, string hint, PlanDraft draft, Action<BattlePlan> onApply, Action onClose,
+        public PlanningModeVM(string title, string hint, PlanDraft draft, Func<BattlePlan, bool> onApply, Action onClose,
             Dictionary<PlannedFormationClass, string> compositionLabels = null,
             BattlefieldGeometry geometry = null)
         {
@@ -91,6 +95,9 @@ namespace RealisticBattlePlanning.UI
             // (e.g. after Apply + reopen), so a fresh map click never collides with an existing
             // id — AddAnchor no-ops on a duplicate id, which would silently re-use the old point.
             _waypointCounter = MaxWaypointNumber(draft?.Build().Anchors);
+            // The draft opens as a copy of the live plan: seed the sync dedup so
+            // opening the panel (or pure selection clicks) never re-applies it.
+            _lastSyncedPlanJson = draft != null ? PlanSerializer.Serialize(draft.Build()) : null;
             _formations = new MBBindingList<FormationPlanItemVM>();
             _pickerOptions = new MBBindingList<PickerOptionVM>();
             _mapMarkers = new MBBindingList<MapMarkerVM>();
@@ -194,6 +201,10 @@ namespace RealisticBattlePlanning.UI
             ErrorsText = HasErrors ? $"{validation.Errors.Count} error(s):   " + string.Join("      ", validation.Errors) : "";
             HasWarnings = validation.Warnings.Count > 0;
             WarningsText = HasWarnings ? $"{validation.Warnings.Count} warning(s):   " + string.Join("      ", validation.Warnings) : "";
+
+            // Deployment-time edits go live immediately (dedup inside makes this
+            // a no-op for pure selection/view refreshes).
+            LiveSyncDuringDeployment(plan, !HasErrors);
         }
 
         // Projects the live deployment geometry into the map view: one marker per
@@ -358,13 +369,21 @@ namespace RealisticBattlePlanning.UI
             Refresh();
         }
 
-        // Clicking a rail row opens the directive picker for that stage on the first selected
-        // formation — quick edits without leaving the map (deeper edits use the list view).
+        // Clicking a rail row opens the directive picker for that stage — quick edits
+        // without leaving the map (deeper edits use the list view). With a ragged
+        // multi-select the row renders the first selection that HAS a stage at this
+        // index, so edit that one (blindly using the first selected formation made
+        // rows beyond its shorter plan dead clicks).
         private void EditRailRow(int index)
         {
-            if (_selectedFormations.Count == 0)
-                return;
-            OpenDirectivePicker(_selectedFormations.OrderBy(c => (int)c).First(), index);
+            foreach (var cls in _selectedFormations.OrderBy(c => (int)c))
+            {
+                if (_draft.StagesOf(cls).Count > index)
+                {
+                    OpenDirectivePicker(cls, index);
+                    return;
+                }
+            }
         }
 
         // A click on the map canvas (A2.6.1/A2.6.2). nx/ny are normalized canvas coords,
@@ -396,7 +415,6 @@ namespace RealisticBattlePlanning.UI
             foreach (var cls in _selectedFormations.OrderBy(c => (int)c))
                 MapAuthoring.AppendMarchStage(_draft, cls, world, $"{WaypointAnchorPrefix}{++_waypointCounter}");
             Refresh();
-            LiveSyncDuringDeployment();
         }
 
         // A right-click on the map (A2.6.2): remove the click-placed waypoint nearest the
@@ -421,7 +439,6 @@ namespace RealisticBattlePlanning.UI
                 PruneOrphanedWaypoints();
                 StatusText = $"Removed waypoint '{nearest}'.";
                 Refresh();
-                LiveSyncDuringDeployment();
             }
         }
 
@@ -460,7 +477,6 @@ namespace RealisticBattlePlanning.UI
             MapAuthoring.AppendLineFormation(_draft, selection, a, b, _ => $"{WaypointAnchorPrefix}{++_waypointCounter}");
             StatusText = $"Arrayed {selection.Count} formation(s) along a line.";
             Refresh();
-            LiveSyncDuringDeployment();
         }
 
         /// <summary>Prefix for the Scene anchors a map click auto-creates (A2.6.2): "wp1",
@@ -494,22 +510,27 @@ namespace RealisticBattlePlanning.UI
         private void PruneOrphanedWaypoints() => _draft.RemoveUnreferencedAnchors(IsAutoWaypointAnchor);
 
         /// <summary>
-        /// During deployment the field-planning view (FieldDeploymentPlanView) mirrors the LIVE
-        /// plan, so a direct waypoint edit on the parchment map (add / remove / array) or a removed
-        /// stage must reach it at once — the field gesture already applies on commit, and the two
-        /// surfaces have to agree (else a waypoint deleted on the parchment leaves its field flags
-        /// standing). Apply is otherwise deferred to the button because re-applying mid-battle
-        /// rebuilds the monitor and resets live formation state; during deployment nothing is
-        /// executing, so the sync is free. An invalid draft is skipped, so the field keeps its last
-        /// good state until the edit is valid (the Apply button still reports the blocker).
+        /// During deployment EVERY valid draft edit commits to the live plan at once (called from
+        /// Refresh, which every mutation funnels through): nothing is executing yet, so the sync is
+        /// free, the field-planning view (which mirrors the LIVE plan) always agrees with the
+        /// parchment, and "close = keep what you see" holds uniformly — no edit is silently lost by
+        /// closing without Apply. Mid-battle the sync is off (re-applying rebuilds the monitor and
+        /// resets live formation state), so edits stay in the draft until the Apply button. An
+        /// invalid draft is skipped — the live plan keeps its last good state and the footer names
+        /// the blocker. The JSON dedup keeps unchanged plans (selection/view clicks) from
+        /// re-applying.
         /// </summary>
-        private void LiveSyncDuringDeployment()
+        private void LiveSyncDuringDeployment(BattlePlan plan, bool isValid)
         {
+            if (!isValid)
+                return;
             if (TaleWorlds.MountAndBlade.Mission.Current?.Mode != TaleWorlds.Core.MissionMode.Deployment)
                 return;
-            var plan = _draft.Build();
-            if (PlanValidator.Validate(plan).IsValid)
-                _onApply?.Invoke(plan);
+            var json = PlanSerializer.Serialize(plan);
+            if (json == _lastSyncedPlanJson)
+                return;
+            if (_onApply?.Invoke(plan) == true)
+                _lastSyncedPlanJson = json;
         }
 
         /// <summary>Dev/test hook (planner.cmd "removestage &lt;slot&gt;"): remove a formation's last
@@ -560,7 +581,6 @@ namespace RealisticBattlePlanning.UI
             PruneOrphanedWaypoints();
             StatusText = $"Removed a stage from Formation {SlotNumber(cls)}.";
             Refresh();
-            LiveSyncDuringDeployment();
         }
 
         // Drops a formation's whole plan; the card stays (it has troops) but
@@ -571,7 +591,6 @@ namespace RealisticBattlePlanning.UI
             PruneOrphanedWaypoints();
             StatusText = $"Formation {SlotNumber(cls)} cleared — now uncommanded.";
             Refresh();
-            LiveSyncDuringDeployment();
         }
 
         // Stages execute strictly in order (A3.3); ▲/▼ reorder them.
@@ -1205,7 +1224,14 @@ namespace RealisticBattlePlanning.UI
                 StatusText = "Can't apply — " + validation.Errors[0];
                 return;
             }
-            _onApply?.Invoke(plan);
+            if (_onApply?.Invoke(plan) != true)
+            {
+                // Keep the editing session alive: an engine apply fault (or a
+                // battle the player doesn't command) must not silently destroy
+                // the player's work by closing and discarding the draft.
+                StatusText = "Apply failed — the plan was not committed (see rbp.log).";
+                return;
+            }
             // Close on success: re-Applying would rebuild the monitor and reset
             // live formation state. The player reopens to edit further.
             _onClose?.Invoke();
