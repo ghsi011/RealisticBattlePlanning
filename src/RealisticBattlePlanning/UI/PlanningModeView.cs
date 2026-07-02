@@ -96,6 +96,12 @@ namespace RealisticBattlePlanning.UI
             {
                 if (TaleWorlds.InputSystem.Input.IsKeyPressed(ToggleKey))
                     Toggle();
+                // Escape closes the panel like any game window (deployment edits
+                // are already committed live, so close never loses work). Polled
+                // on the focused layer's input context so the game's escape menu
+                // doesn't also fire.
+                else if (_shown && _layer != null && _layer.Input.IsKeyPressed(InputKey.Escape))
+                    Hide();
             }
             catch (Exception e)
             {
@@ -169,6 +175,9 @@ namespace RealisticBattlePlanning.UI
                     case "drag": DevDrag(arg); break;
                     case "apply": _dataSource?.ExecuteApply(); break;
                     case "removestage" when int.TryParse(arg, out var rmSlot): _dataSource?.DevRemoveStage(rmSlot); break;
+                    case "selectall": _dataSource?.ExecuteSelectAll(); break;
+                    case "patterns": _dataSource?.ExecuteEditPatterns(); break;
+                    case "pick" when int.TryParse(arg, out var optIndex): _dataSource?.DevPickOption(optIndex); break;
                     case "shot": Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     case "reshot": Hide(); Show(); Diagnostics.ScreenshotCommand.CaptureNamed(arg); break;
                     default: RbpLog.Info($"[DEV] planner.cmd: unknown verb '{verb}'."); return;
@@ -234,6 +243,9 @@ namespace RealisticBattlePlanning.UI
                 RbpLog.Error("[DEV] brush reload failed.", e);
             }
         }
+
+        /// <summary>True while the editor panel is open (the HUD hides its entry chip then).</summary>
+        internal bool IsShown => _shown;
 
         internal void Toggle()
         {

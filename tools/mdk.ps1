@@ -19,10 +19,11 @@
   tools\mdk.ps1 -TimeoutSec 60 dbg.battle cav-clash
   $r = tools\mdk.ps1 dbg.exec rbp.plan_status; $r.data
 #>
+[CmdletBinding()]
 param(
+  [Parameter(Mandatory=$true, Position=0, ValueFromRemainingArguments=$true)][string[]]$Command,
   [int]$TimeoutSec = 30,
-  [switch]$AllowFail,
-  [Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)][string[]]$Command
+  [switch]$AllowFail
 )
 $ErrorActionPreference = 'Stop'
 

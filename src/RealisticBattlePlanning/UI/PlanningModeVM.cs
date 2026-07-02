@@ -37,6 +37,7 @@ namespace RealisticBattlePlanning.UI
         private string _titleText;
         private string _hintText;
         private string _signalsText;
+        private string _patternsText;
         private string _anchorsText;
         private string _statusText;
         private string _warningsText;
@@ -184,6 +185,10 @@ namespace RealisticBattlePlanning.UI
             BuildStageRail();
             UpdateBodyVisibility();
 
+            PatternsText = _selectedFormations.Count > 0
+                ? $"PATTERNS    (click to insert a ready-made maneuver into the {_selectedFormations.Count} selected formation(s))"
+                : "PATTERNS    (select formations on the map, then click to insert a ready-made maneuver)";
+
             SignalsText = plan.PlayerSignals.Count > 0
                 ? "SIGNALS    " + string.Join("     ", plan.PlayerSignals.Select(s => $"[ {s} ]")) + "        (click to manage)"
                 : "SIGNALS    (none — click to add player signals)";
@@ -262,13 +267,16 @@ namespace RealisticBattlePlanning.UI
                 _markerHits.Add((cls, mx, my, MarkerSize));
             }
 
-            foreach (var (pos, cls) in _geometry.EnemyFormations)
+            foreach (var (pos, cls, count) in _geometry.EnemyFormations)
             {
                 var p = projection.Project(pos);
+                // Strength rounded to tens: informed planning without pretending
+                // the scouts counted every man (A2.1 fog-of-war feel).
+                var strength = count > 0 ? "~" + Math.Max(10, (int)Math.Round(count / 10.0) * 10) : "";
                 _enemyMarkers.Add(new MapMarkerVM(
                     x: MapOffsetX + Clamp(p.X, 0.05f, 0.95f) * MapScale - EnemySize / 2f,
                     y: (1f - Clamp(p.Y, 0.05f, 0.95f)) * MapScale - EnemySize / 2f,
-                    label: "", sub: "",
+                    label: "", sub: strength,
                     baseColor: _geometry.EnemyColor,
                     classIcon: cls.HasValue ? ClassIconSprite(cls.Value) : ""));
             }
@@ -316,6 +324,28 @@ namespace RealisticBattlePlanning.UI
         {
             ShowMapBody = _showMap && HasMap;
             ShowListBody = HasPlan && !ShowMapBody;
+        }
+
+        // "All" chip (A3.6 speed): one click selects every formation on the map, so
+        // "everyone, form a line there" is a two-gesture plan. Click again to clear.
+        public void ExecuteSelectAll()
+        {
+            IReadOnlyList<PlannedFormationClass> all = _geometry != null && _geometry.HasFormations
+                ? _geometry.FormationPositions.Keys.ToList()
+                : _draft.Formations;
+            if (_selectedFormations.Count == all.Count)
+            {
+                _selectedFormations.Clear();
+                StatusText = "Selection cleared.";
+            }
+            else
+            {
+                _selectedFormations.Clear();
+                foreach (var cls in all)
+                    _selectedFormations.Add(cls);
+                StatusText = $"All {all.Count} formation(s) selected — click or drag on the map to command them together.";
+            }
+            Refresh();
         }
 
         // Map marker click (A2.6.1): toggle this formation in the selection, so the
@@ -531,6 +561,19 @@ namespace RealisticBattlePlanning.UI
                 return;
             if (_onApply?.Invoke(plan) == true)
                 _lastSyncedPlanJson = json;
+        }
+
+        /// <summary>Dev/test hook (planner.cmd "pick &lt;i&gt;"): invoke the i-th (0-based) open picker
+        /// option, so every picker flow (patterns, signals, anchors, triggers, directives) is
+        /// drivable over the file channel without pixel-targeting Gauntlet buttons.</summary>
+        internal void DevPickOption(int index)
+        {
+            if (!PickerOpen || index < 0 || index >= _pickerOptions.Count)
+            {
+                StatusText = $"pick: no open picker option #{index}.";
+                return;
+            }
+            _pickerOptions[index].ExecuteSelect();
         }
 
         /// <summary>Dev/test hook (planner.cmd "removestage &lt;slot&gt;"): remove a formation's last
@@ -915,6 +958,53 @@ namespace RealisticBattlePlanning.UI
         private void AddPickerOption(string label, bool isCurrent, Action set) =>
             _pickerOptions.Add(new PickerOptionVM(label, isCurrent, set));
 
+        // ---- pattern inserts (A3.9/R4: the complexity shield — a competent
+        // multi-stage plan in two clicks). Applied to the map selection so the
+        // flow is: select formations → PATTERNS → pick one.
+
+        public void ExecuteEditPatterns()
+        {
+            if (_selectedFormations.Count == 0)
+            {
+                StatusText = "Select formations first — click their numbers on the map (or All), then insert a pattern.";
+                return;
+            }
+            var n = _selectedFormations.Count;
+            _pickerOptions.Clear();
+            AddPickerOption("Hold, then charge on signal 'charge'      (fire it in battle with Numpad1)", false,
+                () => ApplyPattern(holdCharge: true));
+            AddPickerOption("Skirmish, then withdraw to the rear on enemy contact", false,
+                () => ApplyPattern(holdCharge: false));
+            PickerTitle = $"Insert pattern  ·  {n} selected formation(s)";
+            PickerOpen = true;
+        }
+
+        private void ApplyPattern(bool holdCharge)
+        {
+            var selection = _selectedFormations.OrderBy(c => (int)c).ToList();
+            foreach (var cls in selection)
+            {
+                Stage[] stages;
+                if (holdCharge)
+                {
+                    _draft.DeclarePlayerSignal("charge");
+                    stages = EditorDefaults.HoldThenChargeOnSignal("charge");
+                }
+                else
+                {
+                    // A shared relative anchor: adapts to any battlefield (TeamCenter
+                    // basis), reused if it already exists (AddAnchor no-ops on a dup id).
+                    _draft.AddAnchor(new MapAnchor { Id = "rear", Basis = AnchorBasis.TeamCenter, Forward = -60f });
+                    stages = EditorDefaults.SkirmishThenWithdraw("rear");
+                }
+                foreach (var stage in stages)
+                    _draft.AddStage(cls, stage);
+            }
+            StatusText = $"Pattern inserted into formation(s) {string.Join(", ", selection.Select(SlotNumber))}.";
+            ClosePicker();
+            Refresh();
+        }
+
         private void ShowParamPicker(PlannedFormationClass cls, int stageIndex, string line, string param)
         {
             if (_pickerOptions.Count == 0) { ClosePicker(); return; }
@@ -1245,6 +1335,7 @@ namespace RealisticBattlePlanning.UI
         [DataSourceProperty] public bool HasStatus { get => _hasStatus; set { if (value != _hasStatus) { _hasStatus = value; OnPropertyChangedWithValue(value, "HasStatus"); } } }
         [DataSourceProperty] public string TitleText { get => _titleText; set { if (value != _titleText) { _titleText = value; OnPropertyChangedWithValue(value, "TitleText"); } } }
         [DataSourceProperty] public string HintText { get => _hintText; set { if (value != _hintText) { _hintText = value; OnPropertyChangedWithValue(value, "HintText"); } } }
+        [DataSourceProperty] public string PatternsText { get => _patternsText; set { if (value != _patternsText) { _patternsText = value; OnPropertyChangedWithValue(value, "PatternsText"); } } }
         [DataSourceProperty] public string SignalsText { get => _signalsText; set { if (value != _signalsText) { _signalsText = value; OnPropertyChangedWithValue(value, "SignalsText"); } } }
         [DataSourceProperty] public string AnchorsText { get => _anchorsText; set { if (value != _anchorsText) { _anchorsText = value; OnPropertyChangedWithValue(value, "AnchorsText"); } } }
         [DataSourceProperty] public string WarningsText { get => _warningsText; set { if (value != _warningsText) { _warningsText = value; OnPropertyChangedWithValue(value, "WarningsText"); } } }

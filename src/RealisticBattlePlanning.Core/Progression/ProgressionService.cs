@@ -96,6 +96,19 @@ namespace RealisticBattlePlanning.Progression
             return ProgressionModel.ProfileFor(record, tactics, leadership);
         }
 
+        /// <summary>Total familiarity XP (battle + drill) for a commander — the AAR's
+        /// battle-delta read. 0 for a None key or a commander with no record yet.</summary>
+        public float FamiliarityXpOf(CommanderKey key)
+            => _book.TryGet(key.Id, out var record) ? record.PlanFamiliarityXp + record.DrillFamiliarityXp : 0f;
+
+        /// <summary>The commander's current effective tier from stats + familiarity —
+        /// compared before/after a battle to surface tier-ups (D4 must be FELT).</summary>
+        public FidelityTier TierOf(CommanderKey key, int tactics, int leadership)
+        {
+            var record = _book.TryGet(key.Id, out var existing) ? existing : new CommanderRecord();
+            return ProgressionModel.TierFor(record, tactics, leadership);
+        }
+
         /// <summary>Commander death loses everything (D4): the record is forgotten, so a
         /// replacement captain starts green. No-op for a None key.</summary>
         public void OnCommanderLost(CommanderKey key) => _book.Forget(key.Id);

@@ -18,8 +18,8 @@ namespace RealisticBattlePlanning.Harness
         /// <summary>Battle-time cap (fast path under fast-forward): end a run that never resolves and has no scenario time limit.</summary>
         private const float BattleTimeCapSeconds = 300f;
 
-        /// <summary>Wall-clock backstop, independent of the monitor feed: ends the run even if that feed dies (a plan fault), so the cap can't be defeated by the failure it guards against.</summary>
-        private const float RealTimeCapSeconds = 180f;
+        /// <summary>Wall-clock backstop, independent of the monitor feed: ends the run even if that feed dies (a plan fault), so the cap can't be defeated by the failure it guards against. Generous enough that a run degraded to 1x (fast-forward lost) still completes its battle-time window.</summary>
+        private const float RealTimeCapSeconds = 300f;
 
         private PlanMissionLogic _host;
         private RunRecorder _recorder;
@@ -164,6 +164,17 @@ namespace RealisticBattlePlanning.Harness
             base.OnMissionTick(dt);
             if (_ended || _scenario == null)
                 return;
+
+            // Keep the fast-forward asserted: the engine CLEARS IsFastForward when
+            // the player agent takes control right after deployment
+            // (Mission.TakeControlOfAgent) — a one-shot set at OnDeploymentFinished
+            // silently lost the 9x and armed runs crawled at real time.
+            if (_deployed && !Mission.IsFastForward)
+            {
+                try { Mission.SetFastForwardingFromUI(true); }
+                catch (Exception) { /* cosmetic: the run still completes at 1x */ }
+            }
+
             var realSeconds = _deployed && _realClock != null ? (float)_realClock.Elapsed.TotalSeconds : 0f;
 
             var limit = _scenario.TimeLimitSeconds ?? 0f;

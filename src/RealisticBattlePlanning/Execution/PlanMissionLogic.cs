@@ -83,6 +83,21 @@ namespace RealisticBattlePlanning.Execution
         // command — hijacking the AI general's formations and colliding with RBM.
         private bool _plannable;
         private bool _battleCounted;
+
+        /// <summary>A commander's XP/tier at battle start, for the AAR growth lines
+        /// and tier-up toasts (persistent-hero commanders only).</summary>
+        private sealed class CommanderBaseline
+        {
+            public CommanderKey Key;
+            public string Name;
+            public int Tactics;
+            public int Leadership;
+            public float Xp;
+            public FidelityTier Tier;
+        }
+
+        private readonly System.Collections.Generic.Dictionary<PlannedFormationClass, CommanderBaseline> _tierBaseline = new();
+        private string _commanderSummary;
         private bool _deploymentFinished;
         private bool _isHarnessRun;
         private bool _fidelityActive;
@@ -138,7 +153,7 @@ namespace RealisticBattlePlanning.Execution
                 // was last applied (SessionPlanStore). The hand-written debug plan only loads when
                 // explicitly enabled for dev — never by default — so a fresh game has no plan.
                 _plan = harnessPlan
-                        ?? SessionPlanStore.CurrentFor(SessionKey())
+                        ?? CarriedPlan()
                         ?? (DebugPlanLoader.Enabled ? DebugPlanLoader.TryLoad() : null);
                 if (_plan == null)
                 {
@@ -229,6 +244,80 @@ namespace RealisticBattlePlanning.Execution
             _battleResult = missionResult.PlayerVictory ? "victory"
                 : missionResult.PlayerDefeated ? "defeat"
                 : missionResult.BattleState.ToString();
+            if (missionResult.BattleResolved)
+                ShowAfterActionPopup();
+        }
+
+        // The record completed for the popup, reused by OnRemoveBehavior so the
+        // recorder is never completed twice (a player who leaves before the battle
+        // resolves gets no popup — the log/file artifacts still cover that path).
+        private Harness.BattleRecord _completedRecord;
+        private bool _aarShown;
+
+        /// <summary>
+        /// B10: the After-Action Report as a one-click-dismissable popup the
+        /// moment the battle is decided — the payoff loop belongs on screen,
+        /// not in a log file. Skippable per spec; the full text also lands in
+        /// rbp.log and Logs\aar.txt at teardown. Progression concludes first so
+        /// the popup can carry the commanders' growth lines (D4 felt on screen).
+        /// </summary>
+        private void ShowAfterActionPopup()
+        {
+            if (_aarShown || _aarRecorder == null || !_aarRecorder.Started)
+                return;
+            _aarShown = true;
+            try
+            {
+                ConcludeProgression();
+                _completedRecord = _aarRecorder.Complete(_battleResult ?? "ended");
+                var text = AfterActionReport.Build(_completedRecord).Describe();
+                if (!string.IsNullOrEmpty(_commanderSummary))
+                    text += "\nCommanders:\n" + _commanderSummary;
+                InformationManager.ShowInquiry(new InquiryData(
+                    $"After-Action Report — {_battleResult}",
+                    text,
+                    true, false, "Close", null, null, null));
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Showing the After-Action popup failed.", e);
+            }
+        }
+
+        /// <summary>
+        /// Battle-end progression, once per battle whichever path runs first
+        /// (the AAR popup at result-ready, or teardown for an unresolved exit):
+        /// the still-executing final stages count as completed (fed to
+        /// progression only — harness timelines unchanged), service records
+        /// bump, and each persistent commander's growth is summarised — with a
+        /// toast when a tier was crossed (D4 pacing must be FELT, 10.1).
+        /// </summary>
+        private void ConcludeProgression()
+        {
+            if (_progression == null || !_deploymentFinished || _battleCounted)
+                return;
+            _battleCounted = true;
+
+            if (_monitor != null)
+                _progression.OnBattleEvents(_monitor.CompleteActiveStages(), _commanders);
+            _progression.OnBattleConcluded(_commanders);
+
+            if (_tierBaseline.Count == 0)
+                return;
+            var summary = new System.Text.StringBuilder();
+            foreach (var entry in _tierBaseline)
+            {
+                var baseline = entry.Value;
+                var xpGained = _progression.FamiliarityXpOf(baseline.Key) - baseline.Xp;
+                var tier = _progression.TierOf(baseline.Key, baseline.Tactics, baseline.Leadership);
+                summary.Append("  ").Append(baseline.Name)
+                       .Append(xpGained > 0f ? string.Format(System.Globalization.CultureInfo.InvariantCulture, "  +{0:0.#} plan familiarity", xpGained) : "  no familiarity gained")
+                       .Append(tier != baseline.Tier ? $"  — now {tier}!" : $"  ({tier})")
+                       .AppendLine();
+                if (tier > baseline.Tier)
+                    Notify($"{baseline.Name} is now {tier} at executing battle plans.");
+            }
+            _commanderSummary = summary.ToString();
         }
 
         /// <summary>
@@ -265,7 +354,7 @@ namespace RealisticBattlePlanning.Execution
                 // actually ran (recorder Started); harness runs use their own results path.
                 if (_aarRecorder != null && _aarRecorder.Started)
                 {
-                    var record = _aarRecorder.Complete(_battleResult ?? "ended");
+                    var record = _completedRecord ?? _aarRecorder.Complete(_battleResult ?? "ended");
                     var aarText = AfterActionReport.Build(record).Describe();
                     RbpLog.Info(aarText);
                     WriteBattleArtifacts(record, aarText);
@@ -293,19 +382,7 @@ namespace RealisticBattlePlanning.Execution
                 // D1 service record: count this battle once per commander who led a
                 // governed formation in it. Guarded so a re-entrant teardown can't
                 // double-count.
-                if (_progression != null && _deploymentFinished && !_battleCounted)
-                {
-                    _battleCounted = true;
-                    // The stage each formation is still executing at battle end
-                    // counts as completed (D4) — advancing off a stage is the only
-                    // other completion path, so a plan's final stage (and any
-                    // single-stage plan) would otherwise never earn familiarity.
-                    // Fed to progression only, never recorded: harness timelines
-                    // are unchanged.
-                    if (_monitor != null)
-                        _progression.OnBattleEvents(_monitor.CompleteActiveStages(), _commanders);
-                    _progression.OnBattleConcluded(_commanders);
-                }
+                ConcludeProgression();
             }
             catch (Exception e)
             {
@@ -374,6 +451,33 @@ namespace RealisticBattlePlanning.Execution
             }
         }
 
+        // ---- HUD read surface (B7/B9 legibility): cheap, engine-free reads the
+        // mission HUD polls a few times a second. All safe when inert (no plan).
+
+        /// <summary>The numpad-bound signals for the current plan (empty before deployment finishes).</summary>
+        internal System.Collections.Generic.IReadOnlyList<string> SignalPaletteSignals => _signalPalette;
+
+        /// <summary>True once the named signal has been raised this battle (latched).</summary>
+        internal bool SignalRaised(string signal) => _monitor?.SignalRaised(signal) == true;
+
+        internal bool DeploymentFinished => _deploymentFinished;
+
+        /// <summary>True while any governed formation sits suspended under player override (B5).</summary>
+        internal bool AnySuspended
+        {
+            get
+            {
+                if (_monitor == null)
+                    return false;
+                foreach (var (planned, _) in FormationClassMap.All)
+                {
+                    if (_monitor.Governs(planned) && _monitor.GetMode(planned) == FormationPlanMode.Suspended)
+                        return true;
+                }
+                return false;
+            }
+        }
+
         /// <summary>Console-facing resume (B5). Returns a user-readable response.</summary>
         internal string RequestResume(string formationArg)
         {
@@ -438,6 +542,7 @@ namespace RealisticBattlePlanning.Execution
                 return;
 
             PollSignalPalette();
+            PollResumeKey();
 
             _sinceLastMonitorTick += dt;
             if (_sinceLastMonitorTick < MonitorIntervalSeconds)
@@ -544,7 +649,7 @@ namespace RealisticBattlePlanning.Execution
             if (bark == null)
                 return;
             if (planEvent is PlanSuspended)
-                bark += $" (rbp.resume {planEvent.Formation})";
+                bark += " (Numpad5 resumes the plan)";
             Notify(bark);
         }
 
@@ -585,6 +690,30 @@ namespace RealisticBattlePlanning.Execution
             catch (Exception e)
             {
                 RbpLog.Error("[FAULT] Signal palette polling failed; use rbp.signal as the fallback.", e);
+            }
+        }
+
+        /// <summary>
+        /// B5 without the console: Numpad5 resumes every suspended formation
+        /// (Numpad0 is the planner toggle, Numpad1-4 the signal palette). Only
+        /// polled once something is actually suspended, so a stray press in
+        /// normal play costs nothing and says nothing.
+        /// </summary>
+        private void PollResumeKey()
+        {
+            if (!_deploymentFinished)
+                return;
+            try
+            {
+                if (!Input.IsKeyReleased(InputKey.Numpad5))
+                    return;
+                if (!AnySuspended)
+                    return;
+                Notify(RequestResume("all"));
+            }
+            catch (Exception e)
+            {
+                RbpLog.Error("[FAULT] Resume key polling failed; use rbp.resume as the fallback.", e);
             }
         }
 
@@ -702,6 +831,38 @@ namespace RealisticBattlePlanning.Execution
             if (_battleSeed == null)
                 _battleSeed = FidelityConfig.NextBattleSeed();
             return _battleSeed.Value;
+        }
+
+        /// <summary>
+        /// The session-carried plan, run through the A3.9 carry hygiene: this is a
+        /// NEW battlefield, so map-specific (Scene-basis) anchors — and the stages
+        /// wired to them — are dropped rather than marching formations to the
+        /// previous map's coordinates. Relative anchors adapt and pass through.
+        /// Returns null when nothing (usable) is carried.
+        /// </summary>
+        private BattlePlan CarriedPlan()
+        {
+            var carried = SessionPlanStore.CurrentFor(SessionKey());
+            if (carried == null)
+                return null;
+
+            var result = PlanRemapper.StripSceneAnchors(carried);
+            if (result.Changed)
+            {
+                var dropped = result.EmptiedFormations.Count > 0
+                    ? $"; {string.Join(", ", result.EmptiedFormations)} now uncommanded"
+                    : "";
+                var summary = $"Last battle's plan carried over — {result.RemovedAnchors.Count} map-specific waypoint(s) " +
+                              $"and {result.RemovedStages} stage(s) dropped (new battlefield){dropped}.";
+                RbpLog.Info(summary);
+                Notify(summary);
+            }
+            else if (result.Plan.Formations.Count > 0)
+            {
+                Notify("Last battle's plan carried over — open the planner (Numpad0) to review it.");
+            }
+
+            return result.Plan.Formations.Count > 0 ? result.Plan : null;
         }
 
         /// <summary>
@@ -849,6 +1010,18 @@ namespace RealisticBattlePlanning.Execution
                     ? _progression.ProfileFor(key, tactics, leadership)
                     : CommanderProfile.FromStats(tactics, leadership);
                 _monitor.SetCommander(formationPlan.Formation, profile);
+                // Battle-start baseline for the AAR's growth lines + tier-up toasts
+                // (D4 must be felt): XP and tier before this battle's awards.
+                if (_progression != null && key.IsPersistent)
+                    _tierBaseline[formationPlan.Formation] = new CommanderBaseline
+                    {
+                        Key = key,
+                        Name = character?.Name?.ToString() ?? formationPlan.Formation.ToString(),
+                        Tactics = tactics,
+                        Leadership = leadership,
+                        Xp = _progression.FamiliarityXpOf(key),
+                        Tier = _progression.TierOf(key, tactics, leadership),
+                    };
                 RbpLog.Info($"[{formationPlan.Formation}] commander {character?.Name?.ToString() ?? "(none)"}: " +
                             $"Tactics {tactics}, Leadership {leadership} -> {profile.Competence}" +
                             (_progression != null && key.IsPersistent ? " (with earned familiarity)" : "") + ".");

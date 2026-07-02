@@ -104,6 +104,7 @@ namespace RealisticBattlePlanning.UI
         // --- Out-of-boundary waypoint gesture (mirrors the vanilla placer's down/drag/up) ----
         private bool _isMouseDown;
         private bool _gestureActive;
+        private bool _gestureHintShown; // one gesture cue per battle (R5 discoverability)
         private bool _stickyPreview; // dev-only: keep a one-shot preview visible for a screenshot
         private WorldPosition _gestureStart;
         private bool _rightDown;
@@ -147,6 +148,17 @@ namespace RealisticBattlePlanning.UI
             var overWaypoint = hasWorld && SelectedCount() > 0 && (_gestureActive || !IsInsideBoundary(world));
 
             UpdateVanillaCursor(overWaypoint);
+
+            // Discoverability (R5): the mod's most intuitive interaction — planning a
+            // march by clicking/dragging past the deployment line — is invisible without
+            // a cue. One message, the first time per battle the cursor is in position.
+            if (overWaypoint && !_gestureHintShown)
+            {
+                _gestureHintShown = true;
+                TaleWorlds.Library.InformationManager.DisplayMessage(new TaleWorlds.Library.InformationMessage(
+                    "Beyond the deployment line: click or drag to plan a march there (right-click a flag removes it).",
+                    TaleWorlds.Library.Colors.Cyan));
+            }
 
             if (input.IsKeyPressed(InputKey.LeftMouseButton))
             {

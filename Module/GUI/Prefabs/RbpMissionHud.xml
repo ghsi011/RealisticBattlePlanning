@@ -1,0 +1,64 @@
+<Prefab>
+  <!--
+    Always-on mission HUD (non-focus, mouse-only layer; see RbpHudView):
+      - "Battle Plan" entry chip bottom-centre during deployment (A1.1's
+        on-screen twin of the Numpad0 keybind), above the Ready bar.
+      - Signal-palette legend top-centre once the battle runs (B9): one pill
+        per numpad-bound signal, check-marked once fired (signals latch).
+      - "Resume plan" chip bottom-centre while any formation is suspended (B5).
+    Chips are ButtonWidgets (DoNotPassEventsToChildren so the click fires);
+    empty space passes through to the game.
+  -->
+  <Window>
+    <Widget WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent">
+      <Children>
+
+        <!-- Deployment entry chip -->
+        <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteOpenPlanner" IsVisible="@ShowEntry"
+                      Brush="Rbp.Btn.Confirm"
+                      WidthSizePolicy="Fixed" SuggestedWidth="250" HeightSizePolicy="Fixed" SuggestedHeight="42"
+                      HorizontalAlignment="Center" VerticalAlignment="Bottom" MarginBottom="112">
+          <Children>
+            <TextWidget Text="@EntryText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="19" Brush.FontColor="#EDF6DDFF"
+                        Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+          </Children>
+        </ButtonWidget>
+
+        <!-- Mid-battle resume chip (only while something is suspended) -->
+        <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteResumeAll" IsVisible="@ShowResume"
+                      Brush="Rbp.Btn.Neutral"
+                      WidthSizePolicy="Fixed" SuggestedWidth="250" HeightSizePolicy="Fixed" SuggestedHeight="38"
+                      HorizontalAlignment="Center" VerticalAlignment="Bottom" MarginBottom="64">
+          <Children>
+            <TextWidget Text="@ResumeText" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                        Brush="AgentHUD.Interaction.Text" Brush.FontSize="17" Brush.FontColor="#EFD9A7FF"
+                        Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+          </Children>
+        </ButtonWidget>
+
+        <!-- Signal-palette legend -->
+        <Widget IsVisible="@ShowPalette" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
+                HorizontalAlignment="Center" VerticalAlignment="Top" MarginTop="8">
+          <Children>
+            <ListPanel DataSource="{Pills}" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
+                       StackLayout.LayoutMethod="HorizontalLeftToRight">
+              <ItemTemplate>
+                <Widget WidthSizePolicy="CoverChildren" HeightSizePolicy="Fixed" SuggestedHeight="30"
+                        MarginLeft="3" MarginRight="3" Sprite="BlankWhiteSquare_9" Color="#14110CD9">
+                  <Children>
+                    <TextWidget Text="@Label" WidthSizePolicy="CoverChildren" HeightSizePolicy="StretchToParent"
+                                MarginLeft="12" MarginRight="12"
+                                Brush="AgentHUD.Interaction.Text" Brush.FontSize="16" Brush.FontColor="#E4D9BCFF"
+                                Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                  </Children>
+                </Widget>
+              </ItemTemplate>
+            </ListPanel>
+          </Children>
+        </Widget>
+
+      </Children>
+    </Widget>
+  </Window>
+</Prefab>

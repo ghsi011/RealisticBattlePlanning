@@ -148,6 +148,10 @@ namespace RealisticBattlePlanning.Execution
             return FormationPlanMode.Active;
         }
 
+        /// <summary>True when the signal has been raised this battle (signals latch, A3.4) — the HUD's palette pills read this.</summary>
+        public bool SignalRaised(string signal)
+            => signal != null && (_signals.Contains(signal) || _pendingSignals.Contains(signal));
+
         /// <summary>True when this formation has stages in the plan.</summary>
         public bool Governs(PlannedFormationClass formation)
         {

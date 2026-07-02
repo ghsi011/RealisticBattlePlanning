@@ -21,8 +21,9 @@ namespace RealisticBattlePlanning.UI
         public MapVec AttackDirection = new(0f, 1f);
         public readonly Dictionary<PlannedFormationClass, MapVec> FormationPositions = new();
         // Enemy formations: world position + representative class (for the map glyph; null
-        // if the class doesn't map to a plannable slot).
-        public readonly List<(MapVec Pos, PlannedFormationClass? Cls)> EnemyFormations = new();
+        // if the class doesn't map to a plannable slot) + unit count (vanilla deployment
+        // already shows enemy strength, A2.1 — the map rounds it for fog-of-war feel).
+        public readonly List<(MapVec Pos, PlannedFormationClass? Cls, int Count)> EnemyFormations = new();
         // Faction colours (Gauntlet #RRGGBBAA) for the marker blocks — the live team banner
         // colours, so the map reads like the army's own staff map. Defaults are a clear
         // friend-blue / foe-red if the live colours can't be read.
@@ -81,7 +82,7 @@ namespace RealisticBattlePlanning.UI
                             if (formation.CountOfUnits == 0)
                                 continue;
                             var position = ToMapVec(formation.CurrentPosition);
-                            geo.EnemyFormations.Add((position, FormationClassMap.ToPlanned(formation.RepresentativeClass)));
+                            geo.EnemyFormations.Add((position, FormationClassMap.ToPlanned(formation.RepresentativeClass), formation.CountOfUnits));
                             enemySum += position;
                             enemyCount++;
                         }

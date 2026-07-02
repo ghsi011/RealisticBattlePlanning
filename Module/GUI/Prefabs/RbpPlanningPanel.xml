@@ -348,6 +348,16 @@
                                 VerticalAlignment="Top" MarginTop="4"
                                 Brush="AgentHUD.Interaction.Text" Brush.FontSize="12" Brush.FontColor="#6B5A3CCC"
                                 Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                    <!-- one-click whole-army selection (toggles) -->
+                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteSelectAll" Brush="Rbp.Btn.Neutral"
+                                  WidthSizePolicy="Fixed" SuggestedWidth="56" HeightSizePolicy="Fixed" SuggestedHeight="24"
+                                  HorizontalAlignment="Left" VerticalAlignment="Top" MarginLeft="6" MarginTop="3">
+                      <Children>
+                        <TextWidget Text="All" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
+                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="14" Brush.FontColor="#D7E1EDFF"
+                                    Brush.TextHorizontalAlignment="Center" Brush.TextVerticalAlignment="Center" />
+                      </Children>
+                    </ButtonWidget>
                     <!-- enemy markers (drawn first, under the friendly ones) -->
                     <ListPanel DataSource="{EnemyMarkers}" WidthSizePolicy="StretchToParent" HeightSizePolicy="StretchToParent"
                                HorizontalAlignment="Left" VerticalAlignment="Top" StackLayout.LayoutMethod="VerticalTopToBottom">
@@ -367,6 +377,12 @@
                                 <Widget IsVisible="@HasIcon" WidthSizePolicy="Fixed" SuggestedWidth="20" HeightSizePolicy="Fixed" SuggestedHeight="20"
                                         HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Sprite="@ClassIcon" Color="#F0E0D0FF" />
+                                <!-- rounded strength ("~120") under the block: informed
+                                     planning without exact scouting (A2.1) -->
+                                <TextWidget IsVisible="@HasSub" Text="@Sub" WidthSizePolicy="CoverChildren" HeightSizePolicy="CoverChildren"
+                                            HorizontalAlignment="Center" VerticalAlignment="Bottom" PositionYOffset="16"
+                                            Brush="AgentHUD.Interaction.Text" Brush.FontSize="11" Brush.FontColor="#D89890FF"
+                                            Brush.TextHorizontalAlignment="Center" />
                               </Children>
                             </Widget>
                           </Children>
@@ -495,7 +511,16 @@
                 <ListPanel WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
                            VerticalAlignment="Top" MarginTop="8" StackLayout.LayoutMethod="VerticalTopToBottom">
                   <Children>
-                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditSignals" Brush="Rbp.Field"
+                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditPatterns" Brush="Rbp.Field"
+                                  WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren">
+                      <Children>
+                        <TextWidget Text="@PatternsText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"
+                                    MarginLeft="6" MarginRight="6" MarginTop="1" MarginBottom="1"
+                                    Brush="AgentHUD.Interaction.Text" Brush.FontSize="15" Brush.FontColor="#B8AE7EFF"
+                                    Brush.TextHorizontalAlignment="Left" />
+                      </Children>
+                    </ButtonWidget>
+                    <ButtonWidget DoNotPassEventsToChildren="true" Command.Click="ExecuteEditSignals" Brush="Rbp.Field" MarginTop="3"
                                   WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren">
                       <Children>
                         <TextWidget Text="@SignalsText" WidthSizePolicy="StretchToParent" HeightSizePolicy="CoverChildren"

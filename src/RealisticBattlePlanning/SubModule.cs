@@ -107,6 +107,8 @@ namespace RealisticBattlePlanning
                         // Alternative authoring surface: plan move orders on the deployment
                         // field by extending the vanilla placement gesture (field-planning-design.md).
                         mission.AddMissionBehavior(new UI.FieldDeploymentPlanView());
+                        // Always-on HUD: Battle Plan entry chip, signal legend, resume chip.
+                        mission.AddMissionBehavior(new UI.RbpHudView());
                     }
                 }
                 else
